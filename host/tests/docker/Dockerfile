@@ -20,6 +20,9 @@ COPY claude /usr/local/bin/claude
 COPY claude-old /usr/local/bin/claude-old
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod 755 /usr/local/bin/claude /usr/local/bin/claude-old /entrypoint.sh
+# the old stub under the name `claude`: the script recognises the agent by the
+# basename of the command, so tests run it as /opt/claude-old/bin/claude
+RUN mkdir -p /opt/claude-old/bin && ln -s /usr/local/bin/claude-old /opt/claude-old/bin/claude
 
 EXPOSE 22
 ENTRYPOINT ["/entrypoint.sh"]

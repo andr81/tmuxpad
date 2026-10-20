@@ -45,7 +45,9 @@ shellcheck, tmux 3.4 и sshd. Поэтому план закрывает §7 с�
 4. **Заглушка `claude`** в образе: `/usr/local/bin/claude` пишет `pwd`, аргументы и наличие
    `CLAUDE_CODE_OAUTH_TOKEN` в `~/claude-args.log` и делает `exec sleep infinity`;
    `--help` печатает строку с `--name`, `--version` → `2.1.0 (stub)`. Вторая заглушка
-   `claude-old` — то же без `--name` в `--help`, для ветки «старый Claude Code».
+   `claude-old` — то же без `--name` в `--help`, для ветки «старый Claude Code»; в образе
+   есть симлинк `/opt/claude-old/bin/claude` на неё, и тесты зовут её этим путём — по
+   решению 5 basename должен быть `claude`, иначе флаги не добавляются.
 5. **Флаги `-n`/`--session-id`/`--resume` добавляются, только если первое слово
    `TMUXPAD_CMD` — `claude`** (по basename). Иная команда запуска идёт как есть, файл
    `NAME.claude` не создаётся. Проверка поддержки `-n`: `bash -lc '<cmd> --help' | grep -q
@@ -212,10 +214,10 @@ host/tests/run.sh -k test_list_others              # один тест (подс
 
 **Файлы:** `host/tmuxpad-host.sh`, `host/tests/cases/setup.sh` (create).
 
-- [ ] `tmux_version` → печатает `MAJOR.MINOR` из `tmux -V` по regex `([0-9]+)\.([0-9]+)`
+- [x] `tmux_version` → печатает `MAJOR.MINOR` из `tmux -V` по regex `([0-9]+)\.([0-9]+)`
       (для `next-3.5` → `3.5`); `version_ge A B` — сравнение по двум числам без `sort -V`
       (его нет в busybox-подобных окружениях, а bash-арифметики достаточно).
-- [ ] `doctor`: TSV-строки `ok|warn|fail\t<key>\t<message>`, ключи и правила:
+- [x] `doctor`: TSV-строки `ok|warn|fail\t<key>\t<message>`, ключи и правила:
       `tmux` — нет → fail, `< 3.1` → fail (`tmux 3.0a found, 3.1 required`), иначе ok с версией;
       `claude` — `bash -lc "command -v <первое слово CMD>"` (login-шелл, как у pane tmux;
       ssh-шелл для exec — не login) → fail если нет; `claude_name` — `bash -lc "<cmd> --help"
@@ -224,18 +226,18 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       `script` — ok `tmuxpad-host 1`. Код выхода 1, если есть хотя бы один `fail`, иначе 0.
       Проверка `claude` пропускается (ok `custom command`), если первое слово CMD не
       `claude` (решение 5).
-- [ ] `setup`: `mkdir -p "$STATE" "$STATE/clients" "$PROJECTS"`; блок в `~/.tmux.conf` между
+- [x] `setup`: `mkdir -p "$STATE" "$STATE/clients" "$PROJECTS"`; блок в `~/.tmux.conf` между
       маркерами `# tmuxpad: begin` … `# tmuxpad: end` (перенос `end_newline` из рецепта):
       `set -g set-clipboard on`, `set -g history-limit 50000`, и `set -g allow-passthrough on`
       **только** при `version_ge $(tmux_version) 3.3` — старый tmux на неизвестной опции
       прекращает читать конфиг. Повторный запуск блок не дублирует (проверка по маркеру).
       Никаких правок `~/.profile`, `~/.claude/settings.json`, `~/.ssh`. В конце — `doctor`,
       его код выхода становится кодом `setup`.
-- [ ] `auth` — перенос из рецепта один в один, с путём `$STATE/env`: `umask 077`, токен одной
+- [x] `auth` — перенос из рецепта один в один, с путём `$STATE/env`: `umask 077`, токен одной
       строкой со stdin, regex `^[A-Za-z0-9_-]+$` иначе `exit 2`, перезапись строки
       `export CLAUDE_CODE_OAUTH_TOKEN='…'` через `.tmp` + `mv`, `chmod 600`, сообщение
       `token stored in …`.
-- [ ] Тесты `setup.sh`: `test_setup_tmux_conf_block` (после двух `h setup` маркер `# tmuxpad:
+- [x] Тесты `setup.sh`: `test_setup_tmux_conf_block` (после двух `h setup` маркер `# tmuxpad:
       begin` встречается один раз; `set-clipboard on` и `history-limit 50000` есть;
       `allow-passthrough` есть тогда и только тогда, когда `r tmux -V` ≥ 3.3 — ветвление в
       тесте по версии); `test_setup_leaves_profile_alone` (`~/.profile` до и после `setup`
@@ -243,14 +245,14 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       (`~/.tmuxpad/clients`, `~/projects`); `test_doctor_ok` (все строки `ok`, код 0, строка
       `projects` содержит `3` — `README.md` не проект); `test_doctor_no_projects_root`
       (`PROJECTS=nope h doctor` → строка `fail\tprojects`, код 1);
-      `test_doctor_old_claude` (`CMD=claude-old h doctor` → `warn\tclaude_name`, код 0);
+      `test_doctor_old_claude` (`CMD=/opt/claude-old/bin/claude h doctor` → `warn\tclaude_name`, код 0);
       `test_doctor_custom_cmd` (`CMD='sleep 1000' h doctor` → `ok\tclaude\tcustom command`);
       `test_auth_stores_token` (`printf 'sk-abc_1\n' | h auth` → файл `~/.tmuxpad/env` с правами
       `600` и ровно одной строкой `export CLAUDE_CODE_OAUTH_TOKEN='sk-abc_1'`; второй `auth` с
       другим токеном заменяет строку, строк по-прежнему одна); `test_auth_rejects_garbage`
       (`printf 'bad token\n' | h auth` → 2, файла нет). Для stdin в `h` — передавать через
       пайп, ssh его пробрасывает.
-- [ ] shellcheck чист, оба прогона `run.sh` зелёные (24.04 и 22.04 — именно здесь ветка
+- [x] shellcheck чист, оба прогона `run.sh` зелёные (24.04 и 22.04 — именно здесь ветка
       `allow-passthrough` расходится); коммит.
 
 ### Task 3: `list` и учёт клиентов
@@ -323,7 +325,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       (то же без транскрипта → новый uuid в файле и в `--session-id`);
       `test_new_other_project_gets_new_uuid` (`new x api`, `kill-session`, `new x web` → файл
       `<new uuid>\tweb`, флаг `--session-id`, даже если транскрипт старого uuid лежит);
-      `test_new_old_claude_unnamed` (`CMD=claude-old` → аргументы без `-n`, с `--session-id`);
+      `test_new_old_claude_unnamed` (`CMD=/opt/claude-old/bin/claude` → аргументы без `-n`, с `--session-id`);
       `test_new_custom_cmd` (`CMD='sleep 1000'` → `#{pane_current_command}` = `sleep` в
       течение 5 с, файла `api.claude` нет, лога нет); `test_new_rejects_quote`
       (`CMD="it's" h new api api` → 2); `test_new_sources_env` (`printf 'tok_1\n' | h auth`,

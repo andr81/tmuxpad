@@ -113,7 +113,7 @@
 
 - Аппаратная клавиатура: полный ввод, Esc, Ctrl-комбинации, Option как Meta (настройка). `⌘`-шорткаты приложения перехватываются, остальное уходит в терминал.
 - Экранная клавиатура: `inputAccessoryView` с Esc / Ctrl (залипающий) / Tab / стрелки / `|` `~` `/` `-`.
-- Скролл одним пальцем → колесо мыши в tmux. SwiftTerm делает это сам: при `allowMouseReporting = true` (по умолчанию) и включённой мыши в приложении вертикальный drag одним пальцем уходит как wheel-события. Со стороны tmux нужен `set -g mouse on` (ставит `setup`). Двумя пальцами SwiftTerm листает свой локальный буфер; под tmux он почти пустой, поэтому основной жест — один палец.
+- Скролл одним пальцем → колесо мыши в tmux. SwiftTerm делает это сам: при `allowMouseReporting = true` (по умолчанию) и включённой мыши в приложении вертикальный drag одним пальцем уходит как wheel-события. Со стороны tmux нужна мышь в сессии: `new` и `attach` ставят session-опцию `mouse on` (`set -t =NAME: mouse on`); глобальный `mouse` в `~/.tmux.conf` `setup` не трогает. Двумя пальцами SwiftTerm листает свой локальный буфер; под tmux он почти пустой, поэтому основной жест — один палец.
 - **Выход из copy-mode.** Ввод в copy-mode tmux **не** выводит из него, клавиши глотаются (проверено на tmux 3.4); выходят `q`, Esc или прокрутка вниз до конца. Поэтому после первого wheel-up приложение считает, что pane в copy-mode, показывает над терминалом чип «Прокрутка ✕» и перед первым вводом с клавиатуры (или по тапу на чип) выполняет `host copy-cancel NAME` через exec-канал, дожидается завершения и только затем отправляет ввод в PTY. Чип скрывается после ввода или тапа; если пользователь сам долистал до конца и copy-mode уже закрылся, чип может остаться до следующего ввода — допустимо, `copy-cancel` в этом случае ничего не делает. Биндинги tmux не трогаем: таблицы клавиш глобальные и сломали бы copy-mode пользователю на Mac.
 - Выделение текста → копирование. Буфер обмена с сервера через OSC 52 (`set-clipboard on` уже в рецепте).
 - Pinch — размер шрифта. Одно значение на устройство (UserDefaults), общее для всех серверов и сессий; меняется сразу во всех открытых терминалах.
@@ -282,7 +282,7 @@ iPadOS замораживает приложение в фоне; сокеты �
 
 У tmux ≥ 3.1 опция `window-size` по умолчанию `latest`: окно берёт размер клиента с последней активностью. Поэтому к сессии могут быть подключены iPad и Mac одновременно, и «сжатия» окна, ради которого рецепт делает `attach -d`, не происходит; зависший после сна клиент iPad ничего не вводит и размер не диктует. Правило: **приложение подключается без `-d` и выкидывает только собственных клиентов этого устройства; чужой клиент выкидывается только по явному действию пользователя («Забрать»).**
 
-- `attach NAME` перед `exec tmux attach-session -t =NAME` делает `detach-client` для клиентов сессии, у которых PID-файл в `~/.tmuxpad/clients/` содержит текущий `TMUXPAD_CLIENT` (зависшие клиенты этого же iPad), и выставляет `window-size latest` на окне сессии — на случай, если пользователь глобально поставил `smallest`.
+- `attach NAME` перед `exec tmux attach-session -t =NAME` делает `detach-client` для клиентов сессии, у которых PID-файл в `~/.tmuxpad/clients/` содержит текущий `TMUXPAD_CLIENT` (зависшие клиенты этого же iPad), и выставляет `window-size latest` на каждом окне сессии — на случай, если пользователь глобально поставил `smallest`.
 - Возврат из фона, смена сети, перезапуск приложения: переподключаемся ко всем открытым сессиям молча, независимо от `others`.
 - Нас выбил чужой `attach -d` (канал закрылся с 0, сессия жива): один раз переподключаемся молча. Если это повторилось в течение минуты, на другом устройстве нас выбивают намеренно: плашка «Отключено другим клиентом», кнопки «Переподключить» / «Забрать» (`take`) / «Закрыть».
 - «Забрать» в контекст-меню сессии и в меню `[⋯]` — единственный путь к `attach -d` (`take` в §7). Тап по сессии в дереве и мастер «Подключиться» делают обычный `attach`.
@@ -303,7 +303,7 @@ tmuxpad-host.sh list                 → TSV, см. ниже
 tmuxpad-host.sh new NAME PROJECT     → создать tmux-сессию, запустить агента; exit 3 если уже есть
 tmuxpad-host.sh attach NAME          → выкинуть своих зависших клиентов, exec tmux attach-session -t =NAME; exit 4 если нет
 tmuxpad-host.sh take NAME            → то же, но attach-session -d: выкидывает всех (кнопка «Забрать»)
-tmuxpad-host.sh copy-cancel NAME     → tmux send-keys -t '=NAME:' -X cancel; всегда exit 0 (§3.5)
+tmuxpad-host.sh copy-cancel NAME     → tmux send-keys -t '=NAME:' -X cancel; exit 0 и вне copy-mode, 2 — неверное имя (§3.5)
 tmuxpad-host.sh kill NAME            → убить сессию и её state-файлы
 tmuxpad-host.sh setup                → идемпотентная подготовка, отчёт-чеклист
 tmuxpad-host.sh auth                 → токен Claude со stdin → ~/.tmuxpad/env (0600)
@@ -312,17 +312,25 @@ tmuxpad-host.sh doctor               → проверки: tmux≥3.1, claude в
 
 Переменные из окружения команды (приложение передаёт их явно в exec-строке): `TMUXPAD_PROJECTS`, `TMUXPAD_CMD`, `TMUXPAD_CLIENT` (UUID устройства, §5; скрипт проверяет его по regex UUID).
 
+Уточнения при реализации (план `docs/plans/completed/20261020-host-script.md`, решения 5–8):
+- коды выхода: 2 — неверные аргументы, имена или окружение (в том числе `list` без корня проектов, `attach`/`take` без `TMUXPAD_CLIENT`); 3 — `new`, сессия уже есть (в том числе если параллельный `new` с тем же именем успел первым); 4 — `attach`/`take`, сессии нет; `kill` несуществующей сессии и `copy-cancel` вне copy-mode — 0; прочие ошибки tmux и записи файлов состояния (`new`, `auth`) — 1;
+- `TMUXPAD_CLIENT` обязателен для `attach` и `take`; `list` без него считает всех клиентов чужими;
+- флаги `-n`/`--session-id`/`--resume` добавляются, только если basename первого слова `TMUXPAD_CMD` — `claude`; иная команда запускается как есть, `NAME.claude` не создаётся;
+- `doctor` — TSV `ok|warn|fail<TAB>KEY<TAB>MESSAGE` (ключи `tmux`, `claude`, `claude_name`, `projects`, `script`), код 1 при любом `fail`; отсутствие `--name` у claude — `warn`; строка `claude_name` есть, только когда команда — `claude` и он найден: при своей `TMUXPAD_CMD` — `ok claude custom command` без `claude_name`, при ненайденном claude — `fail claude`;
+- `list` пропускает сессии с именем, не проходящим валидацию (сделанные руками, например `my work`): `attach`/`kill` их всё равно не примут;
+- `new` на stdout ничего не печатает: контракт — состояние на диске и код выхода.
+
 **`attach NAME`** по шагам:
-1. `tmux has-session -t =NAME` → иначе `exit 4`;
-2. чистка: файлы в `~/.tmuxpad/clients/`, PID-ов которых нет в `tmux list-clients`, удаляются (то же делает `list`);
+1. `TERM`, который не знает `infocmp`, заменяется на `xterm-256color` (с ним падает любая команда tmux, `has-session` тоже); `tmux has-session -t =NAME` → иначе `exit 4`;
+2. чистка: файлы в `~/.tmuxpad/clients/`, PID-ов которых нет в `tmux list-clients`, удаляются (то же делает `list`); исключения — PID, который ещё исполняет сам скрипт до `exec` (`/proc/<pid>/cmdline` содержит `tmuxpad-host`), и PID, который уже tmux-клиент после `exec`, но сервер его ещё не перечислил (`/proc/<pid>/comm` — `tmux` или `tmux: client`, tmux переименовывает клиента сразу после старта): иначе `list` или `attach`, идущие параллельно с `attach`, сняли бы метку с клиента;
 3. свои зомби: `tmux list-clients -t =NAME -F '#{client_pid}\t#{client_tty}'`, для PID-ов, чей файл содержит текущий `TMUXPAD_CLIENT`, — `tmux detach-client -t <tty>`;
-4. `tmux set -t =NAME mouse on` и `tmux set -w -t '=NAME:' window-size latest`;
+4. `tmux set -t =NAME: mouse on` и `tmux set -w -t <окно> window-size latest` для каждого окна из `tmux list-windows -t =NAME`;
 5. UUID устройства → `~/.tmuxpad/clients/$$`; из-за `exec` PID tmux-клиента совпадает с `$$`, так что файл однозначно связывает клиента tmux с устройством;
 6. `exec tmux attach-session -t =NAME`.
 
 **`take NAME`** — те же шаги с `attach-session -d`.
 
-Таргеты pane и окна в tmux-командах — `=NAME:`: голый `=NAME` для `send-keys -X`, `set -w` и подобных трактуется как pane и даёт `can't find pane` (проверено на 3.4). Для `has-session`, `attach-session`, `kill-session` и session-опций — `=NAME`.
+Таргеты pane и окна, а также `set`/`show` любых опций (включая session-опцию `mouse`) — `=NAME:`: голый `=NAME` даёт `can't find pane` или `no such session` (проверено на 3.4). Для `has-session`, `attach-session`, `kill-session`, `list-clients -t`, `list-windows -t` — `=NAME`.
 
 **`list`** — расширенный формат (версионированный заголовок, чтобы менять без поломок):
 ```
@@ -330,12 +338,12 @@ V	1
 S	<name>	<others>	<project>	<activity_epoch>
 P	<project>	<abs_path>
 ```
-tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_activity}`; фильтр «path лежит прямо в корне проектов» — как в рецепте, но корень и `session_path` сравниваются после `realpath`, иначе симлинк в пути ломает фильтр. `activity` нужен приложению для сортировки сессий в мастере «Подключиться» и подписи «активность N мин назад». `others` — число клиентов сессии из `tmux list-clients -F '#{session_name}\t#{client_pid}'`, у которых нет файла в `~/.tmuxpad/clients/` с текущим `TMUXPAD_CLIENT`. Клиенты рецепта agterm и обычного `tmux attach` с Mac всегда чужие.
+tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_activity}`; фильтр «path лежит прямо в корне проектов» — как в рецепте, но корень и родитель `session_path` сравниваются после `realpath`, иначе симлинк в пути ломает фильтр; последний компонент не раскрывается, поэтому проект-симлинк остаётся под своим именем. `activity` нужен приложению для сортировки сессий в мастере «Подключиться» и подписи «активность N мин назад». `others` — число клиентов сессии из `tmux list-clients -F '#{session_name}\t#{client_pid}'`, у которых нет файла в `~/.tmuxpad/clients/` с текущим `TMUXPAD_CLIENT`. Клиенты рецепта agterm и обычного `tmux attach` с Mac всегда чужие.
 
 **`new NAME PROJECT`** — по шагам из запроса:
 1. валидация имени и проекта, проверка `[[ -d $PROJECTS/$PROJECT ]]`;
-2. `tmux has-session -t =NAME` → если есть, `exit 3` (приложение предложит подключиться);
-3. `pane=$(tmux new-session -d -P -F '#{pane_id}' -s NAME -c DIR)` — tmux-сессия с именем, сразу в папке проекта; затем `tmux set -t =NAME mouse on`;
+2. `tmux has-session -t =NAME` → если есть, `exit 3` (приложение предложит подключиться); если `new-session` на шаге 3 упал, а сессия уже есть (гонка двух `new`) — тоже `exit 3`;
+3. `pane=$(tmux new-session -d -P -F '#{pane_id}' -s NAME -c DIR)` — tmux-сессия с именем, сразу в папке проекта; затем `tmux set -t =NAME: mouse on`;
 4. UUID разговора: `~/.tmuxpad/NAME.claude` — строка `<uuid>\t<project>`, создаётся при первом `new`, хранится до `kill`. Если файл есть, но проект в нём другой (сессию убили руками через tmux и создали с тем же именем в другом проекте) — новый UUID и перезапись файла: Claude Code резюмит по UUID из любого каталога (проверено на 2.1.304), и без этого в новый проект приехал бы разговор старого. Источник UUID — `/proc/sys/kernel/random/uuid` (есть на любом Linux), `uuidgen` не нужен;
 5. `tmux send-keys -t $pane "sh -c '[ -f ~/.tmuxpad/env ] && . ~/.tmuxpad/env; exec $CMD <флаги>'" Enter` — claude стартует внутри login-шелла, поэтому его выход не убивает tmux-сессию.
 
@@ -353,7 +361,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 
 Разделение `new` и `attach` (в рецепте это одна команда) нужно, чтобы приложение отличало «создал» от «подключился» и корректно показывало конфликт имён.
 
-**`setup`** пишет в `~/.tmux.conf` помеченный идемпотентный блок: `set-clipboard on`, `history-limit 50000`, и `allow-passthrough on` только при `tmux -V` ≥ 3.3. Глобально `mouse` **не** включает: это сломало бы выделение мышью в tmux-сессиях пользователя на Mac; `mouse` — session-опция, её ставят `new` и `attach` на конкретную сессию. `~/.profile` не трогает: `new` сам сорсит `~/.tmuxpad/env`. Не трогает `~/.claude/settings.json` (хуки статуса — бэклог), `known_hosts` и ssh-agent.
+**`setup`** пишет в `~/.tmux.conf` помеченный идемпотентный блок: `set-clipboard on`, `history-limit 50000`, и `allow-passthrough on` только при `tmux -V` ≥ 3.3. Если tmux-сервер уже запущен, при добавлении блока те же опции ставятся ему через `tmux set -g`: конфиг он прочитал до блока. Глобально `mouse` **не** включает: это сломало бы выделение мышью в tmux-сессиях пользователя на Mac; `mouse` — session-опция, её ставят `new` и `attach` на конкретную сессию. `~/.profile` не трогает: `new` сам сорсит `~/.tmuxpad/env`. Не трогает `~/.claude/settings.json` (хуки статуса — бэклог), `known_hosts` и ssh-agent.
 
 **Установка из приложения**: exec `mkdir -p ~/.local/bin && cat > ~/.local/bin/tmuxpad-host.sh && chmod +x …` со скриптом в stdin, затем `setup`. При каждом подключении `version` → если старше бандла, предложить обновить.
 
@@ -408,7 +416,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 
 Исполнение — планами ralphex в `docs/plans/` (формат: Overview с решениями, Context, задачи с чекбоксами):
 
-1. `20261020-host-script.md` — host-скрипт и Docker-стенд (фаза 2 целиком, часть фазы 0). Linux.
+1. `completed/20261020-host-script.md` — host-скрипт и Docker-стенд (фаза 2 целиком, часть фазы 0). Linux.
 2. `TmuxPadCore` — пакет ядра по §5.2: `HostAPI`, `ConnectionPool`, `HostBootstrap`, модели, тесты против стенда плана 1 (фаза 1 без Keychain/SE, ядро фаз 4–5). Linux.
 3. Приложение: Xcode-проект, UI, терминал, ключи, жизненный цикл поверх ядра (фазы 0, 3, 4, 5, 6 в части UI). Mac.
 
@@ -423,7 +431,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 - [ ] Два клиента на одной сессии с `window-size latest`: iPad + Mac, размер следует за тем, кто печатает; зависший клиент размер не меняет; `detach-client -t <tty>` по PID-файлу выкидывает только своего.
 - [ ] Exec-пинг `true` на Citadel: время ответа, поведение при выключенном Wi-Fi (через сколько срабатывает таймаут и `onDisconnect`).
 - [ ] На целевом сервере: `claude -n test --session-id <uuid>` стартует с именем, `claude --resume <uuid>` возвращает тот же разговор с тем же именем. Уже проверено на Linux с 2.1.304: `--resume <uuid>` работает из любого каталога, занятый `--session-id` ошибки не даёт; на целевом сервере остаётся проверить `-n` вместе с `--session-id`.
-- [ ] Docker-образ sshd + tmux для интеграционных тестов.
+- [x] Docker-образ sshd + tmux для интеграционных тестов.
 - [x] Citadel собирается под Swift 6 на Linux aarch64 (образ `swift:6.1-noble`, Citadel 0.12.1) — основа плана 2 по §5.2.
 
 **Готово, когда:** с iPad вручную открывается tmux-сессия на сервере и в ней удобно работать с claude.
@@ -440,11 +448,11 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 **Готово, когда:** можно завести 2+ сервера и проверить подключение к каждому.
 
 ### Фаза 2 — Серверный скрипт и HostAPI · 3 дня
-- [ ] `tmuxpad-host.sh`: `version`, `list`, `new`, `attach`, `take`, `copy-cancel`, `kill`, `setup`, `doctor`, `auth` (порт из рецепта).
+- [x] `tmuxpad-host.sh`: `version`, `list`, `new`, `attach`, `take`, `copy-cancel`, `kill`, `setup`, `doctor`, `auth` (порт из рецепта).
 - [ ] `HostBootstrap`: установка/обновление скрипта через stdin, отчёт `doctor` в UI.
 - [ ] `HostAPI`: парсер `list` (V1), коды выхода → типизированные ошибки.
-- [ ] Интеграционные тесты против Docker-контейнера (list/new/attach/kill, конфликт имён, кривые имена, `others` со своим, чужим и «зависшим» своим клиентом; `attach` выкидывает только своего зависшего, `take` — всех; `new` с тем же именем в другом проекте даёт новый UUID).
-- [ ] shellcheck на скрипт.
+- [x] Интеграционные тесты против Docker-контейнера, на уровне скрипта; `HostAPI` — план 2 (list/new/attach/kill, конфликт имён, кривые имена, `others` со своим, чужим и «зависшим» своим клиентом; `attach` выкидывает только своего зависшего, `take` — всех; `new` с тем же именем в другом проекте даёт новый UUID).
+- [x] shellcheck на скрипт.
 
 **Готово, когда:** из тестов создаются, листятся и убиваются сессии на тестовом сервере.
 

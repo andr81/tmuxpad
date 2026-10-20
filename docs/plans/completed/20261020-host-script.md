@@ -45,7 +45,9 @@ shellcheck, tmux 3.4 и sshd. Поэтому план закрывает §7 с�
 4. **Заглушка `claude`** в образе: `/usr/local/bin/claude` пишет `pwd`, аргументы и наличие
    `CLAUDE_CODE_OAUTH_TOKEN` в `~/claude-args.log` и делает `exec sleep infinity`;
    `--help` печатает строку с `--name`, `--version` → `2.1.0 (stub)`. Вторая заглушка
-   `claude-old` — то же без `--name` в `--help`, для ветки «старый Claude Code».
+   `claude-old` — то же без `--name` в `--help`, для ветки «старый Claude Code»; в образе
+   есть симлинк `/opt/claude-old/bin/claude` на неё, и тесты зовут её этим путём — по
+   решению 5 basename должен быть `claude`, иначе флаги не добавляются.
 5. **Флаги `-n`/`--session-id`/`--resume` добавляются, только если первое слово
    `TMUXPAD_CMD` — `claude`** (по basename). Иная команда запуска идёт как есть, файл
    `NAME.claude` не создаётся. Проверка поддержки `-n`: `bash -lc '<cmd> --help' | grep -q
@@ -93,7 +95,7 @@ shellcheck, tmux 3.4 и sshd. Поэтому план закрывает §7 с�
     `tmux detach-client -t <tty>` выкидывает ровно этого клиента, второй остаётся.
   - `send-keys -t '=NAME:' -X cancel` выводит pane из copy-mode; с таргетом `=NAME` (без
     двоеточия) — `can't find pane`. Вне режима — stderr `not in a mode`, код 1.
-  - `mouse` — session-опция (`tmux set -t =NAME mouse on` работает), `window-size` —
+  - `mouse` — session-опция (`tmux set -t =NAME: mouse on`; с `-t =NAME` без двоеточия — `no such session`, у `set` таргет — pane), `window-size` —
     window-опция, по умолчанию `latest`.
   - Нажатие печатной клавиши в copy-mode не выходит из него (`pane_in_mode` остаётся 1).
 - Проверено на Claude Code 2.1.304: флаги `-n, --name <name>`, `--session-id <uuid>`,
@@ -109,7 +111,7 @@ shellcheck, tmux 3.4 и sshd. Поэтому план закрывает §7 с�
 ## Validation Commands
 
 ```
-shellcheck -s bash host/tmuxpad-host.sh host/tests/run.sh host/tests/lib.sh host/tests/docker/entrypoint.sh host/tests/docker/claude host/tests/docker/claude-old
+shellcheck -s bash host/tmuxpad-host.sh host/tests/run.sh host/tests/lib.sh host/tests/docker/entrypoint.sh host/tests/docker/claude host/tests/docker/claude-old host/tests/cases/*.sh
 host/tests/run.sh                                  # ubuntu:24.04, tmux 3.4
 TMUXPAD_TEST_BASE=ubuntu:22.04 host/tests/run.sh   # tmux 3.2a
 host/tests/run.sh -k test_list_others              # один тест (подстрока имени)
@@ -144,7 +146,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
 `host/tests/docker/claude-old` (create), `host/tests/cases/basic.sh` (create),
 `.gitignore` (create).
 
-- [ ] `host/tmuxpad-host.sh`: шапка с атрибуцией рецепта (MIT, ссылка), `set -u`,
+- [x] `host/tmuxpad-host.sh`: шапка с атрибуцией рецепта (MIT, ссылка), `set -u`,
       `VERSION=1`, разбор окружения: `STATE=$HOME/.tmuxpad`,
       `PROJECTS=${TMUXPAD_PROJECTS:-$HOME/projects}` с раскрытием `~`, относительного пути
       и `realpath -m` (симлинк в корне не должен ломать фильтр `list`),
@@ -155,7 +157,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       §7 (`version list new attach take copy-cancel kill setup doctor auth`); не реализованные
       пока печатают `not implemented` и `exit 1`; `version` печатает `tmuxpad-host 1`; без
       аргументов или с неизвестной подкомандой — usage на stderr, `exit 2`.
-- [ ] `host/tests/docker/Dockerfile`: `ARG BASE=ubuntu:24.04`, `FROM $BASE`,
+- [x] `host/tests/docker/Dockerfile`: `ARG BASE=ubuntu:24.04`, `FROM $BASE`,
       `DEBIAN_FRONTEND=noninteractive`, пакеты `openssh-server tmux bash coreutils
       ncurses-bin` (нужен `infocmp`), `useradd -m -s /bin/bash dev`, `mkdir /run/sshd`,
       в `sshd_config`: `PasswordAuthentication no`, `PubkeyAuthentication yes`,
@@ -163,16 +165,16 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       пропускать — приложение передаёт их через `env`, и стенд должен это проверять).
       Заглушки копируются в `/usr/local/bin/claude` и `/usr/local/bin/claude-old` с `chmod
       755`. `EXPOSE 22`, `ENTRYPOINT ["/entrypoint.sh"]`.
-- [ ] `host/tests/docker/entrypoint.sh`: пишет `$AUTHORIZED_KEY` в
+- [x] `host/tests/docker/entrypoint.sh`: пишет `$AUTHORIZED_KEY` в
       `/home/dev/.ssh/authorized_keys` (`mkdir -p`, `chmod 700/600`, `chown -R dev:dev`),
       `exec /usr/sbin/sshd -D -e`. Ключ приходит через переменную окружения, а не монтирование:
       `StrictModes` sshd требует владельца `dev`, с bind-mount это ломается.
-- [ ] `host/tests/docker/claude` (bash): `--version` → `2.1.0 (stub)`; `--help` → многострочный
+- [x] `host/tests/docker/claude` (bash): `--version` → `2.1.0 (stub)`; `--help` → многострочный
       текст, в котором есть `-n, --name <name>`, `--session-id <uuid>`, `-r, --resume [value]`;
       иначе — дописать в `$HOME/claude-args.log` строку
       `$PWD|$*|token=${CLAUDE_CODE_OAUTH_TOKEN:-none}` и `exec sleep infinity`.
       `host/tests/docker/claude-old` — то же, но в `--help` нет `--name`.
-- [ ] `host/tests/lib.sh`: переменные `PORT`, `KEY`, `CLIENT_A=11111111-1111-4111-8111-111111111111`,
+- [x] `host/tests/lib.sh`: переменные `PORT`, `KEY`, `CLIENT_A=11111111-1111-4111-8111-111111111111`,
       `CLIENT_B=22222222-…`; `SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
       -o ConnectTimeout=5 -o LogLevel=ERROR -i "$KEY" -p "$PORT")`; функции:
       `r CMD…` — `timeout 20 ssh "${SSH_OPTS[@]}" dev@127.0.0.1 -- "$*"` (сырая команда);
@@ -190,7 +192,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       ассерты `assert_eq EXP ACT MSG`, `assert_exit CODE CMD…` (выполняет, сравнивает `$?`),
       `assert_contains HAYSTACK NEEDLE`, `assert_not_contains`, `fail MSG` (пишет в `FAILED`,
       `return 1`). Функции-тесты именуются `test_<area>_<case>`.
-- [ ] `host/tests/run.sh`: `set -u`; `TMUXPAD_TEST_BASE=${TMUXPAD_TEST_BASE:-ubuntu:24.04}`;
+- [x] `host/tests/run.sh`: `set -u`; `TMUXPAD_TEST_BASE=${TMUXPAD_TEST_BASE:-ubuntu:24.04}`;
       тег образа `tmuxpad-test:${BASE//[:\/]/-}`; `docker build --build-arg BASE=…`;
       `TMP=$(mktemp -d)`, `ssh-keygen -q -t ed25519 -N '' -f "$TMP/key"`;
       `CID=$(docker run -d --rm -p 127.0.0.1::22 -e AUTHORIZED_KEY="$(cat "$TMP/key.pub")" IMAGE)`,
@@ -201,21 +203,21 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       `host/tests/cases/*.sh`; фильтр `-k SUBSTR`; для каждой `test_*`: `reset`, запуск в
       подоболочке, учёт PASS/FAIL, итог `N passed, M failed`, код выхода 1 при `M>0`.
       Печатать имя теста до запуска, чтобы зависание было видно.
-- [ ] `host/tests/cases/basic.sh`: `test_basic_version` (`h version` → `tmuxpad-host 1`,
+- [x] `host/tests/cases/basic.sh`: `test_basic_version` (`h version` → `tmuxpad-host 1`,
       код 0); `test_basic_usage` (`h` без подкоманды → 2; `h bogus` → 2);
       `test_basic_bad_client` (`CLIENT=not-a-uuid h version` → 2 — валидация окружения идёт
       до диспетчера); `test_basic_install_path` (`r test -x ~/.local/bin/tmuxpad-host.sh`).
-- [ ] `.gitignore`: `.ralphex/`, `*.tmp`, `.DS_Store`. `shellcheck` чист по всем файлам из
+- [x] `.gitignore`: `.ralphex/`, `*.tmp`, `.DS_Store`. `shellcheck` чист по всем файлам из
       Validation Commands; `host/tests/run.sh` зелёный; коммит.
 
 ### Task 2: `setup`, `doctor`, `auth`
 
 **Файлы:** `host/tmuxpad-host.sh`, `host/tests/cases/setup.sh` (create).
 
-- [ ] `tmux_version` → печатает `MAJOR.MINOR` из `tmux -V` по regex `([0-9]+)\.([0-9]+)`
+- [x] `tmux_version` → печатает `MAJOR.MINOR` из `tmux -V` по regex `([0-9]+)\.([0-9]+)`
       (для `next-3.5` → `3.5`); `version_ge A B` — сравнение по двум числам без `sort -V`
       (его нет в busybox-подобных окружениях, а bash-арифметики достаточно).
-- [ ] `doctor`: TSV-строки `ok|warn|fail\t<key>\t<message>`, ключи и правила:
+- [x] `doctor`: TSV-строки `ok|warn|fail\t<key>\t<message>`, ключи и правила:
       `tmux` — нет → fail, `< 3.1` → fail (`tmux 3.0a found, 3.1 required`), иначе ok с версией;
       `claude` — `bash -lc "command -v <первое слово CMD>"` (login-шелл, как у pane tmux;
       ssh-шелл для exec — не login) → fail если нет; `claude_name` — `bash -lc "<cmd> --help"
@@ -224,18 +226,18 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       `script` — ok `tmuxpad-host 1`. Код выхода 1, если есть хотя бы один `fail`, иначе 0.
       Проверка `claude` пропускается (ok `custom command`), если первое слово CMD не
       `claude` (решение 5).
-- [ ] `setup`: `mkdir -p "$STATE" "$STATE/clients" "$PROJECTS"`; блок в `~/.tmux.conf` между
+- [x] `setup`: `mkdir -p "$STATE" "$STATE/clients" "$PROJECTS"`; блок в `~/.tmux.conf` между
       маркерами `# tmuxpad: begin` … `# tmuxpad: end` (перенос `end_newline` из рецепта):
       `set -g set-clipboard on`, `set -g history-limit 50000`, и `set -g allow-passthrough on`
       **только** при `version_ge $(tmux_version) 3.3` — старый tmux на неизвестной опции
       прекращает читать конфиг. Повторный запуск блок не дублирует (проверка по маркеру).
       Никаких правок `~/.profile`, `~/.claude/settings.json`, `~/.ssh`. В конце — `doctor`,
       его код выхода становится кодом `setup`.
-- [ ] `auth` — перенос из рецепта один в один, с путём `$STATE/env`: `umask 077`, токен одной
+- [x] `auth` — перенос из рецепта один в один, с путём `$STATE/env`: `umask 077`, токен одной
       строкой со stdin, regex `^[A-Za-z0-9_-]+$` иначе `exit 2`, перезапись строки
       `export CLAUDE_CODE_OAUTH_TOKEN='…'` через `.tmp` + `mv`, `chmod 600`, сообщение
       `token stored in …`.
-- [ ] Тесты `setup.sh`: `test_setup_tmux_conf_block` (после двух `h setup` маркер `# tmuxpad:
+- [x] Тесты `setup.sh`: `test_setup_tmux_conf_block` (после двух `h setup` маркер `# tmuxpad:
       begin` встречается один раз; `set-clipboard on` и `history-limit 50000` есть;
       `allow-passthrough` есть тогда и только тогда, когда `r tmux -V` ≥ 3.3 — ветвление в
       тесте по версии); `test_setup_leaves_profile_alone` (`~/.profile` до и после `setup`
@@ -243,28 +245,30 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       (`~/.tmuxpad/clients`, `~/projects`); `test_doctor_ok` (все строки `ok`, код 0, строка
       `projects` содержит `3` — `README.md` не проект); `test_doctor_no_projects_root`
       (`PROJECTS=nope h doctor` → строка `fail\tprojects`, код 1);
-      `test_doctor_old_claude` (`CMD=claude-old h doctor` → `warn\tclaude_name`, код 0);
+      `test_doctor_old_claude` (`CMD=/opt/claude-old/bin/claude h doctor` → `warn\tclaude_name`, код 0);
       `test_doctor_custom_cmd` (`CMD='sleep 1000' h doctor` → `ok\tclaude\tcustom command`);
       `test_auth_stores_token` (`printf 'sk-abc_1\n' | h auth` → файл `~/.tmuxpad/env` с правами
       `600` и ровно одной строкой `export CLAUDE_CODE_OAUTH_TOKEN='sk-abc_1'`; второй `auth` с
       другим токеном заменяет строку, строк по-прежнему одна); `test_auth_rejects_garbage`
       (`printf 'bad token\n' | h auth` → 2, файла нет). Для stdin в `h` — передавать через
       пайп, ssh его пробрасывает.
-- [ ] shellcheck чист, оба прогона `run.sh` зелёные (24.04 и 22.04 — именно здесь ветка
+- [x] shellcheck чист, оба прогона `run.sh` зелёные (24.04 и 22.04 — именно здесь ветка
       `allow-passthrough` расходится); коммит.
 
 ### Task 3: `list` и учёт клиентов
 
 **Файлы:** `host/tmuxpad-host.sh`, `host/tests/cases/list.sh` (create).
 
-- [ ] `prune_clients`: удаляет файлы `$STATE/clients/<pid>`, для которых PID нет в выводе
+- [x] `prune_clients`: удаляет файлы `$STATE/clients/<pid>`, для которых PID нет в выводе
       `tmux list-clients -F '#{client_pid}'` (tmux-сервер не запущен → список пуст → удалить
       все). Зовётся из `list`, `attach`, `take`. Файлы с именем не из цифр — удалять тоже.
-- [ ] `others_for NAME`: число клиентов сессии из `tmux list-clients -t =NAME -F
+      Не удаляется файл PID, который ещё исполняет скрипт до `exec` (`/proc/<pid>/cmdline`
+      содержит `tmuxpad-host`) — гонка `list` с параллельным `attach`; внесено в §7 спеки.
+- [x] подсчёт `others` прямо в `list`, одним `list-clients` на все сессии (отдельной функции `others_for` нет); исходно — `others_for NAME`: число клиентов сессии из `tmux list-clients -t =NAME -F
       '#{client_pid}'`, у которых **нет** файла `$STATE/clients/<pid>` с содержимым, равным
       `$CLIENT`; при пустом `CLIENT` — все клиенты чужие. Один общий `list-clients -F
       '#{session_name}\t#{client_pid}'` на весь `list`, а не по сессии.
-- [ ] `list`: печатает `V\t1`; затем для каждой строки `tmux list-sessions -F
+- [x] `list`: печатает `V\t1`; затем для каждой строки `tmux list-sessions -F
       '#{session_name}\t#{session_path}\t#{session_activity}' 2>/dev/null` — `realpath -m`
       пути, фильтр «родитель пути == `$PROJECTS`» (как в рецепте: `path == "$PROJECTS"/* &&
       ${path#"$PROJECTS"/} != */*`), строка `S\t<name>\t<others>\t<project>\t<activity>`,
@@ -273,7 +277,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       скрытые каталоги пропускаются). Отсутствие tmux-сервера — не ошибка: только `V` и `P`,
       код 0. Отсутствие `$PROJECTS` — `exit 2` с сообщением (приложение покажет «нужна
       подготовка»).
-- [ ] Тесты `list.sh` (сессии создаются напрямую `r tmux new -d -s NAME -c DIR`, `new` ещё не
+- [x] Тесты `list.sh` (сессии создаются напрямую `r tmux new -d -s NAME -c DIR`, `new` ещё не
       нужен): `test_list_header_and_projects` (без tmux-сервера: первая строка `V\t1`, ровно
       три `P`-строки `api`, `my.app`, `web` с абсолютными путями `/home/dev/projects/...`,
       `README.md` нет); `test_list_filters_foreign_sessions` (сессия с `-c ~` и сессия с
@@ -290,28 +294,28 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       Для `attach_bg` в этой задаче нужен минимальный `attach`: временно реализовать в скрипте
       запись `$STATE/clients/$$` + `exec tmux attach-session -t =NAME` без остальных шагов
       (полная версия — Task 5); тест на это не писать, он придёт с Task 5.
-- [ ] shellcheck, `run.sh` зелёный на 24.04; коммит.
+- [x] shellcheck, `run.sh` зелёный на 24.04 (и на 22.04); коммит.
 
 ### Task 4: `new`
 
 **Файлы:** `host/tmuxpad-host.sh`, `host/tests/cases/new.sh` (create).
 
-- [ ] `new NAME PROJECT` по §7: `valid_name`/`valid_project` иначе 2; `[[ -d $PROJECTS/$PROJECT ]]`
+- [x] `new NAME PROJECT` по §7: `valid_name`/`valid_project` иначе 2; `[[ -d $PROJECTS/$PROJECT ]]`
       иначе 2; `$CMD` и `$STATE` не содержат `'` иначе 2 (они попадают внутрь `sh -c '…'`);
       `tmux has-session -t =NAME` → `exit 3`; `pane=$(tmux new-session -d -P -F '#{pane_id}'
-      -s NAME -c DIR)` иначе 1; `tmux set -t =NAME mouse on`.
-- [ ] Ветка claude (первое слово `$CMD` по basename == `claude`): файл `$STATE/NAME.claude`
+      -s NAME -c DIR)` иначе 1; `tmux set -t =NAME: mouse on`.
+- [x] Ветка claude (первое слово `$CMD` по basename == `claude`): файл `$STATE/NAME.claude`
       формата `<uuid>\t<project>`; читать его, если есть: при совпадении `project` и наличии
       транскрипта по глобу `"$HOME"/.claude/projects/*/"$uuid".jsonl` — флаги `--resume
       <uuid>`; иначе (файла нет / проект другой / транскрипта нет) — новый UUID из
       `/proc/sys/kernel/random/uuid`, перезапись файла, флаги `--session-id <uuid>` плюс
       `-n NAME`, если `bash -lc "<cmd> --help" | grep -q -- --name`. Иная команда: флагов нет,
       файл не создаётся и существующий не трогается.
-- [ ] Запуск: `tmux send-keys -t "$pane" "sh -c '[ -f \"$STATE/env\" ] && . \"$STATE/env\";
+- [x] Запуск: `tmux send-keys -t "$pane" "sh -c '[ -f \"$STATE/env\" ] && . \"$STATE/env\";
       exec $CMD $flags'" Enter` (одним аргументом + `Enter`, как в рецепте; `-l` не нужен);
       при ошибке `send-keys` — `kill-session` и `exit 1`, чтобы не оставлять пустую сессию.
       Stdout пустой.
-- [ ] Тесты `new.sh` (после `new` ждать `wait_log`): `test_new_creates_session` (сессия есть,
+- [x] Тесты `new.sh` (после `new` ждать `wait_log`): `test_new_creates_session` (сессия есть,
       `#{session_path}` = `/home/dev/projects/api`, `mouse on` у сессии, `api.claude` =
       `<uuid>\tapi`, где uuid проходит regex; лог заглушки: `pwd=/home/dev/projects/api`,
       аргументы `-n api --session-id <тот же uuid>`, `token=none`); `test_new_conflict`
@@ -323,33 +327,33 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       (то же без транскрипта → новый uuid в файле и в `--session-id`);
       `test_new_other_project_gets_new_uuid` (`new x api`, `kill-session`, `new x web` → файл
       `<new uuid>\tweb`, флаг `--session-id`, даже если транскрипт старого uuid лежит);
-      `test_new_old_claude_unnamed` (`CMD=claude-old` → аргументы без `-n`, с `--session-id`);
+      `test_new_old_claude_unnamed` (`CMD=/opt/claude-old/bin/claude` → аргументы без `-n`, с `--session-id`);
       `test_new_custom_cmd` (`CMD='sleep 1000'` → `#{pane_current_command}` = `sleep` в
       течение 5 с, файла `api.claude` нет, лога нет); `test_new_rejects_quote`
       (`CMD="it's" h new api api` → 2); `test_new_sources_env` (`printf 'tok_1\n' | h auth`,
       затем `new` → в логе `token=tok_1`); `test_new_exit_keeps_session` (`CMD='sleep 1000'`,
       `r tmux send-keys -t =api: C-c` → через 2 с сессия жива, pane — шелл: выход команды не
       убивает сессию, инвариант CLAUDE.md).
-- [ ] shellcheck, `run.sh` зелёный; коммит.
+- [x] shellcheck, `run.sh` зелёный; коммит.
 
 ### Task 5: `attach`, `take`, `copy-cancel`, `kill`
 
 **Файлы:** `host/tmuxpad-host.sh`, `host/tests/cases/attach.sh` (create).
 
-- [ ] `attach_impl NAME DETACH_ALL` по шагам §7: `valid_name` иначе 2; `need_client`;
+- [x] `attach_impl NAME DETACH_ALL` по шагам §7: `valid_name` иначе 2; `need_client`;
       `tmux has-session -t =NAME` иначе `exit 4`; `prune_clients`; для строк `tmux list-clients
       -t =NAME -F '#{client_pid}\t#{client_tty}'` — если `$STATE/clients/<pid>` существует и
       равен `$CLIENT` → `tmux detach-client -t <tty>` (выкидываем только свои зомби);
-      `tmux set -t =NAME mouse on`; `tmux set -w -t '=NAME:' window-size latest`;
+      `tmux set -t =NAME: mouse on`; `tmux set -w -t '=NAME:' window-size latest`;
       `infocmp "${TERM:-}" || export TERM=xterm-256color` (из рецепта); `mkdir -p
       $STATE/clients`, `printf '%s\n' "$CLIENT" > "$STATE/clients/$$"`; `exec tmux
       attach-session ${DETACH_ALL:+-d} -t =NAME`. `attach` = `attach_impl NAME ""`,
       `take` = `attach_impl NAME 1`. Временную заглушку из Task 3 заменить.
-- [ ] `copy-cancel NAME`: `valid_name` иначе 2; `tmux send-keys -t "=NAME:" -X cancel
+- [x] `copy-cancel NAME`: `valid_name` иначе 2; `tmux send-keys -t "=NAME:" -X cancel
       2>/dev/null; exit 0` — вне режима tmux ругается `not in a mode`, это штатно.
-- [ ] `kill NAME`: `valid_name` иначе 2; `tmux kill-session -t =NAME 2>/dev/null || true`;
+- [x] `kill NAME`: `valid_name` иначе 2; `tmux kill-session -t =NAME 2>/dev/null || true`;
       `rm -f "$STATE/NAME.claude"`; `exit 0` всегда (идемпотентно, как в рецепте).
-- [ ] Тесты `attach.sh` (сессия через `h new api api`, `CMD='sleep 1000'` чтобы заглушка не
+- [x] Тесты `attach.sh` (сессия через `h new api api`, `CMD='sleep 1000'` чтобы заглушка не
       мешала): `test_attach_missing_session` (`h attach nope` → 4, `h take nope` → 4);
       `test_attach_requires_client` (`CLIENT= h attach api` → 2); `test_attach_writes_client_file`
       (`attach_bg api`, `wait_clients api 1`; PID клиента из `list-clients` равен имени файла
@@ -367,28 +371,28 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       `test_kill` (`h kill api` → 0, сессии нет, `api.claude` нет; второй `kill api` → 0;
       `kill 'bad name'` → 2); `test_detach_on_ssh_close` (`attach_bg api`, `kill <ssh pid>`
       → через ≤3 с клиентов 0: закрытие канала приложением = корректный detach, §6).
-- [ ] shellcheck, `run.sh` зелёный на 24.04 и 22.04; коммит.
+- [x] shellcheck, `run.sh` зелёный на 24.04 и 22.04; коммит.
 
 ### Task 6: документация, матрица и завершение
 
 **Файлы:** `host/README.md` (create), `CLAUDE.md`, `docs/tmuxpad-spec.md` (только если
 контракт в коде разошёлся со спекой), `docs/plans/20261020-host-script.md` (move).
 
-- [ ] `host/README.md` (коротко, по-русски): назначение, строка установки, как её делает
+- [x] `host/README.md` (коротко, по-русски): назначение, строка установки, как её делает
       приложение (`mkdir -p ~/.local/bin && cat > … && chmod +x …` со скриптом в stdin),
       таблица подкоманд с кодами выхода (решение 8), переменные `TMUXPAD_CLIENT`,
       `TMUXPAD_PROJECTS`, `TMUXPAD_CMD`, формат `list V 1` и `doctor`, файлы состояния в
       `~/.tmuxpad/` (`env`, `clients/<pid>`, `NAME.claude`), требования к серверу
       (Linux, bash, tmux ≥ 3.1, coreutils `realpath`, `infocmp`), как запускать тесты и один
       тест, атрибуция рецепта.
-- [ ] `CLAUDE.md`: раздел «Состояние репозитория» — появился код: команды из Validation
+- [x] `CLAUDE.md`: раздел «Состояние репозитория» — появился код: команды из Validation
       Commands (shellcheck, оба прогона, один тест через `-k`), раскладка `host/`; убрать
       фразу «кода пока нет». Если при реализации что-то в §7 пришлось уточнить (формат
       `doctor`, код `list` без корня, правило «флаги только для claude») — внести в спеку
       одной правкой со ссылкой на этот план, не оставлять расхождений.
-- [ ] Полный прогон: shellcheck всех файлов, `host/tests/run.sh` на `ubuntu:24.04` и на
+- [x] Полный прогон: shellcheck всех файлов, `host/tests/run.sh` на `ubuntu:24.04` и на
       `ubuntu:22.04` — оба зелёные; в progress-лог записать время прогона и число тестов.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
 
 ## Как проверить после выкатки
 

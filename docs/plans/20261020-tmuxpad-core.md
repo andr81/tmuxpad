@@ -125,9 +125,12 @@ Ed25519-ключами через swift-crypto; `ConnectionPool` — одно с
     переменные в `Bench`; между тестами — сброс той же строкой, что `reset` в `host/tests/lib.sh`
     (`tmux kill-server; rm -rf ~/.tmuxpad ~/.claude …; mkdir -p ~/projects/{api,web,my.app}`),
     через `exec` того же соединения; скрипт ставится через `HostBootstrap` из ресурса.
-11. **Время сборки**: первая сборка зависимостей на этом хосте (2 vCPU) — минуты (Citadel в
-    Docker собирался 6,5 мин); `swift build --build-tests` запускать с таймаутом 10 мин, дальше
-    инкрементально. В worktree ralphex `.build` пустой — первая задача это учитывает.
+11. **Время сборки**: первая сборка зависимостей на этом хосте (2 vCPU) — 747 с (12,5 мин,
+    спайк 2026-10-20 нативно; в Docker было 6,5 мин без тестов). Это больше лимита 10 мин одного
+    вызова инструмента, поэтому первую `swift build --build-tests` запускать в фоне
+    (`run_in_background`) и дождаться уведомления, а не в foreground с таймаутом; дальше сборка
+    инкрементальная и укладывается в минуты. В worktree ralphex `.build` пустой — первая задача
+    это учитывает.
 
 ### Чего этот план не делает
 
@@ -190,16 +193,20 @@ Ed25519-ключами через swift-crypto; `ConnectionPool` — одно с
   `(secureEnclaveP256Key:)` (только Apple), `.publicKey`; `NIOSSHPublicKey(openSSHPublicKey:
   String)`, `write(to: inout ByteBuffer)` (wire-формат для отпечатка), `String(openSSHPublicKey:)`.
 - Тулчейн: Swift 6.1.3 (`swift --version` → `Swift version 6.1.3 (swift-6.1.3-RELEASE)`,
-  `aarch64-unknown-linux-gnu`), в PATH через `~/.local/bin`. Сборка Citadel в режиме Swift 6
-  на этом хосте проверена (спайк 2026-10-20). Хост: 2 vCPU, 7 ГБ RAM, Ubuntu 24.04. Есть
+  `aarch64-unknown-linux-gnu`), в PATH через `~/.local/bin`. Проверено нативно (спайк
+  2026-10-20): пакет с зависимостью Citadel 0.12.1 в режиме Swift 6 собирается за 747 с, `swift
+  test` с `import Testing` (Testing Library 6.1.3) находит и гоняет тесты, `.build` после сборки
+  — 511 МБ; `NIOSSHPrivateKey(ed25519Key:).publicKey.write(to:)` даёт wire-формат для отпечатка.
+  Хост: 2 vCPU, 7 ГБ RAM, Ubuntu 24.04. Есть
   `docker`, `shellcheck`, `ssh`, `ssh-keygen`. Нет Xcode, Mac.
-- Фоновые задачи длиннее 2 мин в инструментах Claude Code требуют явного `timeout` (до 10 мин)
-  или запуска в фоне: `swift build` первой сборки — именно такой случай.
+- Команды длиннее 2 мин в инструментах Claude Code требуют явного `timeout` (до 10 мин), а
+  длиннее 10 мин — запуска в фоне с ожиданием уведомления: первая `swift build` — второй случай,
+  прогон `scripts/test.sh` после неё — первый.
 
 ## Validation Commands
 
 ```
-swift build --package-path TmuxPadCore --build-tests          # первая сборка: минуты, timeout 600000
+swift build --package-path TmuxPadCore --build-tests          # первая сборка ~12,5 мин: в фоне; дальше минуты
 swift test --package-path TmuxPadCore --skip IntegrationTests  # юнит-тесты, без Docker
 TmuxPadCore/scripts/test.sh                                   # стенд + все тесты
 TmuxPadCore/scripts/test.sh --filter HostAPIIntegrationTests  # один suite или тест (regex по имени)
@@ -250,8 +257,8 @@ host/tests/run.sh                                             # стенд ск�
       [.copy("Resources/tmuxpad-host.sh")]`, тестовый таргет `TmuxPadCoreTests`;
       `swiftLanguageModes: [.v6]`. Положить копию `host/tmuxpad-host.sh` в
       `Sources/TmuxPadCore/Resources/tmuxpad-host.sh` (ресурс нужен уже сейчас, иначе манифест
-      не соберётся). Первая сборка: `swift build --package-path TmuxPadCore --build-tests` с
-      таймаутом 10 мин; зафиксировать в progress-логе время сборки и версии из `Package.resolved`
+      не соберётся). Первая сборка: `swift build --package-path TmuxPadCore --build-tests` в
+      фоне (решение 11); зафиксировать в progress-логе время сборки и версии из `Package.resolved`
       (ожидаются Citadel 0.12.1, swift-nio-ssh 0.3.7, swift-nio 2.104.x, swift-crypto 3.15.x).
 - [ ] `.gitignore`: добавить `TmuxPadCore/.build/`, `TmuxPadCore/.swiftpm/`, `host/tests/.bench/`.
 - [ ] `Models/Models.swift` — типы §5.1 как `public struct … : Sendable, Codable, Hashable`:

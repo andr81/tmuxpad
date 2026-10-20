@@ -126,6 +126,9 @@ public actor ServerConnection: ExecRunner {
     private func beginEpoch() async -> Int {
         epoch += 1
         let current = epoch
+        // фатальная ошибка относится к прошлой эпохе: иначе сетевой сбой новой попытки
+        // покажется в дереве как `hostKeyChanged`/`authFailed`
+        lastFatalError = nil
         reconnectTask?.cancel()
         reconnectTask = nil
         keepaliveTask?.cancel()

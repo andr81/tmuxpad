@@ -343,6 +343,25 @@ struct TreeRefresherTests {
         }
     }
 
+    @Test func networkFailureAfterFatalClearsAttention() async throws {
+        let rig = try Rig()
+        rig.transport.failNextConnects(100, with: SSHError.authFailed)
+        await rig.refresher.setServers([rig.config])
+        await rig.refresher.refresh()
+        #expect(await rig.state()?.attention == .authFailed)
+        // ключ поставили, но «Повторить» упёрся в сеть: это не повод снова проверять сервер
+        rig.transport.failNextConnects(100)
+        await rig.refresher.refresh(rig.id, force: true)
+        #expect(await rig.state()?.attention == nil)
+        let connection = try #require(await rig.pool.existing(id: rig.id))
+        #expect(try await Bench.eventually(.seconds(3)) {
+            if case .failed = await connection.state { true } else { false }
+        })
+        #expect(await connection.lastFatalError == nil)
+        await rig.refresher.refresh()
+        #expect(await rig.state()?.attention == nil)
+    }
+
     @Test func listScriptMissingNeedsSetup() async throws {
         let rig = try Rig()
         await rig.refresher.setServers([rig.config])

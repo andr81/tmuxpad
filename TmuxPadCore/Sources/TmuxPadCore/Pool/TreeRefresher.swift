@@ -244,9 +244,8 @@ public actor TreeRefresher {
             return
         }
         if let connectError {
-            if ServerConnection.isFatal(connectError) {
-                update(id) { $0.attention = connectError as? SSHError }
-            }
+            let fatal = ServerConnection.isFatal(connectError) ? connectError as? SSHError : nil
+            update(id) { $0.attention = fatal }
             await setReachability(id, .offline("\(connectError)"))
             return
         }
@@ -259,9 +258,8 @@ public actor TreeRefresher {
             return
         case let .failed(reason):
             // пул сам бросил попытки на фатальной ошибке после обрыва
-            if let fatal = await connection.lastFatalError {
-                update(id) { $0.attention = fatal }
-            }
+            let fatal = await connection.lastFatalError
+            update(id) { $0.attention = fatal }
             await setReachability(id, .offline(reason))
             return
         case .disconnected:

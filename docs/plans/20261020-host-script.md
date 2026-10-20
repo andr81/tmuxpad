@@ -111,7 +111,7 @@ shellcheck, tmux 3.4 и sshd. Поэтому план закрывает §7 с�
 ## Validation Commands
 
 ```
-shellcheck -s bash host/tmuxpad-host.sh host/tests/run.sh host/tests/lib.sh host/tests/docker/entrypoint.sh host/tests/docker/claude host/tests/docker/claude-old
+shellcheck -s bash host/tmuxpad-host.sh host/tests/run.sh host/tests/lib.sh host/tests/docker/entrypoint.sh host/tests/docker/claude host/tests/docker/claude-old host/tests/cases/*.sh
 host/tests/run.sh                                  # ubuntu:24.04, tmux 3.4
 TMUXPAD_TEST_BASE=ubuntu:22.04 host/tests/run.sh   # tmux 3.2a
 host/tests/run.sh -k test_list_others              # один тест (подстрока имени)

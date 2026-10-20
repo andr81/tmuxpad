@@ -373,14 +373,14 @@ docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n TmuxPadCore/scripts/test.sh
 
 **Файлы:** `host/tests/bench.sh`, `TmuxPadCore/scripts/test.sh`.
 
-- [ ] В `bench.sh` — функция `with_timeout` по решению 11; все вызовы `timeout` заменить на
+- [x] В `bench.sh` — функция `with_timeout` по решению 11; все вызовы `timeout` заменить на
       неё (в `test.sh` их нет, функция там не нужна). Сообщение при отсутствии обоих: `warning: no timeout/gtimeout, running without a time
       limit (brew install coreutils)`.
-- [ ] Пройтись по обоим скриптам на bash 3.2: заменить `mapfile`/`readarray`, ассоциативные
+- [x] Пройтись по обоим скриптам на bash 3.2: заменить `mapfile`/`readarray`, ассоциативные
       массивы, `${var,,}`/`${var^^}`, `wait -n`, `sed -i` без суффикса, `readlink -f`,
       `realpath`, `stat -c`, `date -d`, `grep -P`, если встречаются, на переносимые формы.
       Пути к каталогу скрипта — `cd "$(dirname "$0")" && pwd -P`.
-- [ ] Проверка на Linux: `shellcheck -s bash` обоих скриптов чист;
+- [x] Проверка на Linux: `shellcheck -s bash` обоих скриптов чист;
       `TmuxPadCore/scripts/test.sh --filter TransportIntegrationTests` проходит; синтаксис
       bash 3.2 — `docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n host/tests/bench.sh` и то
       же для `TmuxPadCore/scripts/test.sh` (`bash -n` хоста bash 5 конструкции 3.2 не ловит);

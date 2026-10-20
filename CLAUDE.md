@@ -4,7 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Состояние репозитория
 
-Кода пока нет: в репозитории только спецификация `docs/tmuxpad-spec.md`. Это источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Команд сборки, линта и тестов ещё нет. Когда появятся `project.yml` (XcodeGen), Xcode-проект и host-скрипт, добавь сюда реальные команды, в том числе запуск одного теста. Не выдумывай их заранее.
+Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готова серверная половина — host-скрипт и его Docker-стенд; Swift-кода (`TmuxPadCore`, приложение, `project.yml`) ещё нет. Когда появится, добавь сюда реальные команды сборки и тестов. Не выдумывай их заранее.
+
+Раскладка `host/`:
+- `host/tmuxpad-host.sh` — сам скрипт; `host/README.md` — подкоманды, коды выхода, форматы, файлы состояния;
+- `host/tests/run.sh` — раннер (свой, без bats): поднимает контейнер с sshd + tmux, ставит скрипт как приложение, гоняет функции `test_*`; `host/tests/lib.sh` — ssh-хелперы и ассерты;
+- `host/tests/cases/*.sh` — тесты по подкомандам; `host/tests/docker/` — образ, entrypoint и заглушки `claude`/`claude-old`.
+
+Команды (нужны docker и shellcheck; прогон стенда — минуты на первом запуске, дальше кэш образа):
+
+```
+shellcheck -s bash host/tmuxpad-host.sh host/tests/run.sh host/tests/lib.sh host/tests/docker/entrypoint.sh host/tests/docker/claude host/tests/docker/claude-old host/tests/cases/*.sh
+host/tests/run.sh                                  # ubuntu:24.04, tmux 3.4
+TMUXPAD_TEST_BASE=ubuntu:22.04 host/tests/run.sh   # tmux 3.2a, нижняя граница
+host/tests/run.sh -k test_list_others              # один тест, по подстроке имени
+```
 
 Решения, которые меняют поведение, сначала вносятся в спеку, потом в код.
 

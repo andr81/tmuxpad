@@ -378,21 +378,21 @@ host/tests/run.sh -k test_list_others              # один тест (подс
 **Файлы:** `host/README.md` (create), `CLAUDE.md`, `docs/tmuxpad-spec.md` (только если
 контракт в коде разошёлся со спекой), `docs/plans/20261020-host-script.md` (move).
 
-- [ ] `host/README.md` (коротко, по-русски): назначение, строка установки, как её делает
+- [x] `host/README.md` (коротко, по-русски): назначение, строка установки, как её делает
       приложение (`mkdir -p ~/.local/bin && cat > … && chmod +x …` со скриптом в stdin),
       таблица подкоманд с кодами выхода (решение 8), переменные `TMUXPAD_CLIENT`,
       `TMUXPAD_PROJECTS`, `TMUXPAD_CMD`, формат `list V 1` и `doctor`, файлы состояния в
       `~/.tmuxpad/` (`env`, `clients/<pid>`, `NAME.claude`), требования к серверу
       (Linux, bash, tmux ≥ 3.1, coreutils `realpath`, `infocmp`), как запускать тесты и один
       тест, атрибуция рецепта.
-- [ ] `CLAUDE.md`: раздел «Состояние репозитория» — появился код: команды из Validation
+- [x] `CLAUDE.md`: раздел «Состояние репозитория» — появился код: команды из Validation
       Commands (shellcheck, оба прогона, один тест через `-k`), раскладка `host/`; убрать
       фразу «кода пока нет». Если при реализации что-то в §7 пришлось уточнить (формат
       `doctor`, код `list` без корня, правило «флаги только для claude») — внести в спеку
       одной правкой со ссылкой на этот план, не оставлять расхождений.
-- [ ] Полный прогон: shellcheck всех файлов, `host/tests/run.sh` на `ubuntu:24.04` и на
+- [x] Полный прогон: shellcheck всех файлов, `host/tests/run.sh` на `ubuntu:24.04` и на
       `ubuntu:22.04` — оба зелёные; в progress-лог записать время прогона и число тестов.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
 
 ## Как проверить после выкатки
 

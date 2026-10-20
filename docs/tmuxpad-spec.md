@@ -312,6 +312,13 @@ tmuxpad-host.sh doctor               → проверки: tmux≥3.1, claude в
 
 Переменные из окружения команды (приложение передаёт их явно в exec-строке): `TMUXPAD_PROJECTS`, `TMUXPAD_CMD`, `TMUXPAD_CLIENT` (UUID устройства, §5; скрипт проверяет его по regex UUID).
 
+Уточнения при реализации (план `docs/plans/completed/20261020-host-script.md`, решения 5–8):
+- коды выхода: 2 — неверные аргументы, имена или окружение (в том числе `list` без корня проектов, `attach`/`take` без `TMUXPAD_CLIENT`); 3 — `new`, сессия уже есть; 4 — `attach`/`take`, сессии нет; `kill` несуществующей сессии и `copy-cancel` вне copy-mode — 0; прочие ошибки tmux — 1;
+- `TMUXPAD_CLIENT` обязателен для `attach` и `take`; `list` без него считает всех клиентов чужими;
+- флаги `-n`/`--session-id`/`--resume` добавляются, только если basename первого слова `TMUXPAD_CMD` — `claude`; иная команда запускается как есть, `NAME.claude` не создаётся;
+- `doctor` — TSV `ok|warn|fail<TAB>KEY<TAB>MESSAGE` (ключи `tmux`, `claude`, `claude_name`, `projects`, `script`), код 1 при любом `fail`; отсутствие `--name` у claude — `warn`;
+- `new` на stdout ничего не печатает: контракт — состояние на диске и код выхода.
+
 **`attach NAME`** по шагам:
 1. `tmux has-session -t =NAME` → иначе `exit 4`;
 2. чистка: файлы в `~/.tmuxpad/clients/`, PID-ов которых нет в `tmux list-clients`, удаляются (то же делает `list`); исключение — PID, который ещё исполняет сам скрипт до `exec` (`/proc/<pid>/cmdline` содержит `tmuxpad-host`): иначе `list`, идущий параллельно с `attach`, снял бы метку с клиента;

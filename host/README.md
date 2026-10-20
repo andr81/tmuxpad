@@ -97,6 +97,9 @@ TMUXPAD_TEST_BASE=ubuntu:22.04 host/tests/run.sh   # tmux 3.2a
 host/tests/run.sh -k test_list_others              # один тест, по подстроке имени
 ```
 
+`host/tests/bench.sh up|down` — долгоживущий контейнер того же образа для Swift-тестов
+`TmuxPadCore` (состояние в `host/tests/.bench/`, см. `TmuxPadCore/README.md`).
+
 ## Атрибуция
 
 Основа — `agt-remote-host.sh` из рецепта `remote-claude-session` проекта agterm

@@ -248,7 +248,7 @@ host/tests/run.sh                                             # стенд ск�
 `TmuxPadCore/Tests/TmuxPadCoreTests/{ValidationTests,HostCommandTests,ListParserTests,DoctorParserTests,HostErrorTests,DiagnosticsLogTests}.swift`
 (create), `.gitignore`.
 
-- [ ] `TmuxPadCore/Package.swift`: `// swift-tools-version:6.0`, `name: "TmuxPadCore"`,
+- [x] `TmuxPadCore/Package.swift`: `// swift-tools-version:6.0`, `name: "TmuxPadCore"`,
       `platforms: [.iOS(.v17), .macOS(.v14)]`, `products: [.library(name: "TmuxPadCore", targets:
       ["TmuxPadCore"])]`, зависимости из решения 2, таргет `TmuxPadCore` с `dependencies:
       [.product(name: "Citadel", package: "Citadel"), .product(name: "NIOSSH", package:
@@ -260,8 +260,8 @@ host/tests/run.sh                                             # стенд ск�
       не соберётся). Первая сборка: `swift build --package-path TmuxPadCore --build-tests` в
       фоне (решение 11); зафиксировать в progress-логе время сборки и версии из `Package.resolved`
       (ожидаются Citadel 0.12.1, swift-nio-ssh 0.3.7, swift-nio 2.104.x, swift-crypto 3.15.x).
-- [ ] `.gitignore`: добавить `TmuxPadCore/.build/`, `TmuxPadCore/.swiftpm/`, `host/tests/.bench/`.
-- [ ] `Models/Models.swift` — типы §5.1 как `public struct … : Sendable, Codable, Hashable`:
+- [x] `.gitignore`: добавить `TmuxPadCore/.build/`, `TmuxPadCore/.swiftpm/`, `host/tests/.bench/`.
+- [x] `Models/Models.swift` — типы §5.1 как `public struct … : Sendable, Codable, Hashable`:
       `ServerConfig` (`id: UUID`, `label`, `host`, `port = 22`, `user`, `keyID: UUID`,
       `projectsRoot = "projects"`, `startCommand = "claude"`, `keepaliveSeconds = 15`,
       `hostKeyFingerprint: String?`, `sortIndex: Int`), `SSHKeyInfo` (`id`, `name`, `kind:
@@ -271,13 +271,13 @@ host/tests/run.sh                                             # стенд ск�
       `ServerReachability` (`.unknown`, `.online`, `.offline(String)`, `.needsSetup(String)` —
       `String` вместо `Error`, чтобы тип был `Equatable` и `Sendable`), `DoctorLine` (`level:
       .ok/.warn/.fail`, `key`, `message`), `DoctorReport` (`lines`, `ok: Bool` = нет `fail`).
-- [ ] `Models/Validation.swift`: `public enum Validation` с `isValidSessionName(_:)` по regex
+- [x] `Models/Validation.swift`: `public enum Validation` с `isValidSessionName(_:)` по regex
       `^[A-Za-z0-9_-]{1,64}$`, `isValidProjectName(_:)` по `^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$`
       (на `Regex` Swift, без `NSRegularExpression`), `isSafeShellValue(_:)` — не пусто, без `'`,
       без управляющих символов и переводов строки (для `projectsRoot`, `startCommand`);
       `ServerConfig.validationIssues() -> [String]` (хост не пуст, порт 1…65535, пользователь не
       пуст и без пробелов, `projectsRoot` и `startCommand` безопасны, `keepaliveSeconds` 5…300).
-- [ ] `Host/HostCommand.swift`: `public struct HostEnvironment: Sendable` (`client: UUID`,
+- [x] `Host/HostCommand.swift`: `public struct HostEnvironment: Sendable` (`client: UUID`,
       `projectsRoot: String`, `startCommand: String`); `public enum HostCommand: Sendable`
       (`.version`, `.list`, `.new(session:project:)`, `.attach(session:)`, `.take(session:)`,
       `.copyCancel(session:)`, `.kill(session:)`, `.setup`, `.doctor`, `.auth`, `.install`);
@@ -287,7 +287,7 @@ host/tests/run.sh                                             # стенд ск�
       `shellQuote(_:)` (`'` → `'\''`); имена сессий и проектов проходят `Validation`, иначе
       `HostError.badRequest`; `.install` рендерится в `mkdir -p ~/.local/bin && cat >
       ~/.local/bin/tmuxpad-host.sh && chmod +x ~/.local/bin/tmuxpad-host.sh` без `env`-префикса.
-- [ ] `Host/ListParser.swift`: `ListParser.parse(_ text: String, fetchedAt: Date) throws ->
+- [x] `Host/ListParser.swift`: `ListParser.parse(_ text: String, fetchedAt: Date) throws ->
       ServerSnapshot`: первая строка `V\t1` (иная версия → `HostError.badOutput("unsupported list
       version N")`), `S`-строки → `RemoteSession` (`others` и `activity` — целые, `activity` →
       `Date(timeIntervalSince1970:)`), `P`-строки → `RemoteProject`; неизвестные префиксы
@@ -295,19 +295,19 @@ host/tests/run.sh                                             # стенд ск�
       полей → `badOutput`. `Host/DoctorParser.swift`: `DoctorParser.parse(_:) throws ->
       DoctorReport` по TSV `ok|warn|fail\tKEY\tMESSAGE`; сообщение может содержать табуляцию —
       брать всё после второго `\t`.
-- [ ] `Host/HostError.swift`: `enum HostError` по решению 6 и `static func from(command:
+- [x] `Host/HostError.swift`: `enum HostError` по решению 6 и `static func from(command:
       HostCommand, exitCode: Int, stderr: String) -> HostError` (127/126 → `.scriptMissing`;
       2 → для `.list` `.projectsRootMissing`, иначе `.badRequest(stderr)`; 3 →
       `.sessionExists`; 4 → `.noSession`; иначе `.failed(code:stderr:)`), `SSHError` по
       решению 6; у обоих `CustomStringConvertible` с текстом для UI на английском
       (локализация — приложение).
-- [ ] `Diagnostics/DiagnosticsLog.swift`: `public actor DiagnosticsLog` с `DiagnosticsEvent`
+- [x] `Diagnostics/DiagnosticsLog.swift`: `public actor DiagnosticsLog` с `DiagnosticsEvent`
       (`date`, `server`, `kind: Kind` — `.connect`, `.disconnect`, `.reconnect`, `.ping`,
       `.exec`, `.terminal`, `.hostKey`, `.error`; `message`), `record(_:)`, `events() ->
       [DiagnosticsEvent]`, `export() -> String` (одна строка на событие: ISO-8601 время, сервер,
       вид, сообщение), ёмкость 2000 с вытеснением старых; `AsyncStream<DiagnosticsEvent>`
       `updates` для живого экрана.
-- [ ] Юнит-тесты (Swift Testing): валидация — таблица валидных/невалидных имён (`a`, 64 символа,
+- [x] Юнит-тесты (Swift Testing): валидация — таблица валидных/невалидных имён (`a`, 64 символа,
       65 символов, `a b`, `.hidden` для проекта, `my.app` валиден как проект и невалиден как
       сессия); `HostCommand` — точная строка для `.list` и `.new(session: "api", project:
       "my.app")` с фиксированным UUID, экранирование `'` в `startCommand` отвергается
@@ -317,7 +317,7 @@ host/tests/run.sh                                             # стенд ск�
       `badOutput`; `DoctorParser` — пять строк из `doctor`, `ok` только без `fail`;
       `HostError.from` — вся таблица кодов, включая `list` + 2; `DiagnosticsLog` — вытеснение
       при 2001 событии, формат `export`.
-- [ ] `swift build --package-path TmuxPadCore --build-tests` без предупреждений, `swift test
+- [x] `swift build --package-path TmuxPadCore --build-tests` без предупреждений, `swift test
       --package-path TmuxPadCore` зелёный; коммит.
 
 ### Task 2: транспорт SSH на Citadel и NIOSSH, ключи, TOFU, стенд для Swift-тестов
@@ -329,7 +329,7 @@ host/tests/run.sh                                             # стенд ск�
 (create), `TmuxPadCore/Tests/TmuxPadCoreTests/Support/{Bench,Timeout}.swift` (create),
 `TmuxPadCore/Tests/TmuxPadCoreTests/{KeysTests,TOFUTests,TransportIntegrationTests}.swift` (create).
 
-- [ ] `SSH/SSHTransport.swift`: протоколы `SSHTransport`, `SSHConnection`, `PTYChannel`
+- [x] `SSH/SSHTransport.swift`: протоколы `SSHTransport`, `SSHConnection`, `PTYChannel`
       (`output: AsyncThrowingStream<Data, Error>` — поток байтов до закрытия; `send(_ data:
       Data) async throws`; `resize(cols:rows:) async throws`; `close() async`; `exitCode: Int?`
       после закрытия) и типы `SSHEndpoint` (`host`, `port`, `connectTimeout: Duration`),
@@ -337,7 +337,7 @@ host/tests/run.sh                                             # стенд ск�
       `stdout: Data`, `stderr: Data`, `duration: Duration`), `ConnectOutcome` (`connection`,
       `hostKeyFingerprint`, `firstSeen: Bool`). Всё `Sendable`; `NIOSSHPrivateKey` оборачивается
       в `struct SSHPrivateKey: @unchecked Sendable` с комментарием почему (тип NIOSSH не помечен).
-- [ ] `SSH/Keys.swift`: `enum SSHKeys` — `generateEd25519() -> (NIOSSHPrivateKey, publicKeyOpenSSH:
+- [x] `SSH/Keys.swift`: `enum SSHKeys` — `generateEd25519() -> (NIOSSHPrivateKey, publicKeyOpenSSH:
       String)`, `importOpenSSHEd25519(_ text: String, passphrase: String?) throws ->
       NIOSSHPrivateKey` через `Curve25519.Signing.PrivateKey(sshEd25519:decryptionKey:)`
       (ошибка разбора → свой `KeyError.invalidKey(String)`, ошибки Citadel наружу не выходят),
@@ -346,15 +346,15 @@ host/tests/run.sh                                             # стенд ск�
       `SHA256:` + base64 без `=` от `write(to:)`; `authorizedKeysCommand(publicKey:) -> String`
       — строка из §3.7 (`mkdir -p ~/.ssh && echo '<pub>' >> ~/.ssh/authorized_keys && chmod 600
       ~/.ssh/authorized_keys`).
-- [ ] `SSH/Stores.swift`: протоколы `KeyStore` и `HostKeyStore` по решению 4 (методы `async
+- [x] `SSH/Stores.swift`: протоколы `KeyStore` и `HostKeyStore` по решению 4 (методы `async
       throws`), `InMemoryKeyStore`, `InMemoryHostKeyStore` (actors).
-- [ ] `SSH/TOFUHostKeyValidator.swift`: `final class TOFUHostKeyValidator:
+- [x] `SSH/TOFUHostKeyValidator.swift`: `final class TOFUHostKeyValidator:
       NIOSSHClientServerAuthenticationDelegate` — в `validateHostKey(hostKey:validationCompletePromise:)`
       считает отпечаток, сравнивает с `expected: String?` (снимок из `HostKeyStore`, читается до
       подключения), пишет результат в `NIOLockedValueBox` (`seen: String`, `firstSeen: Bool`);
       несовпадение → `promise.fail(SSHError.hostKeyChanged(expected:actual:))`. После успешного
       `connect` транспорт сохраняет новый отпечаток в `HostKeyStore`.
-- [ ] `SSH/SessionChannel.swift`: `SessionChannelHandler` (ChannelDuplexHandler, `InboundIn =
+- [x] `SSH/SessionChannel.swift`: `SessionChannelHandler` (ChannelDuplexHandler, `InboundIn =
       SSHChannelData`) и `final class SessionChannel` поверх `Channel`: `open(on: NIOSSHHandler,
       eventLoop:, command:, env: [(String, String)], pty: PTYRequest?) async throws` —
       `createChannel` с таймаутом из настроек (не 15 с Citadel, а `connectTimeout`), в
@@ -365,7 +365,7 @@ host/tests/run.sh                                             # стенд ск�
       `AsyncStream<Data>`, `exit: Int?` из `ExitStatus`, `closed` — continuation по
       `channelInactive`. `write(_:)`, `eof()` (`close(mode: .output)`), `resize` →
       `WindowChangeRequest`, `close()`.
-- [ ] `SSH/CitadelTransport.swift`: `public final class CitadelTransport: SSHTransport` —
+- [x] `SSH/CitadelTransport.swift`: `public final class CitadelTransport: SSHTransport` —
       `ClientBootstrap(group: .singleton).connectTimeout(…).channelOption(TCP_NODELAY)`,
       `connect(host:port:)`, затем `SSHClient.connect(on: channel, settings: SSHClientSettings(
       host:, port:, authenticationMethod: { .custom(KeyAuthDelegate(user:key:)) } или
@@ -378,7 +378,7 @@ host/tests/run.sh                                             # стенд ск�
       Citadel/NIO маппятся: `AuthenticationFailed` → `.authFailed`, `InvalidHostKey`/наш
       `hostKeyChanged` → как есть, `NIOConnectionError`/`ChannelError.connectTimeout` →
       `.connectFailed(описание)`.
-- [ ] `host/tests/bench.sh` (bash, `set -u`, shellcheck-чистый): `up` — образ
+- [x] `host/tests/bench.sh` (bash, `set -u`, shellcheck-чистый): `up` — образ
       `tmuxpad-test:${BASE//[:\/]/-}` из `host/tests/docker` (`TMUXPAD_TEST_BASE`, по умолчанию
       `ubuntu:24.04`), `host/tests/.bench/` с `key`/`key.pub` (`ssh-keygen -q -t ed25519 -N ''`),
       контейнер `docker run -d --rm -p 127.0.0.1::22 -e AUTHORIZED_KEY=…`, `cid` и `port` в
@@ -387,19 +387,19 @@ host/tests/run.sh                                             # стенд ск�
       TMUXPAD_BENCH_USER=dev`; `down` — `docker rm -f`, `rm -rf host/tests/.bench`.
       `TmuxPadCore/scripts/test.sh`: `eval "$(host/tests/bench.sh up)"`, `swift test
       --package-path TmuxPadCore "$@"`, `down` в `trap`, код `swift test`.
-- [ ] `Tests/Support/Bench.swift`: `enum Bench` — `isAvailable` (есть `TMUXPAD_BENCH_PORT`),
+- [x] `Tests/Support/Bench.swift`: `enum Bench` — `isAvailable` (есть `TMUXPAD_BENCH_PORT`),
       `endpoint`, `auth()` (ключ из файла через `SSHKeys.importOpenSSHEd25519`), `connect()`
       → `CitadelConnection` с `InMemoryHostKeyStore` (первое подключение), `reset(_ conn)` —
       exec строки сброса из решения 10, `tmux(_ conn, _ args)` — `exec("tmux \(args)")` с
       возвратом stdout. `Timeout.swift`: `withTimeout(_ duration:, _ body:)` на `TaskGroup`.
-- [ ] Юнит-тесты `KeysTests`: сгенерированный Ed25519 экспортируется в `ssh-ed25519 AAAA… comment`
+- [x] Юнит-тесты `KeysTests`: сгенерированный Ed25519 экспортируется в `ssh-ed25519 AAAA… comment`
       и парсится обратно `NIOSSHPublicKey(openSSHPublicKey:)`; отпечаток — 7 + 43 символа,
       детерминирован; `authorizedKeysCommand` содержит публичный ключ. Для импорта — ключ,
       сгенерированный `ssh-keygen` на лету в тесте (`Process` есть на Linux и macOS; на iOS тест
       не выполняется) либо фикстура в `Tests/Fixtures/ed25519_test` (без passphrase, сгенерирован
       для тестов, в коммите). `TOFUTests`: валидатор с `expected == nil` → `firstSeen`,
       совпадение → ok, другой ключ → `hostKeyChanged` с обоими отпечатками.
-- [ ] `TransportIntegrationTests` (стенд): `connectAndEcho` (`exec("echo ok")` → `ok\n`, код 0);
+- [x] `TransportIntegrationTests` (стенд): `connectAndEcho` (`exec("echo ok")` → `ok\n`, код 0);
       `exitCodeAndStderr` (`exec("echo err >&2; exit 3")` → код 3, stderr `err\n`, stdout пуст);
       `stdinWithEOF` (`exec("cat", stdin: 100 КБ)` возвращает те же байты — без EOF `cat` не
       завершился бы); `ptyExec` (`openPTY(command: "tty; stty size; sleep 0.2", cols: 100, rows:
@@ -412,8 +412,21 @@ host/tests/run.sh                                             # стенд ск�
       `.authFailed`); `maxSessions` (10 PTY `sleep 30` открываются, 11-й → `.channelRefused` за
       < 5 с; закрыть все); `disconnectIsObserved` (`exec("kill -9 $PPID")` → `onDisconnect`
       срабатывает ≤ 5 с, `isConnected == false`).
-- [ ] shellcheck на `bench.sh` и `test.sh`; `swift test --skip IntegrationTests` зелёный;
+- [x] shellcheck на `bench.sh` и `test.sh`; `swift test --skip IntegrationTests` зелёный;
       `TmuxPadCore/scripts/test.sh` зелёный; коммит.
+
+      Отклонения при исполнении: `SSHClient.connect(on:settings:)` Citadel 0.12.1 зовёт
+      `syncOperations.addHandlers` не с event loop канала и падает на precondition NIO, поэтому
+      `CitadelTransport` ставит `NIOSSHHandler` (делегаты `KeyAuthDelegate` и TOFU) сам в
+      `channelInitializer` бутстрапа — до соединения, иначе баннер сервера иногда терялся; от
+      Citadel остались ключи OpenSSH, спека §4 и §5 поправлена. `onDisconnect` — от `closeFuture`
+      TCP-канала. `exec` получил параметр `environment` (удобная перегрузка без него — в
+      расширении), EOF и запись stdin в exec нефатальны (быстрая команда закрывает канал раньше).
+      `generateEd25519` возвращает `GeneratedKey` с `privateKeyOpenSSH` для `KeyStore`,
+      `KeyStore.privateKey` — `SSHPrivateKey?` (Sendable-обёртка). `envRequestLang` проверяет
+      доставку env по `LC_TMUXPAD`: `LANG` на стенде перетирает pam_env из `/etc/default/locale`,
+      так же и у OpenSSH-клиента. Тестовому таргету добавлены `NIOSSH`, `NIOCore`, `NIOEmbedded`,
+      библиотеке — `NIOConcurrencyHelpers`.
 
 ### Task 3: `HostAPI` и `HostBootstrap` на настоящем скрипте
 
@@ -422,10 +435,10 @@ host/tests/run.sh                                             # стенд ск�
 `TmuxPadCore/Tests/TmuxPadCoreTests/{HostScriptResourceTests,HostAPITests,HostAPIIntegrationTests,HostBootstrapIntegrationTests}.swift`
 (create), `Tests/Support/FakeTransport.swift` (create).
 
-- [ ] `Host/HostScript.swift`: `enum HostScript` — `data` из `Bundle.module.url(forResource:
+- [x] `Host/HostScript.swift`: `enum HostScript` — `data` из `Bundle.module.url(forResource:
       "tmuxpad-host", withExtension: "sh")`, `version: Int` парсингом строки `^VERSION=(\d+)$`
       (отсутствие → `fatalError` на старте тестов недопустимо: `throws`).
-- [ ] `Host/HostAPI.swift`: протокол `ExecRunner: Sendable` (`exec(_ command: String, stdin: Data?,
+- [x] `Host/HostAPI.swift`: протокол `ExecRunner: Sendable` (`exec(_ command: String, stdin: Data?,
       timeout: Duration) async throws -> ExecResult`) — ему соответствуют `SSHConnection` (Task 2) и
       `ServerConnection` (Task 4, через очередь на 2 слота); `public struct HostAPI: Sendable` поверх
       `any ExecRunner` +
@@ -440,28 +453,28 @@ host/tests/run.sh                                             # стенд ск�
       `doctor() -> DoctorReport`, `auth(token: String)` (валидация `^[A-Za-z0-9_-]+$` локально,
       stdin `token\n`), `attachCommand(session:) -> String` и `takeCommand(session:)` — готовые
       exec-строки для PTY-канала (их выполняет `TerminalSession`).
-- [ ] `Host/HostBootstrap.swift`: `public struct HostBootstrap` — `status(api:) async ->
+- [x] `Host/HostBootstrap.swift`: `public struct HostBootstrap` — `status(api:) async ->
       BootstrapStatus` (`.missing`, `.outdated(installed:bundled:)`, `.ready(version:)`,
       `.unreachable(String)`): `version()` → `scriptMissing` → `.missing`, число < `HostScript.
       version` → `.outdated`; `install(connection:) async throws` — `exec(HostCommand.install.
       render…, stdin: HostScript.data)` и проверка `version()` после; `prepare(api:) async
       throws -> DoctorReport` — `install` при `.missing`/`.outdated`, затем `setup()`.
-- [ ] `Tests/Support/FakeTransport.swift`: `FakeConnection: SSHConnection` с очередью ответов
+- [x] `Tests/Support/FakeTransport.swift`: `FakeConnection: SSHConnection` с очередью ответов
       `exec` (`[(matches: (String) -> Bool, result: Result<ExecResult, Error>)]`), журналом
       вызванных команд и stdin, управлением `onDisconnect`; PTY-часть — в Task 5 (здесь `openPTY`
       кидает `unimplemented`). `HostAPITests` (юнит, на фейке): `list` рендерит точную
       exec-строку и парсит ответ; код 3 у `new` → `.sessionExists`; 127 → `.scriptMissing`;
       `auth` отвергает токен с пробелом до обращения к сети и шлёт `token\n` в stdin; `setup`
       с кодом 1 и валидным отчётом → `DoctorReport.ok == false` без ошибки.
-- [ ] `HostScriptResourceTests`: ресурс побайтно равен `host/tmuxpad-host.sh` (корень репозитория
+- [x] `HostScriptResourceTests`: ресурс побайтно равен `host/tmuxpad-host.sh` (корень репозитория
       — три уровня вверх от `#filePath`), `HostScript.version == 1`.
-- [ ] `HostBootstrapIntegrationTests` (стенд, чистый контейнер без скрипта — `rm -f
+- [x] `HostBootstrapIntegrationTests` (стенд, чистый контейнер без скрипта — `rm -f
       ~/.local/bin/tmuxpad-host.sh` в сбросе): `status` → `.missing`; `install` → файл есть,
       исполняемый, `status` → `.ready(1)`; подмена версии (`sed -i 's/^VERSION=1/VERSION=0/'
       ~/.local/bin/tmuxpad-host.sh`) → `.outdated(installed: 0, bundled: 1)`; `prepare` →
       переустановил, `DoctorReport` с `tmux` ok, `projects` ok, `script` ok и `ok == true`;
       `~/.tmux.conf` содержит `# tmuxpad: begin`.
-- [ ] `HostAPIIntegrationTests` (стенд, скрипт установлен через `HostBootstrap` в начале suite):
+- [x] `HostAPIIntegrationTests` (стенд, скрипт установлен через `HostBootstrap` в начале suite):
       `listEmpty` (три проекта, ноль сессий); `newListKill` (`new("api","api")` → `list`
       содержит сессию `api` с `project == "api"`, `otherClients == 0`, `lastActivity` в пределах
       минуты от сейчас; `kill` → пусто; `TMUXPAD_CMD` для стенда — `sleep 1000`, чтобы заглушка
@@ -472,8 +485,17 @@ host/tests/run.sh                                             # стенд ск�
       `otherClients == 1`; завершить процесс); `projectsRootMissing` (окружение с
       `projectsRoot: "nope"` → `.projectsRootMissing`); `copyCancelIdempotent` (0 и вне режима);
       `authStoresToken` (`auth("tok_1")` → `cat ~/.tmuxpad/env` содержит `tok_1`, права 600).
-- [ ] `swift test --skip IntegrationTests` и `scripts/test.sh` зелёные, сборка без
+- [x] `swift test --skip IntegrationTests` и `scripts/test.sh` зелёные, сборка без
       предупреждений; коммит.
+
+      Отклонения при исполнении: `HostBootstrap.install(api:)` вместо `install(connection:)` —
+      установка идёт через `HostAPI.run(.install, stdin:)` и сразу проверяется `version()` того
+      же `HostAPI`; `HostBootstrap` хранит `script`/`bundledVersion` (`init()` из ресурса,
+      `init(script:)` для юнит-тестов); `prepare` пробрасывает сетевые ошибки как есть, а не
+      через `.unreachable`. `HostAPI` получил `server` (метка журнала) и `timeout` (20 с по
+      умолчанию), инициализатор из `ServerConfig` + `deviceID` для Task 4. `SSHConnection`
+      наследует `ExecRunner`. Suite Swift Testing идут параллельно, поэтому интеграционные
+      тесты, которые сбрасывают стенд, берут общий замок `Bench.exclusive` (`Bench.withReset`).
 
 ### Task 4: `ConnectionPool` — состояния, очередь exec, keepalive, реконнект
 
@@ -481,13 +503,13 @@ host/tests/run.sh                                             # стенд ск�
 (create), `TmuxPadCore/Tests/TmuxPadCoreTests/{AsyncSemaphoreTests,ServerConnectionTests,PoolIntegrationTests}.swift`
 (create), `Tests/Support/FakeTransport.swift`.
 
-- [ ] `Pool/PoolSettings.swift`: `keepalive: Duration` (из `ServerConfig.keepaliveSeconds`),
+- [x] `Pool/PoolSettings.swift`: `keepalive: Duration` (из `ServerConfig.keepaliveSeconds`),
       `pingTimeout = .seconds(5)`, `backoff: [Duration] = [1, 2, 5, 10] с`, `connectTimeout =
       .seconds(15)`, `execSlots = 2`, `ptySlots = 8`, `execTimeout = .seconds(20)`.
       `Pool/ConnectionState.swift` — enum решения 7, `Equatable`, `Sendable`.
       `Pool/AsyncSemaphore.swift` — actor с `acquire()`/`release()` и `withSlot(_:)`, FIFO,
       поддержка отмены (`withTaskCancellationHandler`, снятие из очереди).
-- [ ] `Pool/ServerConnection.swift`: `public actor ServerConnection` (`config: ServerConfig`,
+- [x] `Pool/ServerConnection.swift`: `public actor ServerConnection` (`config: ServerConfig`,
       `deviceID: UUID`, `transport`, `auth: SSHAuth`, `hostKeys`, `settings`, `log`):
       `connect()` (`.connecting` → `.connected`; ошибка → `.failed(описание)`, `hostKeyChanged`
       не ретраится никогда), `disconnect()` (явно, без реконнекта), `reconnectNow()` (сброс
@@ -506,17 +528,17 @@ host/tests/run.sh                                             # стенд ск�
       до `reconnectNow()`. Все переходы — в `DiagnosticsLog` с причиной. Открытые PTY-каналы
       при смерти соединения закрываются транспортом сами; их переоткрытие — дело
       `TerminalSession` (Task 5), пул лишь публикует состояние.
-- [ ] `Pool/ConnectionPool.swift`: `public actor ConnectionPool` — `connection(for config:
+- [x] `Pool/ConnectionPool.swift`: `public actor ConnectionPool` — `connection(for config:
       ServerConfig, auth: SSHAuth) -> ServerConnection` (создаёт один раз по `config.id`, при
       изменившемся `host`/`port`/`user`/`keyID` пересоздаёт), `remove(id:)` с `disconnect`,
       `disconnectAll()` (уход в фон, §6), `reconnectAll()` (возврат из фона, смена сети),
       общий `DiagnosticsLog`.
-- [ ] `FakeTransport`: `connect` считает попытки, по сценарию падает N раз подряд
+- [x] `FakeTransport`: `connect` считает попытки, по сценарию падает N раз подряд
       (`failNextConnects`), выдаёт `FakeConnection`, у которого `exec` можно задержать
       (`execDelay`) или зависнуть (`hangExec = true`), `dropConnection()` стреляет в
       `onDisconnect`, `openPTY` ведёт счёт открытых каналов и даёт `FakePTY` с ручным `emit(
       Data)` и `close(exitCode:)`.
-- [ ] `AsyncSemaphoreTests`: при 2 слотах и 5 задачах одновременно внутри не больше 2 (счётчик
+- [x] `AsyncSemaphoreTests`: при 2 слотах и 5 задачах одновременно внутри не больше 2 (счётчик
       с `Atomic`/actor), FIFO порядок выдачи, отменённая ждущая задача не получает слот.
       `ServerConnectionTests` (фейк, интервалы 20–50 мс): `connectPublishesStates`
       (`.connecting` → `.connected`); `execUsesTwoSlots` (3 параллельных `exec` с задержкой →
@@ -528,11 +550,22 @@ host/tests/run.sh                                             # стенд ск�
       `backoffThenFailed` (`failNextConnects = 10` → четыре попытки с ожиданиями из `backoff`,
       затем `.failed`, попыток ровно 5 = 1 начальная + 4; `reconnectNow()` → снова попытка);
       `explicitDisconnectDoesNotReconnect`; `hostKeyChangedIsFatal` (не ретраится).
-- [ ] `PoolIntegrationTests` (стенд): `connectExecPing` (реальный `connect`, `exec("true")`,
+- [x] `PoolIntegrationTests` (стенд): `connectExecPing` (реальный `connect`, `exec("true")`,
       state `.connected`); `killSessionReconnects` (`exec("kill -9 $PPID")` → `.reconnecting` →
       `.connected` ≤ 10 с, затем `api.version()` работает); `disconnectAllAndReconnectAll`.
-- [ ] `swift test --skip IntegrationTests` и `scripts/test.sh` зелёные, без предупреждений;
+- [x] `swift test --skip IntegrationTests` и `scripts/test.sh` зелёные, без предупреждений;
       коммит.
+
+      Отклонения при исполнении: `connect()` пробрасывает ошибку первой попытки, а пул сам
+      продолжает попытки по `backoff` (отсюда «1 начальная + 4»); кроме `hostKeyChanged` без
+      повторов уходит в `.failed` и `authFailed`. `reconnectNow()` — это `connect()` без ошибки
+      (при живом соединении ничего не делает). Пинг не обновляет `lastExecAt`, иначе каждый второй
+      такт пропускался бы; пинг идёт через тот же семафор exec (лимит `MaxSessions`), ожидание
+      слота входит в `pingTimeout`. PTY пула заворачивается в `PooledPTY`: слот освобождают
+      `close()`, конец вывода канала и смерть соединения. `openPTY` у `ServerConnection` с
+      параметрами по умолчанию `term = xterm-256color`, `LANG = en_US.UTF-8`. Пул при смене
+      прочих полей конфига обновляет `ServerConnection.update(config:settings:)` на месте;
+      `api` стал изолированным свойством. Добавлены юнит-тесты `ConnectionPoolTests`.
 
 ### Task 5: `TerminalSurface` и `TerminalSession`
 
@@ -540,11 +573,11 @@ host/tests/run.sh                                             # стенд ск�
 (create), `TmuxPadCore/Tests/TmuxPadCoreTests/{TerminalSessionTests,TerminalIntegrationTests}.swift`
 (create), `Tests/Support/{FakeTransport,RecordingSurface}.swift`.
 
-- [ ] `Terminal/TerminalSurface.swift`: `public protocol TerminalSurface: AnyObject, Sendable` —
+- [x] `Terminal/TerminalSurface.swift`: `public protocol TerminalSurface: AnyObject, Sendable` —
       `func feed(_ bytes: Data)`, `var size: (cols: Int, rows: Int) { get }`, `func stateChanged(
       _ state: TerminalState)`; вызовы приходят с произвольного исполнителя, прыжок на main —
       дело реализации (SwiftTerm в плане 3). `Terminal/TerminalState.swift` — enum решения 8.
-- [ ] `Terminal/TerminalSession.swift`: `public actor TerminalSession` (`server:
+- [x] `Terminal/TerminalSession.swift`: `public actor TerminalSession` (`server:
       ServerConnection`, `name: String`, `surface`, `log`, `kickWindow = .seconds(60)`):
       `start()` — `.connecting`, `openPTY(command: api.attachCommand(session:), term:
       "xterm-256color", cols/rows из `surface.size`, env `LANG=en_US.UTF-8`)` → `.live`, задача
@@ -559,9 +592,9 @@ host/tests/run.sh                                             # стенд ск�
       → `.ended`; транспорт мёртв (`SSHError.disconnected` или состояние сервера не `.connected`)
       → `.offline(причина)` и ожидание `states` сервера: при `.connected` — `reconnect()`.
       Все переходы — в `surface.stateChanged` и в журнал.
-- [ ] `RecordingSurface` (тест): копит байты и состояния, `size` настраиваемый. `FakePTY`
+- [x] `RecordingSurface` (тест): копит байты и состояния, `size` настраиваемый. `FakePTY`
       умеет `emit`, `close(exitCode:)`, фиксирует `sent` и `resizes`.
-- [ ] `TerminalSessionTests` (фейк): `startFeedsOutput` (байты из `emit` доходят до `feed`,
+- [x] `TerminalSessionTests` (фейк): `startFeedsOutput` (байты из `emit` доходят до `feed`,
       состояние `.connecting` → `.live`, команда PTY — exec-строка `attach api`); `copyCancelBeforeInput`
       (`noteScrolledUp`, `send("x")` → в журнале фейка exec `copy-cancel api` до того, как PTY
       получил `x`; второй `send` без `copy-cancel`); `resizeForwards`; `detachEnds` (`.ended`,
@@ -571,7 +604,7 @@ host/tests/run.sh                                             # стенд ск�
       (повтор при `kickWindow` 500 мс → `.disconnectedByOther`); `takeUsesTakeCommand`;
       `offlineThenReconnect` (сервер `.reconnecting` → `.offline`, после `.connected` → новый
       PTY, `.live`).
-- [ ] `TerminalIntegrationTests` (стенд, скрипт установлен, сессия `new("api","api")` с
+- [x] `TerminalIntegrationTests` (стенд, скрипт установлен, сессия `new("api","api")` с
       `startCommand: "bash"`, чтобы в pane был интерактивный шелл): `attachShowsTmux` (после
       `start` в `feed` за 5 с приходят байты, `tmux list-clients -t =api` даёт одного клиента,
       файл в `~/.tmuxpad/clients/` содержит `deviceID`); `typingReachesPane` (`send("echo
@@ -584,20 +617,39 @@ host/tests/run.sh                                             # стенд ск�
       второй состояние `.reconnecting` затем `.live` (один раз молча), повторный `take()` в
       пределах минуты → `.disconnectedByOther`); `detachLeavesSessionAlive` (`detach()` →
       клиентов 0, сессия в `list` есть).
-- [ ] `swift test --skip IntegrationTests` и `scripts/test.sh` зелёные, без предупреждений;
+- [x] `swift test --skip IntegrationTests` и `scripts/test.sh` зелёные, без предупреждений;
       коммит.
+
+      Отклонения при исполнении: `ServerConnection.states` — поток на одного потребителя, поэтому
+      добавлен `stateUpdates()` (текущее состояние и все следующие, подписчиков сколько угодно);
+      им `TerminalSession` в `.offline` ждёт `.connected` и на каждое пробует `attach`, пока не
+      выйдет. `start()`/`take()`/`reconnect()` не бросают — итог в `state`. Код 4 → `.ended`;
+      любой другой код или канал без exit-status при живом соединении → `list`: сессии нет →
+      `.ended` (её могли убить, пока скрипт готовил `attach`, тогда код 1), есть и код 0/нет кода →
+      правило выбивания, есть и прочий код → `.offline` без повторов; `channelRefused` и
+      `HostError` при открытии — тоже `.offline` без повторов. `send` идут очередью в порядке
+      вызова, даже если первый ждёт `copy-cancel`. `take()` показывает `.reconnecting`. Размер
+      клиента в `resizeChangesWindow` читается через `list-clients -F`, а не `display -p`.
+      Попутно найден и обойдён баг транспорта (Task 2): форк swift-nio-ssh 0.3.x считает наш
+      EOF stdin после EOF сервера нарушением протокола и рвёт канал вместе с exit-status, отчего
+      примерно каждый 50-й быстрый exec падал с `disconnected`; `SessionChannel.eof()` теперь
+      на event loop пропускает EOF, если сервер уже прислал свой. Регрессия —
+      `TransportIntegrationTests.fastExecsKeepExitStatus` (200 exec). Добавлены юнит-тесты
+      сверх плана: порядок ввода при `copy-cancel`, код 4, ненулевой код при живой и убитой
+      сессии, выбивание после окна, отказ PTY, `detach` во время проверки `list`, `stateUpdates`;
+      интеграционный `killedSessionEnds`.
 
 ### Task 6: документация, полный прогон и завершение
 
 **Файлы:** `TmuxPadCore/README.md` (create), `CLAUDE.md`, `docs/tmuxpad-spec.md` (только если
 контракт в коде разошёлся со спекой), `docs/plans/20261020-tmuxpad-core.md` (move).
 
-- [ ] `TmuxPadCore/README.md` (коротко, по-русски): назначение пакета и граница §5.2, карта
+- [x] `TmuxPadCore/README.md` (коротко, по-русски): назначение пакета и граница §5.2, карта
       модулей (`Models`, `Host`, `SSH`, `Pool`, `Terminal`, `Diagnostics`), что приложение должно
       реализовать (`KeyStore`, `HostKeyStore`, `TerminalSurface`, завернуть Secure Enclave в
       `NIOSSHPrivateKey`), как обновлять скрипт-ресурс (скопировать `host/tmuxpad-host.sh`,
       тест синхронности), команды сборки и тестов, стенд `bench.sh`, типичное время первой сборки.
-- [ ] `CLAUDE.md`: раздел «Состояние репозитория» — появился `TmuxPadCore`: команды из Validation
+- [x] `CLAUDE.md`: раздел «Состояние репозитория» — появился `TmuxPadCore`: команды из Validation
       Commands (сборка, юнит-тесты без Docker, `scripts/test.sh`, один suite через `--filter`,
       shellcheck на `bench.sh`/`test.sh`), раскладка `TmuxPadCore/`, правило «скрипт-ресурс —
       копия `host/tmuxpad-host.sh`, равенство проверяет тест»; убрать фразу «Swift-кода ещё
@@ -606,11 +658,11 @@ host/tests/run.sh                                             # стенд ск�
       единственная точка контакта с сетью; пул и терминал тестируются на фейке». Расхождения
       кода со спекой (если были уточнены интервалы, состояния, ошибки) — внести в спеку одной
       правкой со ссылкой на этот план.
-- [ ] Полный прогон: `swift build --build-tests` без предупреждений, `swift test --skip
+- [x] Полный прогон: `swift build --build-tests` без предупреждений, `swift test --skip
       IntegrationTests`, `TmuxPadCore/scripts/test.sh`, shellcheck, `host/tests/run.sh` (стенд
       скрипта не пострадал от `bench.sh`/`.gitignore`); в progress-лог — время прогона и число
       тестов по видам.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
 
 ## Как проверить после выкатки
 

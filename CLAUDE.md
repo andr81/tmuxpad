@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Состояние репозитория
 
-Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готова серверная половина — host-скрипт и его Docker-стенд; Swift-кода (`TmuxPadCore`, приложение, `project.yml`) ещё нет. Когда появится, добавь сюда реальные команды сборки и тестов. Не выдумывай их заранее.
+Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2). Приложения и `project.yml` ещё нет (план 3, на Mac); когда появятся, добавь сюда реальные команды сборки. Не выдумывай их заранее.
 
 Раскладка `host/`:
 - `host/tmuxpad-host.sh` — сам скрипт; `host/README.md` — подкоманды, коды выхода, форматы, файлы состояния;
@@ -18,6 +18,23 @@ shellcheck -s bash host/tmuxpad-host.sh host/tests/run.sh host/tests/lib.sh host
 host/tests/run.sh                                  # ubuntu:24.04, tmux 3.4
 TMUXPAD_TEST_BASE=ubuntu:22.04 host/tests/run.sh   # tmux 3.2a, нижняя граница
 host/tests/run.sh -k test_list_others              # один тест, по подстроке имени
+```
+
+Раскладка `TmuxPadCore/` (подробнее — `TmuxPadCore/README.md`):
+- `Sources/TmuxPadCore/` — `Models/`, `Host/` (`HostAPI`, `HostBootstrap`, парсеры), `SSH/` (транспорт, ключи, TOFU), `Pool/` (`ConnectionPool`, `ServerConnection`), `Terminal/` (`TerminalSession`, `TerminalSurface`), `Diagnostics/`, `Resources/tmuxpad-host.sh`;
+- `Tests/TmuxPadCoreTests/` — Swift Testing: `*Tests.swift` юнит (пул и терминал на `FakeTransport`), `*IntegrationTests.swift` против стенда, без стенда пропускаются;
+- `scripts/test.sh` — `host/tests/bench.sh up` → `swift test` → `down`; `host/tests/bench.sh` — долгоживущий контейнер того же образа, состояние в `host/tests/.bench/`.
+
+Скрипт-ресурс `TmuxPadCore/Sources/TmuxPadCore/Resources/tmuxpad-host.sh` — побайтная копия `host/tmuxpad-host.sh`: после правки скрипта скопируй его туда, равенство проверяет `HostScriptResourceTests`.
+
+Команды ядра (Swift 6.1.3; первая сборка ~12,5 мин — запускай в фоне, дальше минуты; новые предупреждения компилятора — ошибка):
+
+```
+swift build --package-path TmuxPadCore --build-tests
+swift test --package-path TmuxPadCore --skip IntegrationTests  # юнит-тесты, без Docker
+TmuxPadCore/scripts/test.sh                                   # стенд + все тесты
+TmuxPadCore/scripts/test.sh --filter HostAPIIntegrationTests  # один suite или тест (regex по имени)
+shellcheck -s bash host/tests/bench.sh TmuxPadCore/scripts/test.sh
 ```
 
 Решения, которые меняют поведение, сначала вносятся в спеку, потом в код.
@@ -41,9 +58,11 @@ TmuxPad — iPad-клиент (iPadOS 17+, Swift 6, SwiftUI) для работы
 - **Агент запускается через `send-keys` во внутренний шелл tmux-сессии**, а не как её команда: выход из claude не должен убивать сессию.
 - **Имя Claude-сессии = имя tmux-сессии** (`claude -n NAME --session-id <uuid>`); после ребута сервера — `--resume <uuid>`, UUID в `~/.tmuxpad/NAME.claude`.
 - **Валидация имён** и в приложении, и в скрипте: сессия `^[A-Za-z0-9_-]{1,64}$`, проект `^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$`. В exec-строки ничего не подставляется без экранирования. Токен Claude передаётся только через stdin.
+- **Каналы SSH ядро открывает через NIOSSH напрямую** (`SessionChannel`, `NIOSSHHandler.createChannel`), не через `executeCommand`/`withPTY` Citadel: те теряют stderr, не дают stdin с EOF и открывают shell вместо exec.
+- **`SSHTransport` — единственная точка контакта с сетью**; пул и терминал тестируются на фейке (`FakeTransport`).
 - **Терминал — за протоколом `TerminalSurface`**, чтобы SwiftTerm можно было заменить на libghostty.
 - iPadOS рвёт сокеты в фоне; устойчивость даёт tmux, приложение переподключается по `scenePhase` и `NWPathMonitor` (§6).
 
-## Тесты (план)
+## Тесты
 
-Swift Testing / XCTest; интеграционные — против Docker-контейнера с sshd + tmux; shellcheck на host-скрипт.
+Ядро — Swift Testing, интеграционные — против Docker-контейнера с sshd + tmux (`bench.sh`); host-скрипт — свой раннер `host/tests/run.sh` и shellcheck. Тесты приложения — план 3.

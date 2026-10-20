@@ -171,6 +171,25 @@ struct TerminalSessionTests {
         #expect(surface.copyModeCalls == [true, false])
     }
 
+    @Test func failedCopyCancelKeepsFlag() async throws {
+        let transport = FakeTransport()
+        let (_, session, surface) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        try await session.input(Self.wheelUp)
+        let connection = try #require(transport.lastConnection)
+        connection.respond(when: { $0.contains("copy-cancel") }, with: .failure(SSHError.disconnected))
+        await session.cancelCopyMode()
+        #expect(Self.copyCancels(transport) == 1)
+        #expect(surface.copyModeCalls == [true, false, true])
+        await session.reconnect()
+        let second = try await Self.pty(transport, 2)
+        try await session.input(Data("x".utf8))
+        #expect(Self.copyCancels(transport) == 2)
+        #expect(second.sent == [Data("x".utf8)])
+        #expect(surface.copyModeCalls == [true, false, true, false])
+    }
+
     @Test func detachClearsCopyModeFlag() async throws {
         let transport = FakeTransport()
         let (_, session, surface) = try await Self.make(transport)

@@ -58,8 +58,8 @@ public actor TerminalSession {
         await open(take: false, current)
     }
 
-    /// Ввод с клавиатуры. После скролла вверх сначала `copy-cancel` через exec (ошибки — только
-    /// в журнал), иначе tmux в copy-mode проглотит ввод.
+    /// Ввод с клавиатуры. После скролла вверх сначала `copy-cancel` через exec (ошибка — в журнал
+    /// и флаг обратно, байты всё равно идут), иначе tmux в copy-mode проглотит ввод.
     public func send(_ data: Data) async throws {
         let cancelFirst = needsCopyCancel
         setCopyModeSuspected(false)
@@ -125,7 +125,7 @@ public actor TerminalSession {
     // MARK: - Ввод
 
     /// В очередь `sendTail`: байты в PTY в порядке вызовов, перед ними при `cancelFirst` —
-    /// `copy-cancel`; пустые байты в PTY не пишутся.
+    /// `copy-cancel`, его неудача снова поднимает флаг; пустые байты в PTY не пишутся.
     private func enqueue(_ data: Data, cancelFirst: Bool) async throws {
         let previous = sendTail
         let channel = pty
@@ -139,6 +139,7 @@ public actor TerminalSession {
                     try await server.api.copyCancel(session: name)
                 } catch {
                     await log.record(server: await server.config.label, kind: .terminal, "\(name): copy-cancel failed: \(error)")
+                    self.copyCancelFailed()
                 }
             }
             guard !data.isEmpty else {
@@ -151,6 +152,15 @@ public actor TerminalSession {
         }
         sendTail = Task { _ = await task.result }
         try await task.value
+    }
+
+    /// pane, возможно, остался в copy-mode: следующий ввод (и после переподключения) повторит
+    /// `copy-cancel`; после `detach` флаг не нужен.
+    private func copyCancelFailed() {
+        guard !userDetached else {
+            return
+        }
+        setCopyModeSuspected(true)
     }
 
     /// Флаг «pane, вероятно, в copy-mode»; экран узнаёт только о смене значения.

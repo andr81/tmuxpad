@@ -78,7 +78,7 @@ GNU `timeout`).
    снимает, и без `copy-cancel` первый ввод после обрыва tmux проглотил бы. Сейчас `begin()`
    (`TerminalSession.swift`) флаг не трогает — так и остаётся.
 4. **`cancelCopyMode() async`** — действие чипа: если флаг поднят, встаёт в очередь `sendTail`,
-   выполняет `server.api.copyCancel(session:)` (ошибка — только в журнал, как в `send`),
+   выполняет `server.api.copyCancel(session:)` (ошибка — в журнал и флаг обратно, как в `send`: pane мог остаться в copy-mode),
    сбрасывает флаг и уведомляет экран. При опущенном флаге ничего не делает.
 5. **`Validation.suggestedSessionName(from:) -> String`** в `Models/Validation.swift`:
    пробелы и `.` → `-`, прочие символы вне `[A-Za-z0-9_-]` удаляются, подряд идущие `-`

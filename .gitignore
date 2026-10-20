@@ -1,3 +1,6 @@
 .ralphex/
 *.tmp
 .DS_Store
+TmuxPadCore/.build/
+TmuxPadCore/.swiftpm/
+host/tests/.bench/

@@ -248,7 +248,7 @@ host/tests/run.sh                                             # стенд ск�
 `TmuxPadCore/Tests/TmuxPadCoreTests/{ValidationTests,HostCommandTests,ListParserTests,DoctorParserTests,HostErrorTests,DiagnosticsLogTests}.swift`
 (create), `.gitignore`.
 
-- [ ] `TmuxPadCore/Package.swift`: `// swift-tools-version:6.0`, `name: "TmuxPadCore"`,
+- [x] `TmuxPadCore/Package.swift`: `// swift-tools-version:6.0`, `name: "TmuxPadCore"`,
       `platforms: [.iOS(.v17), .macOS(.v14)]`, `products: [.library(name: "TmuxPadCore", targets:
       ["TmuxPadCore"])]`, зависимости из решения 2, таргет `TmuxPadCore` с `dependencies:
       [.product(name: "Citadel", package: "Citadel"), .product(name: "NIOSSH", package:
@@ -260,8 +260,8 @@ host/tests/run.sh                                             # стенд ск�
       не соберётся). Первая сборка: `swift build --package-path TmuxPadCore --build-tests` в
       фоне (решение 11); зафиксировать в progress-логе время сборки и версии из `Package.resolved`
       (ожидаются Citadel 0.12.1, swift-nio-ssh 0.3.7, swift-nio 2.104.x, swift-crypto 3.15.x).
-- [ ] `.gitignore`: добавить `TmuxPadCore/.build/`, `TmuxPadCore/.swiftpm/`, `host/tests/.bench/`.
-- [ ] `Models/Models.swift` — типы §5.1 как `public struct … : Sendable, Codable, Hashable`:
+- [x] `.gitignore`: добавить `TmuxPadCore/.build/`, `TmuxPadCore/.swiftpm/`, `host/tests/.bench/`.
+- [x] `Models/Models.swift` — типы §5.1 как `public struct … : Sendable, Codable, Hashable`:
       `ServerConfig` (`id: UUID`, `label`, `host`, `port = 22`, `user`, `keyID: UUID`,
       `projectsRoot = "projects"`, `startCommand = "claude"`, `keepaliveSeconds = 15`,
       `hostKeyFingerprint: String?`, `sortIndex: Int`), `SSHKeyInfo` (`id`, `name`, `kind:
@@ -271,13 +271,13 @@ host/tests/run.sh                                             # стенд ск�
       `ServerReachability` (`.unknown`, `.online`, `.offline(String)`, `.needsSetup(String)` —
       `String` вместо `Error`, чтобы тип был `Equatable` и `Sendable`), `DoctorLine` (`level:
       .ok/.warn/.fail`, `key`, `message`), `DoctorReport` (`lines`, `ok: Bool` = нет `fail`).
-- [ ] `Models/Validation.swift`: `public enum Validation` с `isValidSessionName(_:)` по regex
+- [x] `Models/Validation.swift`: `public enum Validation` с `isValidSessionName(_:)` по regex
       `^[A-Za-z0-9_-]{1,64}$`, `isValidProjectName(_:)` по `^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$`
       (на `Regex` Swift, без `NSRegularExpression`), `isSafeShellValue(_:)` — не пусто, без `'`,
       без управляющих символов и переводов строки (для `projectsRoot`, `startCommand`);
       `ServerConfig.validationIssues() -> [String]` (хост не пуст, порт 1…65535, пользователь не
       пуст и без пробелов, `projectsRoot` и `startCommand` безопасны, `keepaliveSeconds` 5…300).
-- [ ] `Host/HostCommand.swift`: `public struct HostEnvironment: Sendable` (`client: UUID`,
+- [x] `Host/HostCommand.swift`: `public struct HostEnvironment: Sendable` (`client: UUID`,
       `projectsRoot: String`, `startCommand: String`); `public enum HostCommand: Sendable`
       (`.version`, `.list`, `.new(session:project:)`, `.attach(session:)`, `.take(session:)`,
       `.copyCancel(session:)`, `.kill(session:)`, `.setup`, `.doctor`, `.auth`, `.install`);
@@ -287,7 +287,7 @@ host/tests/run.sh                                             # стенд ск�
       `shellQuote(_:)` (`'` → `'\''`); имена сессий и проектов проходят `Validation`, иначе
       `HostError.badRequest`; `.install` рендерится в `mkdir -p ~/.local/bin && cat >
       ~/.local/bin/tmuxpad-host.sh && chmod +x ~/.local/bin/tmuxpad-host.sh` без `env`-префикса.
-- [ ] `Host/ListParser.swift`: `ListParser.parse(_ text: String, fetchedAt: Date) throws ->
+- [x] `Host/ListParser.swift`: `ListParser.parse(_ text: String, fetchedAt: Date) throws ->
       ServerSnapshot`: первая строка `V\t1` (иная версия → `HostError.badOutput("unsupported list
       version N")`), `S`-строки → `RemoteSession` (`others` и `activity` — целые, `activity` →
       `Date(timeIntervalSince1970:)`), `P`-строки → `RemoteProject`; неизвестные префиксы
@@ -295,19 +295,19 @@ host/tests/run.sh                                             # стенд ск�
       полей → `badOutput`. `Host/DoctorParser.swift`: `DoctorParser.parse(_:) throws ->
       DoctorReport` по TSV `ok|warn|fail\tKEY\tMESSAGE`; сообщение может содержать табуляцию —
       брать всё после второго `\t`.
-- [ ] `Host/HostError.swift`: `enum HostError` по решению 6 и `static func from(command:
+- [x] `Host/HostError.swift`: `enum HostError` по решению 6 и `static func from(command:
       HostCommand, exitCode: Int, stderr: String) -> HostError` (127/126 → `.scriptMissing`;
       2 → для `.list` `.projectsRootMissing`, иначе `.badRequest(stderr)`; 3 →
       `.sessionExists`; 4 → `.noSession`; иначе `.failed(code:stderr:)`), `SSHError` по
       решению 6; у обоих `CustomStringConvertible` с текстом для UI на английском
       (локализация — приложение).
-- [ ] `Diagnostics/DiagnosticsLog.swift`: `public actor DiagnosticsLog` с `DiagnosticsEvent`
+- [x] `Diagnostics/DiagnosticsLog.swift`: `public actor DiagnosticsLog` с `DiagnosticsEvent`
       (`date`, `server`, `kind: Kind` — `.connect`, `.disconnect`, `.reconnect`, `.ping`,
       `.exec`, `.terminal`, `.hostKey`, `.error`; `message`), `record(_:)`, `events() ->
       [DiagnosticsEvent]`, `export() -> String` (одна строка на событие: ISO-8601 время, сервер,
       вид, сообщение), ёмкость 2000 с вытеснением старых; `AsyncStream<DiagnosticsEvent>`
       `updates` для живого экрана.
-- [ ] Юнит-тесты (Swift Testing): валидация — таблица валидных/невалидных имён (`a`, 64 символа,
+- [x] Юнит-тесты (Swift Testing): валидация — таблица валидных/невалидных имён (`a`, 64 символа,
       65 символов, `a b`, `.hidden` для проекта, `my.app` валиден как проект и невалиден как
       сессия); `HostCommand` — точная строка для `.list` и `.new(session: "api", project:
       "my.app")` с фиксированным UUID, экранирование `'` в `startCommand` отвергается
@@ -317,7 +317,7 @@ host/tests/run.sh                                             # стенд ск�
       `badOutput`; `DoctorParser` — пять строк из `doctor`, `ok` только без `fail`;
       `HostError.from` — вся таблица кодов, включая `list` + 2; `DiagnosticsLog` — вытеснение
       при 2001 событии, формат `export`.
-- [ ] `swift build --package-path TmuxPadCore --build-tests` без предупреждений, `swift test
+- [x] `swift build --package-path TmuxPadCore --build-tests` без предупреждений, `swift test
       --package-path TmuxPadCore` зелёный; коммит.
 
 ### Task 2: транспорт SSH на Citadel и NIOSSH, ключи, TOFU, стенд для Swift-тестов

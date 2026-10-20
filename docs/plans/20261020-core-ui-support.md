@@ -289,17 +289,17 @@ docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n TmuxPadCore/scripts/test.sh
 `.../TerminalSessionTests.swift`, `.../TerminalIntegrationTests.swift`,
 `.../Support/RecordingSurface.swift`.
 
-- [ ] `Terminal/MouseReport.swift`: `public enum TerminalInput: Sendable, Equatable { case
+- [x] `Terminal/MouseReport.swift`: `public enum TerminalInput: Sendable, Equatable { case
       keyboard, wheelUp, otherMouse }` и `public enum MouseReport { public static func
       classify(_ bytes: Data) -> TerminalInput }` по решению 1: последовательный разбор с
       позиции 0; каждый отчёт должен начинаться ровно с `0x1B 0x5B`; SGR — `0x3C`, три
       десятичных поля через `;` (1–4 цифры каждое), финальный `M` или `m`; X10 — `0x4D` и ровно
       три байта ≥ 32; любой остаток или несовпадение → `.keyboard`; пустой буфер → `.keyboard`.
       Код кнопки после снятия модификаторов `b & ~28`: 64 → колесо вверх.
-- [ ] `TerminalSurface.swift`: в протокол — `func copyModeSuspected(_ suspected: Bool)` с
+- [x] `TerminalSurface.swift`: в протокол — `func copyModeSuspected(_ suspected: Bool)` с
       doc-комментарием «чип "Прокрутка ✕" (§3.5); вызывается только при смене значения, не с
       main»; `extension TerminalSurface { public func copyModeSuspected(_ suspected: Bool) {} }`.
-- [ ] `TerminalSession.swift`: приватный `setCopyModeSuspected(_ value: Bool)` меняет
+- [x] `TerminalSession.swift`: приватный `setCopyModeSuspected(_ value: Bool)` меняет
       `needsCopyCancel` и вызывает `surface.copyModeSuspected` только при смене значения;
       `noteScrolledUp()` идёт через него. Новый `public func input(_ bytes: Data) async throws`
       по решению 2: общая постановка в очередь `sendTail` вынесена из `send` в
@@ -307,19 +307,19 @@ docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n TmuxPadCore/scripts/test.sh
       `.wheelUp` — `setCopyModeSuspected(true)`, `enqueue(cancelFirst: false)`; `.otherMouse` —
       `enqueue(cancelFirst: false)`; `.keyboard` — то же, что `send`. `send` сбрасывает флаг
       через `setCopyModeSuspected(false)`.
-- [ ] `TerminalSession.swift`: `public func cancelCopyMode() async` по решению 4 (через
+- [x] `TerminalSession.swift`: `public func cancelCopyMode() async` по решению 4 (через
       `enqueue` с пустыми данными и `cancelFirst: true`, без записи пустого буфера в PTY);
       `detach()` зовёт `setCopyModeSuspected(false)`; `take()`, `reconnect()` и открытие
       нового канала флаг не трогают (решение 3).
-- [ ] `Support/RecordingSurface.swift`: запись вызовов `copyModeSuspected` в массив для
+- [x] `Support/RecordingSurface.swift`: запись вызовов `copyModeSuspected` в массив для
       проверок.
-- [ ] `MouseReportTests` и новые случаи `TerminalSessionTests` из Testing Strategy.
-- [ ] `TerminalIntegrationTests`: тест «колесо вверх входит в copy-mode, второе колесо не
+- [x] `MouseReportTests` и новые случаи `TerminalSessionTests` из Testing Strategy.
+- [x] `TerminalIntegrationTests`: тест «колесо вверх входит в copy-mode, второе колесо не
       выходит, клавиатура выходит и печатает» из Testing Strategy. SGR-байты строятся хелпером
       `sgrWheel(up: Bool, col: Int, row: Int) -> Data` в тесте. Если tmux на стенде не входит в
       copy-mode от колеса (нужен `mouse on`, его ставит `attach`), тест сначала проверяет
       `#{mouse}` = `on`.
-- [ ] Сборка без предупреждений, `swift test --skip IntegrationTests`, `scripts/test.sh
+- [x] Сборка без предупреждений, `swift test --skip IntegrationTests`, `scripts/test.sh
       --filter Terminal`.
 
 ### Task 2: подсказка имени, `SessionTree`, `OpenSessionsRoster`

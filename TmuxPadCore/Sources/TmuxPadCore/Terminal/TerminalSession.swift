@@ -21,7 +21,8 @@ public actor TerminalSession {
     private var lastKick: ContinuousClock.Instant?
     /// Ожидание `.connected` от пула в состоянии `.offline`.
     private var waitTask: Task<Void, Never>?
-    /// Хвост очереди ввода: `send` идут в порядке вызова, даже если ждут `copy-cancel`.
+    /// Хвост очереди ввода: `send`, `input` и `cancelCopyMode` идут в порядке вызова, даже если
+    /// ждут `copy-cancel`.
     private var sendTail: Task<Void, Never>?
 
     public init(
@@ -60,34 +61,37 @@ public actor TerminalSession {
     /// Ввод с клавиатуры. После скролла вверх сначала `copy-cancel` через exec (ошибки — только
     /// в журнал), иначе tmux в copy-mode проглотит ввод.
     public func send(_ data: Data) async throws {
-        let previous = sendTail
         let cancelFirst = needsCopyCancel
-        needsCopyCancel = false
-        let channel = pty
-        let server = server
-        let name = name
-        let log = log
-        let task = Task<Void, Error> {
-            await previous?.value
-            if cancelFirst {
-                do {
-                    try await server.api.copyCancel(session: name)
-                } catch {
-                    await log.record(server: await server.config.label, kind: .terminal, "\(name): copy-cancel failed: \(error)")
-                }
-            }
-            guard let channel else {
-                throw SSHError.disconnected
-            }
-            try await channel.send(data)
+        setCopyModeSuspected(false)
+        try await enqueue(data, cancelFirst: cancelFirst)
+    }
+
+    /// Байты от экрана (§3.5): мышиные отчёты идут в PTY мимо `copy-cancel`, колесо вверх
+    /// поднимает чип, всё прочее — ввод, как `send`. Вызывать по порядку прихода байтов.
+    public func input(_ bytes: Data) async throws {
+        switch MouseReport.classify(bytes) {
+        case .wheelUp:
+            setCopyModeSuspected(true)
+            try await enqueue(bytes, cancelFirst: false)
+        case .otherMouse:
+            try await enqueue(bytes, cancelFirst: false)
+        case .keyboard:
+            try await send(bytes)
         }
-        sendTail = Task { _ = await task.result }
-        try await task.value
+    }
+
+    /// Тап по чипу «Прокрутка ✕»: `copy-cancel` в очереди ввода; без подозрения ничего не делает.
+    public func cancelCopyMode() async {
+        guard needsCopyCancel else {
+            return
+        }
+        setCopyModeSuspected(false)
+        try? await enqueue(Data(), cancelFirst: true)
     }
 
     /// UI прокрутил вверх (чип «Прокрутка»): следующий ввод сначала выведет pane из copy-mode.
     public func noteScrolledUp() {
-        needsCopyCancel = true
+        setCopyModeSuspected(true)
     }
 
     public func resize(cols: Int, rows: Int) async throws {
@@ -97,6 +101,7 @@ public actor TerminalSession {
     /// Закрыть терминал; tmux-сессия на сервере остаётся.
     public func detach() async {
         userDetached = true
+        setCopyModeSuspected(false)
         _ = await begin()
         setState(.ended)
         await record("detached by app")
@@ -115,6 +120,46 @@ public actor TerminalSession {
         let current = await begin()
         setState(.reconnecting)
         await open(take: false, current)
+    }
+
+    // MARK: - Ввод
+
+    /// В очередь `sendTail`: байты в PTY в порядке вызовов, перед ними при `cancelFirst` —
+    /// `copy-cancel`; пустые байты в PTY не пишутся.
+    private func enqueue(_ data: Data, cancelFirst: Bool) async throws {
+        let previous = sendTail
+        let channel = pty
+        let server = server
+        let name = name
+        let log = log
+        let task = Task<Void, Error> {
+            await previous?.value
+            if cancelFirst {
+                do {
+                    try await server.api.copyCancel(session: name)
+                } catch {
+                    await log.record(server: await server.config.label, kind: .terminal, "\(name): copy-cancel failed: \(error)")
+                }
+            }
+            guard !data.isEmpty else {
+                return
+            }
+            guard let channel else {
+                throw SSHError.disconnected
+            }
+            try await channel.send(data)
+        }
+        sendTail = Task { _ = await task.result }
+        try await task.value
+    }
+
+    /// Флаг «pane, вероятно, в copy-mode»; экран узнаёт только о смене значения.
+    private func setCopyModeSuspected(_ value: Bool) {
+        guard value != needsCopyCancel else {
+            return
+        }
+        needsCopyCancel = value
+        surface.copyModeSuspected(value)
     }
 
     // MARK: - Канал

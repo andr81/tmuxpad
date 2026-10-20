@@ -2,15 +2,16 @@ import Foundation
 import Testing
 @testable import TmuxPadCore
 
-/// Копит все состояния соединения из `states`.
+/// Копит все состояния соединения после подписки (без начального).
 private final class StateRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var recorded: [ConnectionState] = []
     private var task: Task<Void, Never>?
 
-    init(_ connection: ServerConnection) {
+    init(_ connection: ServerConnection) async {
+        let updates = await connection.stateUpdates()
         task = Task { [weak self] in
-            for await state in connection.states {
+            for await state in updates.dropFirst() {
                 self?.lock.withLock { self?.recorded.append(state) }
             }
         }
@@ -57,7 +58,7 @@ struct ServerConnectionTests {
     @Test func connectPublishesStates() async throws {
         let transport = FakeTransport()
         let connection = try Self.make(transport)
-        let recorder = StateRecorder(connection)
+        let recorder = await StateRecorder(connection)
         try await connection.connect()
         #expect(await connection.state.isConnected)
         #expect(try await recorder.waitFor { $0.isConnected })
@@ -104,6 +105,22 @@ struct ServerConnectionTests {
         let fake = try #require(transport.lastConnection)
         #expect(fake.maxConcurrentExecs == 2)
         #expect(fake.execCalls.count == 3)
+    }
+
+    @Test func failedExecReleasesSlot() async throws {
+        let transport = FakeTransport()
+        transport.onConnect { fake in
+            for _ in 0..<2 {
+                fake.respond(when: { $0.hasPrefix("fail") }, with: .failure(SSHError.timeout))
+            }
+        }
+        let connection = try Self.make(transport)
+        try await connection.connect()
+        for _ in 0..<2 {
+            await #expect(throws: SSHError.timeout) { try await connection.exec("fail") }
+        }
+        // оба слота вернулись: третий exec не ждёт вечно
+        #expect(try await Bench.eventually(.seconds(2)) { (try? await connection.exec("echo ok"))?.exitCode == 0 })
     }
 
     @Test func execWhileDisconnectedFails() async throws {
@@ -169,7 +186,7 @@ struct ServerConnectionTests {
         let transport = FakeTransport()
         let log = DiagnosticsLog()
         let connection = try Self.make(transport, settings: Self.settings(keepalive: .milliseconds(50)), log: log)
-        let recorder = StateRecorder(connection)
+        let recorder = await StateRecorder(connection)
         try await connection.connect()
         let first = try #require(transport.lastConnection)
         first.hangExec = true
@@ -180,10 +197,44 @@ struct ServerConnectionTests {
         #expect(await log.events().filter { $0.kind == .ping }.count == 2)
     }
 
+    @Test func busySlotsAreNotMissedPings() async throws {
+        let transport = FakeTransport()
+        let log = DiagnosticsLog()
+        let connection = try Self.make(transport, settings: Self.settings(keepalive: .milliseconds(50)), log: log)
+        try await connection.connect()
+        let fake = try #require(transport.lastConnection)
+        fake.execDelay = .milliseconds(400)
+        // оба слота заняты дольше двух тактов и `pingTimeout`
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for index in 0..<2 {
+                group.addTask { _ = try await connection.exec("sleep \(index)") }
+            }
+            try await group.waitForAll()
+        }
+        #expect(transport.connectAttempts == 1)
+        #expect(await connection.state.isConnected)
+        #expect(!(await log.events().contains { $0.kind == .ping }))
+    }
+
+    @Test func forcedReconnectReplacesLiveConnection() async throws {
+        let transport = FakeTransport()
+        let connection = try Self.make(transport)
+        try await connection.connect()
+        let first = try #require(transport.lastConnection)
+        // без force живое соединение не трогается
+        await connection.reconnectNow()
+        #expect(transport.connectAttempts == 1)
+        await connection.reconnectNow(force: true)
+        #expect(transport.connectAttempts == 2)
+        #expect(!first.isConnected)
+        #expect(await connection.state.isConnected)
+        _ = try await connection.exec("true")
+    }
+
     @Test func disconnectEventReconnects() async throws {
         let transport = FakeTransport()
         let connection = try Self.make(transport)
-        let recorder = StateRecorder(connection)
+        let recorder = await StateRecorder(connection)
         try await connection.connect()
         transport.dropConnection()
         #expect(try await recorder.waitFor { $0 == .reconnecting(attempt: 1) })
@@ -196,7 +247,7 @@ struct ServerConnectionTests {
         transport.failNextConnects(10)
         let backoff: [Duration] = [.milliseconds(20), .milliseconds(40), .milliseconds(60), .milliseconds(80)]
         let connection = try Self.make(transport, settings: Self.settings(backoff: backoff))
-        let recorder = StateRecorder(connection)
+        let recorder = await StateRecorder(connection)
         let clock = ContinuousClock()
         let start = clock.now
         await #expect(throws: SSHError.connectFailed("fake refused")) { try await connection.connect() }
@@ -224,7 +275,7 @@ struct ServerConnectionTests {
         let transport = FakeTransport()
         transport.failNextConnects(5)
         let connection = try Self.make(transport)
-        let recorder = StateRecorder(connection)
+        let recorder = await StateRecorder(connection)
         _ = try? await connection.connect()
         #expect(try await recorder.waitFor { if case .failed = $0 { true } else { false } })
         await connection.reconnectNow()

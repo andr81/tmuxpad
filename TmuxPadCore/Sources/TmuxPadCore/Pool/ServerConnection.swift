@@ -8,8 +8,6 @@ public actor ServerConnection: ExecRunner {
     public nonisolated let deviceID: UUID
     public private(set) var settings: PoolSettings
     public nonisolated let log: DiagnosticsLog
-    /// Переходы состояний; один потребитель.
-    public nonisolated let states: AsyncStream<ConnectionState>
 
     public private(set) var state: ConnectionState = .disconnected
     /// Отпечаток хост-ключа последнего подключения и был ли он увиден впервые (UI «Доверять»).
@@ -19,7 +17,6 @@ public actor ServerConnection: ExecRunner {
     private let transport: any SSHTransport
     private let auth: SSHAuth
     private let hostKeys: any HostKeyStore
-    private let stateContinuation: AsyncStream<ConnectionState>.Continuation
     private let execSlots: AsyncSemaphore
 
     private var connection: (any SSHConnection)?
@@ -53,14 +50,12 @@ public actor ServerConnection: ExecRunner {
         self.settings = settings
         self.log = log
         execSlots = AsyncSemaphore(slots: settings.execSlots)
-        (states, stateContinuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(64))
     }
 
     deinit {
         keepaliveTask?.cancel()
         watcherTask?.cancel()
         reconnectTask?.cancel()
-        stateContinuation.finish()
         for observer in observers.values {
             observer.finish()
         }
@@ -94,16 +89,22 @@ public actor ServerConnection: ExecRunner {
                 throw error
             }
             if Self.isFatal(error) {
-                setState(.failed(Self.describe(error)))
+                setState(.failed("\(error)"))
             } else {
-                startReconnectLoop(current, reason: Self.describe(error))
+                startReconnectLoop(current, reason: "\(error)")
             }
             throw error
         }
     }
 
-    /// Немедленная попытка со сбросом бэкоффа: возврат из фона, смена сети, «Повторить».
-    public func reconnectNow() async {
+    /// Немедленная попытка со сбросом бэкоффа: возврат из фона, «Повторить». Живое соединение
+    /// не трогает, а с `force` рвёт и его: после смены сети старый сокет выглядит активным,
+    /// пока его не похоронит keepalive (§6).
+    public func reconnectNow(force: Bool = false) async {
+        if force, state.isConnected {
+            await log.record(server: config.label, kind: .reconnect, "forced reconnect")
+            _ = await beginEpoch()
+        }
         _ = try? await connect()
     }
 
@@ -141,7 +142,7 @@ public actor ServerConnection: ExecRunner {
         do {
             outcome = try await transport.connect(endpoint, auth: auth, hostKeys: hostKeys)
         } catch {
-            await log.record(server: config.label, kind: .error, "connect failed: \(Self.describe(error))")
+            await log.record(server: config.label, kind: .error, "connect failed: \(error)")
             throw error
         }
         guard current == epoch else {
@@ -190,12 +191,17 @@ public actor ServerConnection: ExecRunner {
         guard dead == epoch, state.isConnected else {
             return
         }
-        await log.record(server: config.label, kind: .disconnect, reason)
+        // новая эпоха — до первого `await`: иначе второй `markDead` той же эпохи (обрыв и
+        // пропущенный пинг разом) пройдёт проверку и своим циклом отменит цикл первого
         let current = await beginEpoch()
+        await log.record(server: config.label, kind: .disconnect, reason)
         startReconnectLoop(current, reason: reason)
     }
 
     private func startReconnectLoop(_ current: Int, reason: String) {
+        guard current == epoch else {
+            return
+        }
         reconnectTask?.cancel()
         reconnectTask = Task { [weak self] in
             await self?.reconnectLoop(current, reason: reason)
@@ -225,7 +231,7 @@ public actor ServerConnection: ExecRunner {
                 guard current == epoch, !(error is CancellationError) else {
                     return
                 }
-                lastError = Self.describe(error)
+                lastError = "\(error)"
                 if Self.isFatal(error) {
                     break
                 }
@@ -246,11 +252,10 @@ public actor ServerConnection: ExecRunner {
         if let lastExecAt, ContinuousClock.now - lastExecAt < settings.keepalive {
             return true
         }
-        let timeout = settings.pingTimeout
         do {
-            _ = try await withDeadline(timeout) {
-                try await self.slotted("true", stdin: nil, timeout: timeout, markActivity: false)
-            }
+            // ожидание слота — не пропуск: занятые слоты значат, что exec идут; `pingTimeout`
+            // ограничивает сам exec вместе с открытием канала
+            _ = try await slotted("true", stdin: nil, timeout: settings.pingTimeout, markActivity: false)
             guard current == epoch else {
                 return false
             }
@@ -261,7 +266,7 @@ public actor ServerConnection: ExecRunner {
                 return false
             }
             missedPings += 1
-            await log.record(server: config.label, kind: .ping, "ping missed (\(missedPings)): \(Self.describe(error))")
+            await log.record(server: config.label, kind: .ping, "ping missed (\(missedPings)): \(error)")
             if missedPings >= 2 {
                 await markDead("ping timeout x2", epoch: current)
                 return false
@@ -275,14 +280,13 @@ public actor ServerConnection: ExecRunner {
             return
         }
         state = new
-        stateContinuation.yield(new)
         for observer in observers.values {
             observer.yield(new)
         }
     }
 
-    /// Текущее состояние и все следующие; в отличие от `states`, подписчиков сколько угодно
-    /// (по одному на `TerminalSession`). Подписка снимается отменой итерации.
+    /// Текущее состояние и все следующие; подписчиков сколько угодно (по одному на
+    /// `TerminalSession`). Подписка снимается отменой итерации.
     public func stateUpdates() -> AsyncStream<ConnectionState> {
         let (stream, continuation) = AsyncStream.makeStream(of: ConnectionState.self, bufferingPolicy: .bufferingNewest(16))
         let id = UUID()
@@ -303,10 +307,6 @@ public actor ServerConnection: ExecRunner {
         case .hostKeyChanged, .authFailed: true
         default: false
         }
-    }
-
-    static func describe(_ error: Error) -> String {
-        String(describing: error)
     }
 
     // MARK: - Каналы

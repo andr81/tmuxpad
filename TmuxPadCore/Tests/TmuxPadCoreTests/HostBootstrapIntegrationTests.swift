@@ -34,6 +34,19 @@ struct HostBootstrapIntegrationTests {
         }
     }
 
+    @Test func truncatedInstallKeepsOldScript() async throws {
+        try await withoutScript { _, api in
+            let bootstrap = try HostBootstrap()
+            try await bootstrap.install(api: api)
+            // обрыв посреди передачи: до сервера дошла половина скрипта, затем EOF
+            let half = bootstrap.script.prefix(bootstrap.script.count / 2)
+            await #expect(throws: (any Error).self) {
+                try await api.run(.install(bytes: bootstrap.script.count), stdin: Data(half))
+            }
+            #expect(await bootstrap.status(api: api) == .ready(version: 1))
+        }
+    }
+
     @Test func prepareReinstallsAndRunsSetup() async throws {
         try await withoutScript { connection, api in
             let bootstrap = try HostBootstrap()

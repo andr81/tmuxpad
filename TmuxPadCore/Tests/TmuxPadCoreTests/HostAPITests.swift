@@ -151,7 +151,7 @@ import Testing
         connection.respond(containing: " version", stdout: "tmuxpad-host 2\n")
         try await bootstrap.install(api: api(connection))
         let install = try #require(connection.execCalls.first)
-        #expect(install.command == HostCommand.installCommand)
+        #expect(install.command == HostCommand.installCommand(bytes: script.count))
         #expect(install.stdin == script)
     }
 }

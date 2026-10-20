@@ -72,8 +72,10 @@ import Testing
     }
 
     @Test func installHasNoEnvPrefix() throws {
-        #expect(try HostCommand.install.render(env: env) ==
-            "mkdir -p ~/.local/bin && cat > ~/.local/bin/tmuxpad-host.sh && chmod +x ~/.local/bin/tmuxpad-host.sh")
+        #expect(try HostCommand.install(bytes: 42).render(env: env) ==
+            "mkdir -p ~/.local/bin && cat > ~/.local/bin/.tmuxpad-host.sh.tmp"
+            + " && [ \"$(wc -c < ~/.local/bin/.tmuxpad-host.sh.tmp)\" -eq 42 ]"
+            + " && chmod +x ~/.local/bin/.tmuxpad-host.sh.tmp && mv -f ~/.local/bin/.tmuxpad-host.sh.tmp ~/.local/bin/tmuxpad-host.sh")
     }
 
     @Test func shellQuote() {

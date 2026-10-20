@@ -37,7 +37,7 @@ public struct HostBootstrap: Sendable {
 
     /// Пишет скрипт в `~/.local/bin/tmuxpad-host.sh` и проверяет версию после.
     public func install(api: HostAPI) async throws {
-        try await api.run(.install, stdin: script)
+        try await api.run(.install(bytes: script.count), stdin: script)
         let installed = try await api.version()
         guard installed == bundledVersion else {
             throw HostError.badOutput("installed version \(installed), expected \(bundledVersion)")

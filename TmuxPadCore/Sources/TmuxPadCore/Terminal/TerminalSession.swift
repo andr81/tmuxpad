@@ -177,7 +177,7 @@ public actor TerminalSession {
         }
         pty = nil
         if let error {
-            await transportLost(Self.describe(error), current)
+            await transportLost("\(error)", current)
             return
         }
         await record("channel closed, exit \(exitCode.map(String.init) ?? "none")")
@@ -207,7 +207,7 @@ public actor TerminalSession {
             guard current == generation, !userDetached else {
                 return
             }
-            await transportLost("list failed: \(Self.describe(error))", current)
+            await transportLost("list failed: \(error)", current)
             return
         }
         guard current == generation, !userDetached else {
@@ -220,7 +220,7 @@ public actor TerminalSession {
         }
         if let exitCode, exitCode != 0 {
             let error = HostError.from(command: .attach(session: name), exitCode: exitCode, stderr: "")
-            setState(.offline(Self.describe(error)))
+            setState(.offline("\(error)"))
             return
         }
         let now = ContinuousClock.now
@@ -239,10 +239,10 @@ public actor TerminalSession {
     /// Ошибка открытия: транспортная — ждать пул, прочая — `.offline` без повторов.
     private func failed(_ error: Error, _ current: Int) async {
         if Self.isTransport(error) {
-            await transportLost(Self.describe(error), current)
+            await transportLost("\(error)", current)
         } else {
-            setState(.offline(Self.describe(error)))
-            await record("attach failed: \(Self.describe(error))")
+            setState(.offline("\(error)"))
+            await record("attach failed: \(error)")
         }
     }
 
@@ -277,10 +277,10 @@ public actor TerminalSession {
                 return false
             }
             if Self.isTransport(error) {
-                await record("reattach failed: \(Self.describe(error))")
+                await record("reattach failed: \(error)")
                 return true
             }
-            setState(.offline(Self.describe(error)))
+            setState(.offline("\(error)"))
             return false
         }
     }
@@ -303,9 +303,5 @@ public actor TerminalSession {
             return false
         }
         return error != .channelRefused
-    }
-
-    static func describe(_ error: Error) -> String {
-        String(describing: error)
     }
 }

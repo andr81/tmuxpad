@@ -29,12 +29,17 @@ public enum HostCommand: Sendable, Hashable {
     case doctor
     /// Токен — только через stdin.
     case auth
-    /// Скрипт — через stdin.
-    case install
+    /// Скрипт размером `bytes` — через stdin.
+    case install(bytes: Int)
 
     static let scriptPath = "\"$HOME\"/.local/bin/tmuxpad-host.sh"
-    static let installCommand =
-        "mkdir -p ~/.local/bin && cat > ~/.local/bin/tmuxpad-host.sh && chmod +x ~/.local/bin/tmuxpad-host.sh"
+
+    /// Пишет во временный файл и подменяет скрипт `mv` только после сверки размера: оборванный
+    /// посреди передачи канал даёт `cat` обычный EOF, и без сверки на сервере остался бы обрубок.
+    static func installCommand(bytes: Int) -> String {
+        let tmp = "~/.local/bin/.tmuxpad-host.sh.tmp"
+        return "mkdir -p ~/.local/bin && cat > \(tmp) && [ \"$(wc -c < \(tmp))\" -eq \(bytes) ] && chmod +x \(tmp) && mv -f \(tmp) ~/.local/bin/tmuxpad-host.sh"
+    }
 
     /// Имя подкоманды скрипта, для журнала и сообщений.
     public var name: String {
@@ -56,8 +61,8 @@ public enum HostCommand: Sendable, Hashable {
     /// Строка для exec-канала в форме §5. Имена проходят `Validation`, значения окружения —
     /// `Validation.isSafeShellValue`, иначе `HostError.badRequest`.
     public func render(env: HostEnvironment) throws -> String {
-        if case .install = self {
-            return Self.installCommand
+        if case let .install(bytes) = self {
+            return Self.installCommand(bytes: bytes)
         }
         let args = try arguments()
         guard Validation.isSafeShellValue(env.projectsRoot) else {

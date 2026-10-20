@@ -60,16 +60,3 @@ public actor AsyncSemaphore {
         waiters.remove(at: index).continuation.resume(throwing: CancellationError())
     }
 }
-
-/// Тело или `SSHError.timeout` через `duration`; тело при этом отменяется.
-func withDeadline<T: Sendable>(_ duration: Duration, _ body: @escaping @Sendable () async throws -> T) async throws -> T {
-    try await withThrowingTaskGroup(of: T.self) { group in
-        group.addTask { try await body() }
-        group.addTask {
-            try await Task.sleep(for: duration)
-            throw SSHError.timeout
-        }
-        defer { group.cancelAll() }
-        return try await group.next()!
-    }
-}

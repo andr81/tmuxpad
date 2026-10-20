@@ -25,8 +25,12 @@
 
 - `KeyStore` — Keychain; ключ Secure Enclave P-256 заворачивается в
   `SSHPrivateKey(NIOSSHPrivateKey(secureEnclaveP256Key:))`, Ed25519 — через `SSHKeys`.
-- `HostKeyStore` — доверенные отпечатки (TOFU, §8); после `ConnectOutcome.firstSeen` UI
-  показывает «Доверять», при `SSHError.hostKeyChanged` — `reset(host:port:)` по подтверждению.
+- `HostKeyStore` — доверенные отпечатки (TOFU, §8). Новый отпечаток ядро сохраняет само и
+  подключается; при `ServerConnection.hostKeyFirstSeen == true` UI показывает «Доверять»,
+  отказ → `disconnect()` + `reset(host:port:)`. При `SSHError.hostKeyChanged` — `reset(host:port:)`
+  по подтверждению.
+- `scenePhase → .active` → `ConnectionPool.reconnectAll()`, смена сети (`NWPathMonitor`) →
+  `reconnectAll(force: true)`: рвёт и соединения, которые выглядят живыми.
 - `TerminalSurface` — SwiftTerm (позже, возможно, libghostty); вызовы приходят не с main.
 - `deviceID` из Keychain и `ServerConfig` из SwiftData передаются в `ConnectionPool`.
 

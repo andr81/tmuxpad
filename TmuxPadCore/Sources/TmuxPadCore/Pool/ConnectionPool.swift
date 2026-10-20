@@ -74,12 +74,13 @@ public actor ConnectionPool {
         }
     }
 
-    /// Возврат из фона или смена сети: немедленная попытка со сбросом бэкоффа.
-    public func reconnectAll() async {
+    /// Немедленная попытка со сбросом бэкоффа: возврат из фона (`force == false`, живые
+    /// соединения не трогаются) или смена сети (`force == true`, рвутся и живые).
+    public func reconnectAll(force: Bool = false) async {
         let connections = entries.values.map(\.connection)
         await withTaskGroup(of: Void.self) { group in
             for connection in connections {
-                group.addTask { await connection.reconnectNow() }
+                group.addTask { await connection.reconnectNow(force: force) }
             }
         }
     }

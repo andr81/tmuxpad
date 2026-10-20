@@ -89,7 +89,12 @@ public final class CitadelTransport: SSHTransport {
             throw SSHError.connectFailed("host key was not validated")
         }
         if seen.firstSeen {
-            try await hostKeys.save(seen.seen, for: endpoint.host, port: endpoint.port)
+            do {
+                try await hostKeys.save(seen.seen, for: endpoint.host, port: endpoint.port)
+            } catch {
+                try? await channel.close()
+                throw error
+            }
         }
         let connection = CitadelConnection(channel: channel, sshHandler: sshHandler, timeout: endpoint.connectTimeout)
         return ConnectOutcome(connection: connection, hostKeyFingerprint: seen.seen, firstSeen: seen.firstSeen)
@@ -182,14 +187,19 @@ public final class CitadelConnection: SSHConnection {
     public func exec(_ command: String, stdin: Data?, environment: [String: String], timeout: Duration) async throws -> ExecResult {
         let clock = ContinuousClock()
         let start = clock.now
-        let session = try await open(SessionRequest(command: command, environment: Self.sorted(environment), pty: nil))
+        // `timeout` — на всю команду вместе с открытием канала: пинг обязан уложиться в свои 5 с
+        let session = try await open(
+            SessionRequest(command: command, environment: Self.sorted(environment), pty: nil),
+            timeout: min(channelTimeout, timeout)
+        )
         // Быстрая команда может закрыть канал раньше, чем дойдут stdin и EOF: это не ошибка,
         // итог решают код выхода и вывод.
         if let stdin, !stdin.isEmpty {
             try? await session.write(stdin)
         }
         try? await session.eof()
-        guard await session.waitClosed(timeout: timeout) else {
+        let remaining = max(timeout - (clock.now - start), .zero)
+        guard await session.waitClosed(timeout: remaining) else {
             throw SSHError.timeout
         }
         var stdout = Data()
@@ -224,11 +234,11 @@ public final class CitadelConnection: SSHConnection {
         try? await channel.close()
     }
 
-    private func open(_ request: SessionRequest) async throws -> SessionChannel {
+    private func open(_ request: SessionRequest, timeout: Duration? = nil) async throws -> SessionChannel {
         guard channel.isActive else {
             throw SSHError.disconnected
         }
-        return try await SessionChannel.open(on: sshHandler, request: request, timeout: channelTimeout)
+        return try await SessionChannel.open(on: sshHandler, request: request, timeout: timeout ?? channelTimeout)
     }
 
     private static func sorted(_ environment: [String: String]) -> [(name: String, value: String)] {

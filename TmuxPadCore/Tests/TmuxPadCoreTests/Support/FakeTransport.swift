@@ -142,14 +142,15 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
         lock.withLock { ptys }
     }
 
-    /// Изображает обрыв: `onDisconnect` срабатывает, `isConnected == false`, PTY закрываются с ошибкой.
+    /// Изображает обрыв, как настоящий транспорт: `onDisconnect` срабатывает, `isConnected == false`,
+    /// вывод PTY кончается без ошибки и без кода выхода.
     func disconnect() {
         let open = lock.withLock {
             connected = false
             return ptys
         }
         for pty in open {
-            pty.fail(SSHError.disconnected)
+            pty.close(exitCode: nil)
         }
         disconnectContinuation.yield()
         disconnectContinuation.finish()

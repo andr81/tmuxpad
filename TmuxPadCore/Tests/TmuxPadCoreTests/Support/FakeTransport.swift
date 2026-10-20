@@ -81,6 +81,7 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
     private var inFlight = 0
     private var peakInFlight = 0
     private var ptys: [FakePTY] = []
+    private var events: [String] = []
     let onDisconnect: AsyncStream<Void>
     private let disconnectContinuation: AsyncStream<Void>.Continuation
 
@@ -104,6 +105,15 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
 
     var execCalls: [Call] {
         lock.withLock { calls }
+    }
+
+    /// Общий порядок событий: `exec <команда>` и `pty <ввод>` — чтобы проверять, что было раньше.
+    var journal: [String] {
+        lock.withLock { events }
+    }
+
+    private func note(_ event: String) {
+        lock.withLock { events.append(event) }
     }
 
     /// Каждый `exec` ждёт `delay` перед ответом.
@@ -152,6 +162,7 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
     func exec(_ command: String, stdin: Data?, environment: [String: String], timeout: Duration) async throws -> ExecResult {
         let (delay, hang) = lock.withLock {
             calls.append(Call(command: command, stdin: stdin))
+            events.append("exec " + command)
             inFlight += 1
             peakInFlight = max(peakInFlight, inFlight)
             return (self.delay, self.hang)
@@ -182,6 +193,7 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
                 throw SSHError.disconnected
             }
             let pty = FakePTY(command: command, cols: cols, rows: rows, environment: environment)
+            pty.onSend = { [weak self] data in self?.note("pty " + String(decoding: data, as: UTF8.self)) }
             ptys.append(pty)
             return pty
         }
@@ -203,6 +215,7 @@ final class FakePTY: PTYChannel, @unchecked Sendable {
     private var closed = false
     private var sentData: [Data] = []
     private var sizes: [(cols: Int, rows: Int)]
+    var onSend: (@Sendable (Data) -> Void)?
 
     init(command: String, cols: Int, rows: Int, environment: [String: String]) {
         self.command = command
@@ -252,6 +265,7 @@ final class FakePTY: PTYChannel, @unchecked Sendable {
             }
             sentData.append(data)
         }
+        onSend?(data)
     }
 
     func resize(cols: Int, rows: Int) async throws {

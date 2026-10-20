@@ -573,11 +573,11 @@ host/tests/run.sh                                             # стенд ск�
 (create), `TmuxPadCore/Tests/TmuxPadCoreTests/{TerminalSessionTests,TerminalIntegrationTests}.swift`
 (create), `Tests/Support/{FakeTransport,RecordingSurface}.swift`.
 
-- [ ] `Terminal/TerminalSurface.swift`: `public protocol TerminalSurface: AnyObject, Sendable` —
+- [x] `Terminal/TerminalSurface.swift`: `public protocol TerminalSurface: AnyObject, Sendable` —
       `func feed(_ bytes: Data)`, `var size: (cols: Int, rows: Int) { get }`, `func stateChanged(
       _ state: TerminalState)`; вызовы приходят с произвольного исполнителя, прыжок на main —
       дело реализации (SwiftTerm в плане 3). `Terminal/TerminalState.swift` — enum решения 8.
-- [ ] `Terminal/TerminalSession.swift`: `public actor TerminalSession` (`server:
+- [x] `Terminal/TerminalSession.swift`: `public actor TerminalSession` (`server:
       ServerConnection`, `name: String`, `surface`, `log`, `kickWindow = .seconds(60)`):
       `start()` — `.connecting`, `openPTY(command: api.attachCommand(session:), term:
       "xterm-256color", cols/rows из `surface.size`, env `LANG=en_US.UTF-8`)` → `.live`, задача
@@ -592,9 +592,9 @@ host/tests/run.sh                                             # стенд ск�
       → `.ended`; транспорт мёртв (`SSHError.disconnected` или состояние сервера не `.connected`)
       → `.offline(причина)` и ожидание `states` сервера: при `.connected` — `reconnect()`.
       Все переходы — в `surface.stateChanged` и в журнал.
-- [ ] `RecordingSurface` (тест): копит байты и состояния, `size` настраиваемый. `FakePTY`
+- [x] `RecordingSurface` (тест): копит байты и состояния, `size` настраиваемый. `FakePTY`
       умеет `emit`, `close(exitCode:)`, фиксирует `sent` и `resizes`.
-- [ ] `TerminalSessionTests` (фейк): `startFeedsOutput` (байты из `emit` доходят до `feed`,
+- [x] `TerminalSessionTests` (фейк): `startFeedsOutput` (байты из `emit` доходят до `feed`,
       состояние `.connecting` → `.live`, команда PTY — exec-строка `attach api`); `copyCancelBeforeInput`
       (`noteScrolledUp`, `send("x")` → в журнале фейка exec `copy-cancel api` до того, как PTY
       получил `x`; второй `send` без `copy-cancel`); `resizeForwards`; `detachEnds` (`.ended`,
@@ -604,7 +604,7 @@ host/tests/run.sh                                             # стенд ск�
       (повтор при `kickWindow` 500 мс → `.disconnectedByOther`); `takeUsesTakeCommand`;
       `offlineThenReconnect` (сервер `.reconnecting` → `.offline`, после `.connected` → новый
       PTY, `.live`).
-- [ ] `TerminalIntegrationTests` (стенд, скрипт установлен, сессия `new("api","api")` с
+- [x] `TerminalIntegrationTests` (стенд, скрипт установлен, сессия `new("api","api")` с
       `startCommand: "bash"`, чтобы в pane был интерактивный шелл): `attachShowsTmux` (после
       `start` в `feed` за 5 с приходят байты, `tmux list-clients -t =api` даёт одного клиента,
       файл в `~/.tmuxpad/clients/` содержит `deviceID`); `typingReachesPane` (`send("echo
@@ -617,8 +617,27 @@ host/tests/run.sh                                             # стенд ск�
       второй состояние `.reconnecting` затем `.live` (один раз молча), повторный `take()` в
       пределах минуты → `.disconnectedByOther`); `detachLeavesSessionAlive` (`detach()` →
       клиентов 0, сессия в `list` есть).
-- [ ] `swift test --skip IntegrationTests` и `scripts/test.sh` зелёные, без предупреждений;
+- [x] `swift test --skip IntegrationTests` и `scripts/test.sh` зелёные, без предупреждений;
       коммит.
+
+      Отклонения при исполнении: `ServerConnection.states` — поток на одного потребителя, поэтому
+      добавлен `stateUpdates()` (текущее состояние и все следующие, подписчиков сколько угодно);
+      им `TerminalSession` в `.offline` ждёт `.connected` и на каждое пробует `attach`, пока не
+      выйдет. `start()`/`take()`/`reconnect()` не бросают — итог в `state`. Код 4 → `.ended`;
+      любой другой код или канал без exit-status при живом соединении → `list`: сессии нет →
+      `.ended` (её могли убить, пока скрипт готовил `attach`, тогда код 1), есть и код 0/нет кода →
+      правило выбивания, есть и прочий код → `.offline` без повторов; `channelRefused` и
+      `HostError` при открытии — тоже `.offline` без повторов. `send` идут очередью в порядке
+      вызова, даже если первый ждёт `copy-cancel`. `take()` показывает `.reconnecting`. Размер
+      клиента в `resizeChangesWindow` читается через `list-clients -F`, а не `display -p`.
+      Попутно найден и обойдён баг транспорта (Task 2): форк swift-nio-ssh 0.3.x считает наш
+      EOF stdin после EOF сервера нарушением протокола и рвёт канал вместе с exit-status, отчего
+      примерно каждый 50-й быстрый exec падал с `disconnected`; `SessionChannel.eof()` теперь
+      на event loop пропускает EOF, если сервер уже прислал свой. Регрессия —
+      `TransportIntegrationTests.fastExecsKeepExitStatus` (200 exec). Добавлены юнит-тесты
+      сверх плана: порядок ввода при `copy-cancel`, код 4, ненулевой код при живой и убитой
+      сессии, выбивание после окна, отказ PTY, `detach` во время проверки `list`, `stateUpdates`;
+      интеграционный `killedSessionEnds`.
 
 ### Task 6: документация, полный прогон и завершение
 

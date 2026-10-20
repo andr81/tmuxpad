@@ -68,6 +68,28 @@ struct ServerConnectionTests {
         #expect(transport.connectAttempts == 1)
     }
 
+    @Test func stateUpdatesForManySubscribers() async throws {
+        let transport = FakeTransport()
+        let connection = try Self.make(transport)
+        let first = await connection.stateUpdates()
+        let second = await connection.stateUpdates()
+        try await connection.connect()
+        for updates in [first, second] {
+            var seen: [ConnectionState] = []
+            for await state in updates {
+                seen.append(state)
+                if state.isConnected {
+                    break
+                }
+            }
+            #expect(seen.first == .disconnected)
+            #expect(seen.dropFirst().first == .connecting)
+        }
+        // новая подписка сразу отдаёт текущее состояние
+        var late = await connection.stateUpdates().makeAsyncIterator()
+        #expect(await late.next()?.isConnected == true)
+    }
+
     @Test func execUsesTwoSlots() async throws {
         let transport = FakeTransport()
         transport.onConnect { $0.execDelay = .milliseconds(80) }

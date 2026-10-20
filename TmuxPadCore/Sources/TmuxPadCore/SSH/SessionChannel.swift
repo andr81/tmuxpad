@@ -28,6 +28,7 @@ final class SessionChannelHandler: ChannelInboundHandler {
     private let stdout: AsyncThrowingStream<Data, Error>.Continuation
     private let stderr: AsyncThrowingStream<Data, Error>.Continuation
     private let exit: NIOLockedValueBox<Int?>
+    private let remoteEOF: NIOLockedValueBox<Bool>
     private var pendingReplies = 0
     private var requested = false
     private var context: ChannelHandlerContext?
@@ -37,13 +38,15 @@ final class SessionChannelHandler: ChannelInboundHandler {
         started: EventLoopPromise<Void>,
         stdout: AsyncThrowingStream<Data, Error>.Continuation,
         stderr: AsyncThrowingStream<Data, Error>.Continuation,
-        exit: NIOLockedValueBox<Int?>
+        exit: NIOLockedValueBox<Int?>,
+        remoteEOF: NIOLockedValueBox<Bool>
     ) {
         self.request = request
         self.started = started
         self.stdout = stdout
         self.stderr = stderr
         self.exit = exit
+        self.remoteEOF = remoteEOF
     }
 
     func handlerAdded(context: ChannelHandlerContext) {
@@ -107,6 +110,9 @@ final class SessionChannelHandler: ChannelInboundHandler {
             context.close(promise: nil)
         case let status as SSHChannelRequestEvent.ExitStatus:
             exit.withLockedValue { $0 = status.exitStatus }
+        case let channelEvent as ChannelEvent where channelEvent == .inputClosed:
+            remoteEOF.withLockedValue { $0 = true }
+            context.fireUserInboundEventTriggered(event)
         default:
             context.fireUserInboundEventTriggered(event)
         }
@@ -171,12 +177,21 @@ final class SessionChannel: Sendable {
     let stdout: AsyncThrowingStream<Data, Error>
     let stderr: AsyncThrowingStream<Data, Error>
     private let exitBox: NIOLockedValueBox<Int?>
+    /// Сервер прислал EOF; пишет хендлер на event loop канала.
+    private let remoteEOF: NIOLockedValueBox<Bool>
 
-    private init(channel: Channel, stdout: AsyncThrowingStream<Data, Error>, stderr: AsyncThrowingStream<Data, Error>, exit: NIOLockedValueBox<Int?>) {
+    private init(
+        channel: Channel,
+        stdout: AsyncThrowingStream<Data, Error>,
+        stderr: AsyncThrowingStream<Data, Error>,
+        exit: NIOLockedValueBox<Int?>,
+        remoteEOF: NIOLockedValueBox<Bool>
+    ) {
         self.channel = channel
         self.stdout = stdout
         self.stderr = stderr
         self.exitBox = exit
+        self.remoteEOF = remoteEOF
     }
 
     /// Код из `exit-status`; `nil`, пока его не было.
@@ -192,6 +207,7 @@ final class SessionChannel: Sendable {
         let (stdout, stdoutContinuation) = AsyncThrowingStream<Data, Error>.makeStream()
         let (stderr, stderrContinuation) = AsyncThrowingStream<Data, Error>.makeStream()
         let exit = NIOLockedValueBox<Int?>(nil)
+        let remoteEOF = NIOLockedValueBox(false)
 
         let future = eventLoop.flatSubmit { () -> EventLoopFuture<Channel> in
             let channelPromise = eventLoop.makePromise(of: Channel.self)
@@ -202,7 +218,8 @@ final class SessionChannel: Sendable {
                     started: started,
                     stdout: stdoutContinuation,
                     stderr: stderrContinuation,
-                    exit: exit
+                    exit: exit,
+                    remoteEOF: remoteEOF
                 ),
                 eventLoop: eventLoop
             )
@@ -229,7 +246,7 @@ final class SessionChannel: Sendable {
 
         do {
             let channel = try await future.get()
-            return SessionChannel(channel: channel, stdout: stdout, stderr: stderr, exit: exit)
+            return SessionChannel(channel: channel, stdout: stdout, stderr: stderr, exit: exit, remoteEOF: remoteEOF)
         } catch let error as SSHError {
             throw error
         } catch let error as NIOSSHError where error.type == .channelSetupRejected {
@@ -250,10 +267,20 @@ final class SessionChannel: Sendable {
         }
     }
 
-    /// EOF на stdin удалённой команды.
+    /// EOF на stdin удалённой команды. Не после EOF сервера: форк swift-nio-ssh 0.3.x
+    /// (`ChildChannelStateMachine.sendChannelEOF`) считает это нарушением протокола и рвёт канал
+    /// вместе с ещё не пришедшим exit-status — быстрая команда успевает закрыть вывод раньше.
+    /// Проверка и отправка — на event loop канала, там же хендлер ставит флаг.
     func eof() async throws {
+        let channel = channel
+        let remoteEOF = remoteEOF
         do {
-            try await channel.close(mode: .output)
+            try await channel.eventLoop.flatSubmit {
+                if remoteEOF.withLockedValue({ $0 }) {
+                    return channel.eventLoop.makeSucceededVoidFuture()
+                }
+                return channel.close(mode: .output)
+            }.get()
         } catch {
             throw SSHError.disconnected
         }

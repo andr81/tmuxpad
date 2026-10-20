@@ -33,6 +33,7 @@ public actor ServerConnection: ExecRunner {
     private var lastExecAt: ContinuousClock.Instant?
     private var missedPings = 0
     private var openPTYs: Set<UUID> = []
+    private var observers: [UUID: AsyncStream<ConnectionState>.Continuation] = [:]
 
     public init(
         config: ServerConfig,
@@ -60,6 +61,9 @@ public actor ServerConnection: ExecRunner {
         watcherTask?.cancel()
         reconnectTask?.cancel()
         stateContinuation.finish()
+        for observer in observers.values {
+            observer.finish()
+        }
     }
 
     /// `HostAPI` поверх этого соединения: exec идут через очередь пула.
@@ -272,6 +276,26 @@ public actor ServerConnection: ExecRunner {
         }
         state = new
         stateContinuation.yield(new)
+        for observer in observers.values {
+            observer.yield(new)
+        }
+    }
+
+    /// Текущее состояние и все следующие; в отличие от `states`, подписчиков сколько угодно
+    /// (по одному на `TerminalSession`). Подписка снимается отменой итерации.
+    public func stateUpdates() -> AsyncStream<ConnectionState> {
+        let (stream, continuation) = AsyncStream.makeStream(of: ConnectionState.self, bufferingPolicy: .bufferingNewest(16))
+        let id = UUID()
+        observers[id] = continuation
+        continuation.onTermination = { [weak self] _ in
+            Task { await self?.removeObserver(id) }
+        }
+        continuation.yield(state)
+        return stream
+    }
+
+    private func removeObserver(_ id: UUID) {
+        observers[id] = nil
     }
 
     static func isFatal(_ error: Error) -> Bool {

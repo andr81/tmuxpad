@@ -55,6 +55,18 @@ struct TransportIntegrationTests {
         }
     }
 
+    /// Быстрая команда шлёт EOF раньше нашего EOF stdin; форк swift-nio-ssh рвал на этом канал
+    /// вместе с exit-status (примерно раз на 50 exec).
+    @Test func fastExecsKeepExitStatus() async throws {
+        try await withConnection { connection in
+            for index in 0..<200 {
+                let result = try await connection.exec("echo \(index); exit 3")
+                #expect(result.exitCode == 3)
+                #expect(result.stdoutText == "\(index)\n")
+            }
+        }
+    }
+
     @Test func stdinWithEOF() async throws {
         try await withConnection { connection in
             let input = Data((0..<100 * 1024).map { UInt8(truncatingIfNeeded: $0 * 7 + 3) })

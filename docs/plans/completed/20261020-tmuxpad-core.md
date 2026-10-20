@@ -644,12 +644,12 @@ host/tests/run.sh                                             # стенд ск�
 **Файлы:** `TmuxPadCore/README.md` (create), `CLAUDE.md`, `docs/tmuxpad-spec.md` (только если
 контракт в коде разошёлся со спекой), `docs/plans/20261020-tmuxpad-core.md` (move).
 
-- [ ] `TmuxPadCore/README.md` (коротко, по-русски): назначение пакета и граница §5.2, карта
+- [x] `TmuxPadCore/README.md` (коротко, по-русски): назначение пакета и граница §5.2, карта
       модулей (`Models`, `Host`, `SSH`, `Pool`, `Terminal`, `Diagnostics`), что приложение должно
       реализовать (`KeyStore`, `HostKeyStore`, `TerminalSurface`, завернуть Secure Enclave в
       `NIOSSHPrivateKey`), как обновлять скрипт-ресурс (скопировать `host/tmuxpad-host.sh`,
       тест синхронности), команды сборки и тестов, стенд `bench.sh`, типичное время первой сборки.
-- [ ] `CLAUDE.md`: раздел «Состояние репозитория» — появился `TmuxPadCore`: команды из Validation
+- [x] `CLAUDE.md`: раздел «Состояние репозитория» — появился `TmuxPadCore`: команды из Validation
       Commands (сборка, юнит-тесты без Docker, `scripts/test.sh`, один suite через `--filter`,
       shellcheck на `bench.sh`/`test.sh`), раскладка `TmuxPadCore/`, правило «скрипт-ресурс —
       копия `host/tmuxpad-host.sh`, равенство проверяет тест»; убрать фразу «Swift-кода ещё
@@ -658,11 +658,11 @@ host/tests/run.sh                                             # стенд ск�
       единственная точка контакта с сетью; пул и терминал тестируются на фейке». Расхождения
       кода со спекой (если были уточнены интервалы, состояния, ошибки) — внести в спеку одной
       правкой со ссылкой на этот план.
-- [ ] Полный прогон: `swift build --build-tests` без предупреждений, `swift test --skip
+- [x] Полный прогон: `swift build --build-tests` без предупреждений, `swift test --skip
       IntegrationTests`, `TmuxPadCore/scripts/test.sh`, shellcheck, `host/tests/run.sh` (стенд
       скрипта не пострадал от `bench.sh`/`.gitignore`); в progress-лог — время прогона и число
       тестов по видам.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
 
 ## Как проверить после выкатки
 

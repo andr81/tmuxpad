@@ -77,7 +77,7 @@ public enum HostCommand: Sendable, Hashable {
         return (prefix + args.map(Self.shellQuote)).joined(separator: " ")
     }
 
-    private func arguments() throws -> [String] {
+    func arguments() throws -> [String] {
         switch self {
         case .version, .list, .setup, .doctor, .auth, .install:
             return []

@@ -46,3 +46,108 @@ enum Bench {
         try await connection.exec("tmux \(args)").stdoutText
     }
 }
+
+extension Bench {
+    /// UUID устройства в тестах стенда.
+    static let deviceID = UUID(uuidString: "11111111-2222-4333-8444-555555555555")!
+
+    /// `HostAPI` на соединении стенда; `TMUXPAD_CMD` — `sleep 1000`, чтобы заглушка claude не мешала.
+    static func api(_ connection: any SSHConnection, projectsRoot: String = "projects", startCommand: String = "sleep 1000") -> HostAPI {
+        HostAPI(
+            runner: connection,
+            environment: HostEnvironment(client: deviceID, projectsRoot: projectsRoot, startCommand: startCommand),
+            server: "bench"
+        )
+    }
+
+    /// Тело со стендом в монопольном владении: сбросы и tmux-сессии разных suite не должны
+    /// пересекаться, а suite Swift Testing идут параллельно.
+    static func exclusive<T: Sendable>(_ body: @Sendable () async throws -> T) async throws -> T {
+        await BenchLock.shared.acquire()
+        do {
+            let value = try await body()
+            await BenchLock.shared.release()
+            return value
+        } catch {
+            await BenchLock.shared.release()
+            throw error
+        }
+    }
+
+    /// Свежее соединение со сбросом стенда, тело с таймаутом, затем закрытие.
+    static func withReset(
+        timeout: Duration = .seconds(60),
+        _ body: @escaping @Sendable (any SSHConnection) async throws -> Void
+    ) async throws {
+        try await exclusive {
+            try await withTimeout(timeout) {
+                let connection = try await connect()
+                do {
+                    try await reset(connection)
+                    try await body(connection)
+                } catch {
+                    await connection.close()
+                    throw error
+                }
+                await connection.close()
+            }
+        }
+    }
+
+    /// Клиент tmux с хоста через `ssh -tt -n` — «чужой» для приложения, как `tmux_bg` в `lib.sh`.
+    static func foreignClient(_ remoteCommand: String) throws -> Process {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = [
+            "ssh", "-tt", "-n",
+            "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "ConnectTimeout=5", "-o", "LogLevel=ERROR",
+            "-i", environment["TMUXPAD_BENCH_KEY"] ?? "", "-p", String(endpoint.port),
+            "\(user)@127.0.0.1", remoteCommand,
+        ]
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        return process
+    }
+
+    /// Ждёт `condition` с опросом каждые 100 мс, не дольше `timeout`.
+    static func eventually(
+        _ timeout: Duration = .seconds(5),
+        _ condition: @Sendable () async throws -> Bool
+    ) async throws -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if try await condition() {
+                return true
+            }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        return try await condition()
+    }
+}
+
+/// FIFO-замок стенда для `Bench.exclusive`.
+actor BenchLock {
+    static let shared = BenchLock()
+
+    private var locked = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func acquire() async {
+        if !locked {
+            locked = true
+            return
+        }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func release() {
+        if waiters.isEmpty {
+            locked = false
+        } else {
+            waiters.removeFirst().resume()
+        }
+    }
+}

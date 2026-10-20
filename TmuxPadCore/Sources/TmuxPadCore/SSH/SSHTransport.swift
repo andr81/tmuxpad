@@ -76,7 +76,7 @@ public protocol SSHTransport: Sendable {
 }
 
 /// Одно SSH-соединение; внутри — exec- и PTY-каналы.
-public protocol SSHConnection: AnyObject, Sendable {
+public protocol SSHConnection: AnyObject, ExecRunner {
     /// Exec-канал: `stdin` (если есть) пишется и закрывается EOF; ждёт выхода не дольше `timeout`.
     func exec(_ command: String, stdin: Data?, environment: [String: String], timeout: Duration) async throws -> ExecResult
     /// PTY + exec `command`.

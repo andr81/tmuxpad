@@ -435,10 +435,10 @@ host/tests/run.sh                                             # стенд ск�
 `TmuxPadCore/Tests/TmuxPadCoreTests/{HostScriptResourceTests,HostAPITests,HostAPIIntegrationTests,HostBootstrapIntegrationTests}.swift`
 (create), `Tests/Support/FakeTransport.swift` (create).
 
-- [ ] `Host/HostScript.swift`: `enum HostScript` — `data` из `Bundle.module.url(forResource:
+- [x] `Host/HostScript.swift`: `enum HostScript` — `data` из `Bundle.module.url(forResource:
       "tmuxpad-host", withExtension: "sh")`, `version: Int` парсингом строки `^VERSION=(\d+)$`
       (отсутствие → `fatalError` на старте тестов недопустимо: `throws`).
-- [ ] `Host/HostAPI.swift`: протокол `ExecRunner: Sendable` (`exec(_ command: String, stdin: Data?,
+- [x] `Host/HostAPI.swift`: протокол `ExecRunner: Sendable` (`exec(_ command: String, stdin: Data?,
       timeout: Duration) async throws -> ExecResult`) — ему соответствуют `SSHConnection` (Task 2) и
       `ServerConnection` (Task 4, через очередь на 2 слота); `public struct HostAPI: Sendable` поверх
       `any ExecRunner` +
@@ -453,28 +453,28 @@ host/tests/run.sh                                             # стенд ск�
       `doctor() -> DoctorReport`, `auth(token: String)` (валидация `^[A-Za-z0-9_-]+$` локально,
       stdin `token\n`), `attachCommand(session:) -> String` и `takeCommand(session:)` — готовые
       exec-строки для PTY-канала (их выполняет `TerminalSession`).
-- [ ] `Host/HostBootstrap.swift`: `public struct HostBootstrap` — `status(api:) async ->
+- [x] `Host/HostBootstrap.swift`: `public struct HostBootstrap` — `status(api:) async ->
       BootstrapStatus` (`.missing`, `.outdated(installed:bundled:)`, `.ready(version:)`,
       `.unreachable(String)`): `version()` → `scriptMissing` → `.missing`, число < `HostScript.
       version` → `.outdated`; `install(connection:) async throws` — `exec(HostCommand.install.
       render…, stdin: HostScript.data)` и проверка `version()` после; `prepare(api:) async
       throws -> DoctorReport` — `install` при `.missing`/`.outdated`, затем `setup()`.
-- [ ] `Tests/Support/FakeTransport.swift`: `FakeConnection: SSHConnection` с очередью ответов
+- [x] `Tests/Support/FakeTransport.swift`: `FakeConnection: SSHConnection` с очередью ответов
       `exec` (`[(matches: (String) -> Bool, result: Result<ExecResult, Error>)]`), журналом
       вызванных команд и stdin, управлением `onDisconnect`; PTY-часть — в Task 5 (здесь `openPTY`
       кидает `unimplemented`). `HostAPITests` (юнит, на фейке): `list` рендерит точную
       exec-строку и парсит ответ; код 3 у `new` → `.sessionExists`; 127 → `.scriptMissing`;
       `auth` отвергает токен с пробелом до обращения к сети и шлёт `token\n` в stdin; `setup`
       с кодом 1 и валидным отчётом → `DoctorReport.ok == false` без ошибки.
-- [ ] `HostScriptResourceTests`: ресурс побайтно равен `host/tmuxpad-host.sh` (корень репозитория
+- [x] `HostScriptResourceTests`: ресурс побайтно равен `host/tmuxpad-host.sh` (корень репозитория
       — три уровня вверх от `#filePath`), `HostScript.version == 1`.
-- [ ] `HostBootstrapIntegrationTests` (стенд, чистый контейнер без скрипта — `rm -f
+- [x] `HostBootstrapIntegrationTests` (стенд, чистый контейнер без скрипта — `rm -f
       ~/.local/bin/tmuxpad-host.sh` в сбросе): `status` → `.missing`; `install` → файл есть,
       исполняемый, `status` → `.ready(1)`; подмена версии (`sed -i 's/^VERSION=1/VERSION=0/'
       ~/.local/bin/tmuxpad-host.sh`) → `.outdated(installed: 0, bundled: 1)`; `prepare` →
       переустановил, `DoctorReport` с `tmux` ok, `projects` ok, `script` ok и `ok == true`;
       `~/.tmux.conf` содержит `# tmuxpad: begin`.
-- [ ] `HostAPIIntegrationTests` (стенд, скрипт установлен через `HostBootstrap` в начале suite):
+- [x] `HostAPIIntegrationTests` (стенд, скрипт установлен через `HostBootstrap` в начале suite):
       `listEmpty` (три проекта, ноль сессий); `newListKill` (`new("api","api")` → `list`
       содержит сессию `api` с `project == "api"`, `otherClients == 0`, `lastActivity` в пределах
       минуты от сейчас; `kill` → пусто; `TMUXPAD_CMD` для стенда — `sleep 1000`, чтобы заглушка
@@ -485,8 +485,17 @@ host/tests/run.sh                                             # стенд ск�
       `otherClients == 1`; завершить процесс); `projectsRootMissing` (окружение с
       `projectsRoot: "nope"` → `.projectsRootMissing`); `copyCancelIdempotent` (0 и вне режима);
       `authStoresToken` (`auth("tok_1")` → `cat ~/.tmuxpad/env` содержит `tok_1`, права 600).
-- [ ] `swift test --skip IntegrationTests` и `scripts/test.sh` зелёные, сборка без
+- [x] `swift test --skip IntegrationTests` и `scripts/test.sh` зелёные, сборка без
       предупреждений; коммит.
+
+      Отклонения при исполнении: `HostBootstrap.install(api:)` вместо `install(connection:)` —
+      установка идёт через `HostAPI.run(.install, stdin:)` и сразу проверяется `version()` того
+      же `HostAPI`; `HostBootstrap` хранит `script`/`bundledVersion` (`init()` из ресурса,
+      `init(script:)` для юнит-тестов); `prepare` пробрасывает сетевые ошибки как есть, а не
+      через `.unreachable`. `HostAPI` получил `server` (метка журнала) и `timeout` (20 с по
+      умолчанию), инициализатор из `ServerConfig` + `deviceID` для Task 4. `SSHConnection`
+      наследует `ExecRunner`. Suite Swift Testing идут параллельно, поэтому интеграционные
+      тесты, которые сбрасывают стенд, берут общий замок `Bench.exclusive` (`Bench.withReset`).
 
 ### Task 4: `ConnectionPool` — состояния, очередь exec, keepalive, реконнект
 

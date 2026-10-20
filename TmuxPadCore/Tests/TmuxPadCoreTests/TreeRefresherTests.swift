@@ -13,11 +13,26 @@ struct TreeRefresherTests {
         let refresher: TreeRefresher
         var config = ServerConfig(label: "fake", host: "fake.example", user: "dev", keyID: UUID(), hostKeyFingerprint: "SHA256:fake")
 
-        init(backoff: [Duration] = [.milliseconds(20)], version: Int = TreeRefresherTests.bundled, list: String = TreeRefresherTests.listOutput) throws {
+        init(
+            backoff: [Duration] = [.milliseconds(20)],
+            version: Int = TreeRefresherTests.bundled,
+            list: String = TreeRefresherTests.listOutput,
+            authDelay: Duration? = nil,
+            authError: Error? = nil
+        ) throws {
             let settings = PoolSettings(keepalive: .seconds(60), backoff: backoff, connectTimeout: .seconds(1), execTimeout: .seconds(2))
             pool = ConnectionPool(transport: transport, hostKeys: InMemoryHostKeyStore(), deviceID: UUID(), settings: { _ in settings })
             let key = SSHKeys.generateEd25519().privateKey
-            refresher = TreeRefresher(pool: pool, bootstrap: try HostBootstrap(), auth: { _ in .privateKey(key, user: "dev") }, interval: .milliseconds(50))
+            let auth: @Sendable (ServerConfig) async throws -> SSHAuth = { _ in
+                if let authDelay {
+                    try await Task.sleep(for: authDelay)
+                }
+                if let authError {
+                    throw authError
+                }
+                return .privateKey(key, user: "dev")
+            }
+            refresher = TreeRefresher(pool: pool, bootstrap: try HostBootstrap(), auth: auth, interval: .milliseconds(50))
             transport.onConnect { fake in
                 fake.respondAlways(containing: " version", stdout: "tmuxpad-host \(version)\n")
                 fake.respondAlways(containing: " list", stdout: list)
@@ -175,17 +190,28 @@ struct TreeRefresherTests {
         let rig = try Rig()
         rig.transport.onConnect { fake in
             fake.execDelay = .milliseconds(150)
-            fake.respondAlways(containing: " version", exitCode: 127)
+            // первый `version` — до подготовки, следующие — после
+            fake.respond(containing: " version", exitCode: 127)
+            fake.respondAlways(containing: " version", stdout: "tmuxpad-host \(TreeRefresherTests.bundled)\n")
             fake.respondAlways(containing: " list", stdout: TreeRefresherTests.listOutput)
         }
         await rig.refresher.setServers([rig.config])
+        let updates = await rig.refresher.updates()
+        let seen = Task {
+            var seen: [ServerReachability] = []
+            for await (_, state) in updates {
+                seen.append(state.reachability)
+                if state.reachability == .online {
+                    break
+                }
+            }
+            return seen
+        }
         let running = Task { await rig.refresher.refresh() }
         #expect(try await Bench.eventually(.seconds(3)) { rig.versionCalls == 1 })
-        // подготовка сервера прошла, пока первый `version` ещё в пути
-        let fake = try #require(rig.transport.lastConnection)
-        fake.respondAlways(containing: " version", stdout: "tmuxpad-host \(TreeRefresherTests.bundled)\n")
         await rig.refresher.markPrepared(rig.id)
         await running.value
+        #expect(await seen.value.contains(.needsSetup(TreeRefresher.scriptMissing)))
         #expect(rig.versionCalls == 2)
         #expect(await rig.reachability() == .online)
         #expect(await rig.state()?.bootstrap == .ready(version: TreeRefresherTests.bundled))
@@ -229,7 +255,7 @@ struct TreeRefresherTests {
         #expect(first.1.reachability == .online)
     }
 
-    @Test func updatesReplayAndFollow() async throws {
+    @Test(.timeLimit(.minutes(1))) func updatesReplayAndFollow() async throws {
         let rig = try Rig()
         await rig.refresher.setServers([rig.config])
         let updates = await rig.refresher.updates()
@@ -244,5 +270,87 @@ struct TreeRefresherTests {
         }
         #expect(seen.first == ServerTreeState())
         #expect(seen.contains { $0.refreshing })
+    }
+
+    @Test func serverRemovedDuringRefreshStaysOutOfPool() async throws {
+        let rig = try Rig(authDelay: .milliseconds(200))
+        await rig.refresher.setServers([rig.config])
+        let running = Task { await rig.refresher.refresh() }
+        #expect(try await Bench.eventually(.seconds(3)) { await rig.state()?.refreshing == true })
+        await rig.refresher.setServers([])
+        await running.value
+        #expect(await rig.pool.existing(id: rig.id) == nil)
+        #expect(rig.transport.connectAttempts == 0)
+        #expect(await rig.state() == nil)
+    }
+
+    @Test func authErrorGoesOffline() async throws {
+        let rig = try Rig(authError: SSHError.authFailed)
+        await rig.refresher.setServers([rig.config])
+        await rig.refresher.refresh()
+        #expect(await rig.reachability() == .offline("\(SSHError.authFailed)"))
+        #expect(rig.transport.connectAttempts == 0)
+    }
+
+    @Test func forceDuringPollRunsAfterIt() async throws {
+        let rig = try Rig()
+        rig.transport.onConnect { fake in
+            fake.execDelay = .milliseconds(150)
+            fake.respondAlways(containing: " version", stdout: "tmuxpad-host \(TreeRefresherTests.bundled)\n")
+            fake.respondAlways(containing: " list", stdout: TreeRefresherTests.listOutput)
+        }
+        await rig.refresher.setServers([rig.config])
+        let poll = Task { await rig.refresher.refresh() }
+        #expect(try await Bench.eventually(.seconds(3)) { rig.versionCalls == 1 })
+        await rig.refresher.refresh(rig.id, force: true)
+        await poll.value
+        // `force` не схлопнулся с опросом: `version` прочитан заново
+        #expect(rig.versionCalls == 2)
+        #expect(rig.listCalls == 2)
+    }
+
+    @Test func reconnectRereadsVersion() async throws {
+        let rig = try Rig()
+        await rig.refresher.setServers([rig.config])
+        await rig.refresher.refresh()
+        let connection = try #require(await rig.pool.existing(id: rig.id))
+        let first = await connection.state
+        rig.transport.dropConnection()
+        #expect(try await Bench.eventually(.seconds(3)) {
+            let state = await connection.state
+            return state.isConnected && state != first
+        })
+        await rig.refresher.refresh()
+        #expect(rig.versionCalls == 2)
+        #expect(await rig.reachability() == .online)
+    }
+
+    @Test func fatalReconnectFailureNeedsAttention() async throws {
+        let rig = try Rig()
+        await rig.refresher.setServers([rig.config])
+        await rig.refresher.refresh()
+        rig.transport.failNextConnects(100, with: SSHError.authFailed)
+        rig.transport.dropConnection()
+        let connection = try #require(await rig.pool.existing(id: rig.id))
+        #expect(try await Bench.eventually(.seconds(3)) {
+            if case .failed = await connection.state { true } else { false }
+        })
+        await rig.refresher.refresh()
+        #expect(await rig.state()?.attention == .authFailed)
+        guard case .offline = await rig.reachability() else {
+            Issue.record("expected offline")
+            return
+        }
+    }
+
+    @Test func listScriptMissingNeedsSetup() async throws {
+        let rig = try Rig()
+        await rig.refresher.setServers([rig.config])
+        await rig.refresher.refresh()
+        let fake = try #require(rig.transport.lastConnection)
+        fake.respondAlways(containing: " list", exitCode: 127, stderr: "not found")
+        await rig.refresher.refresh()
+        #expect(await rig.reachability() == .needsSetup(TreeRefresher.scriptMissing))
+        #expect(await rig.state()?.bootstrap == .missing)
     }
 }

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Состояние репозитория
 
-Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2). Приложения и `project.yml` ещё нет (план 3, на Mac); когда появятся, добавь сюда реальные команды сборки. Не выдумывай их заранее.
+Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2) вместе с логикой для State без view (план 3). Приложения и `project.yml` ещё нет (план 4 `app-foundation`, на Mac); когда появятся, добавь сюда реальные команды сборки. Не выдумывай их заранее.
 
 Раскладка `host/`:
 - `host/tmuxpad-host.sh` — сам скрипт; `host/README.md` — подкоманды, коды выхода, форматы, файлы состояния;
@@ -21,7 +21,7 @@ host/tests/run.sh -k test_list_others              # один тест, по п�
 ```
 
 Раскладка `TmuxPadCore/` (подробнее — `TmuxPadCore/README.md`):
-- `Sources/TmuxPadCore/` — `Models/`, `Host/` (`HostAPI`, `HostBootstrap`, парсеры), `SSH/` (транспорт, ключи, TOFU), `Pool/` (`ConnectionPool`, `ServerConnection`), `Terminal/` (`TerminalSession`, `TerminalSurface`), `Diagnostics/`, `Resources/tmuxpad-host.sh`;
+- `Sources/TmuxPadCore/` — `Models/` (в т. ч. `SessionTree`, `OpenSessionsRoster`), `Host/` (`HostAPI`, `HostBootstrap`, парсеры), `SSH/` (транспорт, ключи, TOFU), `Pool/` (`ConnectionPool`, `ServerConnection`, `TreeRefresher`), `Terminal/` (`TerminalSession`, `TerminalSurface`, `MouseReport`), `Diagnostics/`, `Resources/tmuxpad-host.sh`;
 - `Tests/TmuxPadCoreTests/` — Swift Testing: `*Tests.swift` юнит (пул и терминал на `FakeTransport`), `*IntegrationTests.swift` против стенда, без стенда пропускаются;
 - `scripts/test.sh` — `host/tests/bench.sh up` → `swift test` → `down`; `host/tests/bench.sh` — долгоживущий контейнер того же образа, состояние в `host/tests/.bench/`.
 
@@ -36,6 +36,8 @@ TmuxPadCore/scripts/test.sh                                   # стенд + в�
 TmuxPadCore/scripts/test.sh --filter HostAPIIntegrationTests  # один suite или тест (regex по имени)
 shellcheck -s bash host/tests/bench.sh TmuxPadCore/scripts/test.sh
 ```
+
+`host/tests/bench.sh` и `TmuxPadCore/scripts/test.sh` идут и под системным bash 3.2 macOS без GNU coreutils: без `mapfile`, `declare -A`, `${v,,}`, `readlink -f`, `stat -c`, `timeout` — только через `with_timeout`. `bash -n` из bash 5 этого не ловит, проверка — `docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n host/tests/bench.sh` (и то же для `test.sh`). `run.sh` и `lib.sh` — только Linux.
 
 Решения, которые меняют поведение, сначала вносятся в спеку, потом в код.
 

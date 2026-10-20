@@ -13,6 +13,9 @@ public actor ServerConnection: ExecRunner {
     /// Отпечаток хост-ключа последнего подключения и был ли он увиден впервые (UI «Доверять»).
     public private(set) var hostKeyFingerprint: String?
     public private(set) var hostKeyFirstSeen = false
+    /// Фатальная ошибка (`authFailed`, `hostKeyChanged`), с которой соединение ушло в `.failed`;
+    /// сбрасывается при подключении.
+    public private(set) var lastFatalError: SSHError?
 
     private let transport: any SSHTransport
     private let auth: SSHAuth
@@ -89,6 +92,7 @@ public actor ServerConnection: ExecRunner {
                 throw error
             }
             if Self.isFatal(error) {
+                lastFatalError = error as? SSHError
                 setState(.failed("\(error)"))
             } else {
                 startReconnectLoop(current, reason: "\(error)")
@@ -233,6 +237,7 @@ public actor ServerConnection: ExecRunner {
                 }
                 lastError = "\(error)"
                 if Self.isFatal(error) {
+                    lastFatalError = error as? SSHError
                     break
                 }
             }
@@ -280,6 +285,9 @@ public actor ServerConnection: ExecRunner {
             return
         }
         state = new
+        if new.isConnected {
+            lastFatalError = nil
+        }
         for observer in observers.values {
             observer.yield(new)
         }

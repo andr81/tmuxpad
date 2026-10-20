@@ -14,15 +14,20 @@ IMAGE=tmuxpad-test:${BASE//[:\/]/-}
 
 log() { echo "bench: $*" >&2; }
 
-# with_timeout SECONDS CMD...: GNU timeout, else gtimeout (Homebrew
-# coreutils on macOS), else no limit at all.
+# GNU timeout, else gtimeout (Homebrew coreutils on macOS), else none:
+# up warns once, with_timeout runs without a limit.
+TIMEOUT=
+if command -v timeout >/dev/null 2>&1; then
+	TIMEOUT=timeout
+elif command -v gtimeout >/dev/null 2>&1; then
+	TIMEOUT=gtimeout
+fi
+
+# with_timeout SECONDS CMD...
 with_timeout() {
-	if command -v timeout >/dev/null 2>&1; then
-		timeout "$@"
-	elif command -v gtimeout >/dev/null 2>&1; then
-		gtimeout "$@"
+	if [[ -n $TIMEOUT ]]; then
+		"$TIMEOUT" "$@"
 	else
-		echo "warning: no timeout/gtimeout, running without a time limit (brew install coreutils)" >&2
 		shift
 		"$@"
 	fi
@@ -61,6 +66,7 @@ up() {
 	echo "$cid" >"$STATE/cid"
 	port=$(docker port "$cid" 22 | head -n1)
 	echo "${port##*:}" >"$STATE/port"
+	[[ -n $TIMEOUT ]] || log "warning: no timeout/gtimeout, waiting for ssh without a time limit (brew install coreutils)"
 	for ((i = 0; i < 60; i++)); do
 		ssh_ok && break
 		sleep 0.5

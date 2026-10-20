@@ -37,8 +37,11 @@
   прячется по `copyModeSuspected(false)`; тап по нему — `cancelCopyMode()`.
 - `TreeModel` подписывается на `TreeRefresher.updates()`, `start()`/`stop()` — по `scenePhase`,
   серверы — `setServers(_:)`; после «Установить» — `markPrepared(_:)`, pull-to-refresh —
-  `refresh(id, force: true)`.
-- `OpenSessionsModel` держит `OpenSessionsRoster` (JSON в Application Support) и делает
+  `refresh(id, force: true)`. Сервер без `ServerConfig.hostKeyFingerprint` опрос не подключает
+  (`.needsSetup("Connection not checked")`): после «Доверять» приложение пишет отпечаток в
+  `ServerConfig` и передаёт обновлённый список в `setServers(_:)`. При `ServerTreeState.attention`
+  (`authFailed`, `hostKeyChanged`) UI открывает проверку сервера, а не «Повторить».
+- `OpenSessionsModel` держит `OpenSessionsRoster` (в UserDefaults) и делает
   `detach()` терминалам, которые вернул `open(_:)` как вытесненные.
 - `deviceID` из Keychain и `ServerConfig` из JSON-хранилища приложения передаются в `ConnectionPool`.
 

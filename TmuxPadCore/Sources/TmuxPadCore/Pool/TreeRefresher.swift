@@ -47,7 +47,8 @@ public actor TreeRefresher {
     private var states: [UUID: ServerTreeState] = [:]
     /// `since` последнего увиденного `.connected`: новое значение — новая эпоха, `version` заново.
     private var epochs: [UUID: Date] = [:]
-    private var inFlight: [UUID: Task<Void, Never>] = [:]
+    /// Идущий `refresh` сервера; `token` отличает его от следующего после удаления и возврата.
+    private var inFlight: [UUID: (token: UUID, task: Task<Void, Never>)] = [:]
     private var ticker: Task<Void, Never>?
     private var observers: [UUID: AsyncStream<(UUID, ServerTreeState)>.Continuation] = [:]
 
@@ -164,7 +165,7 @@ public actor TreeRefresher {
     /// запустить новый с чтением `version`.
     public func markPrepared(_ id: UUID) async {
         while let running = inFlight[id] {
-            await running.value
+            await running.task.value
         }
         guard var state = states[id] else {
             return
@@ -174,27 +175,32 @@ public actor TreeRefresher {
         await refreshOne(id, force: false)
     }
 
-    /// Один `refresh` на сервер: второй вызов ждёт идущего.
+    /// Один `refresh` на сервер: второй вызов ждёт идущего, а с `force` после него запускает свой.
     private func refreshOne(_ id: UUID, force: Bool) async {
-        if let running = inFlight[id] {
-            await running.value
-            return
+        while let running = inFlight[id] {
+            await running.task.value
+            if !force {
+                return
+            }
         }
         guard configs[id] != nil else {
             return
         }
         // задача не начнётся раньше записи в `inFlight`: актор занят до `await`
-        let task = Task { await self.perform(id, force: force) }
-        inFlight[id] = task
+        let token = UUID()
+        let task = Task { await self.perform(id, force: force, token: token) }
+        inFlight[id] = (token, task)
         await task.value
     }
 
     // MARK: - Один refresh
 
-    private func perform(_ id: UUID, force: Bool) async {
+    private func perform(_ id: UUID, force: Bool, token: UUID) async {
         defer {
-            inFlight[id] = nil
-            update(id) { $0.refreshing = false }
+            if inFlight[id]?.token == token {
+                inFlight[id] = nil
+                update(id) { $0.refreshing = false }
+            }
         }
         guard let config = configs[id] else {
             return
@@ -212,24 +218,37 @@ public actor TreeRefresher {
             await setReachability(id, .offline("\(error)"))
             return
         }
+        // пока ждали ключ, сервер могли удалить или изменить: старый конфиг вернул бы его в пул
+        guard isCurrent(id, token: token, config: config) else {
+            return
+        }
         let connection = await pool.connection(for: config, auth: credentials)
 
         var state = await connection.state
         // `connect()` из любого состояния, кроме `.disconnected`, начал бы новую эпоху; с `force`
         // это и нужно — как `reconnectNow()`, но с ошибкой на руках для `attention`
+        var connectError: Error?
         if state == .disconnected || (force && !state.isConnected) {
             do {
                 try await connection.connect()
             } catch {
-                update(id) { state in
-                    if ServerConnection.isFatal(error) {
-                        state.attention = error as? SSHError
-                    }
-                }
-                await setReachability(id, .offline("\(error)"))
-                return
+                connectError = error
             }
             state = await connection.state
+        }
+        guard isCurrent(id, token: token, config: config) else {
+            // сервер удалили, пока шли `pool.connection` и `connect()`: убрать возвращённое соединение
+            if configs[id] == nil {
+                await pool.remove(id: id)
+            }
+            return
+        }
+        if let connectError {
+            if ServerConnection.isFatal(connectError) {
+                update(id) { $0.attention = connectError as? SSHError }
+            }
+            await setReachability(id, .offline("\(connectError)"))
+            return
         }
         let since: Date
         switch state {
@@ -239,6 +258,10 @@ public actor TreeRefresher {
             await setReachability(id, .offline(Self.reconnecting))
             return
         case let .failed(reason):
+            // пул сам бросил попытки на фатальной ошибке после обрыва
+            if let fatal = await connection.lastFatalError {
+                update(id) { $0.attention = fatal }
+            }
             await setReachability(id, .offline(reason))
             return
         case .disconnected:
@@ -285,6 +308,11 @@ public actor TreeRefresher {
         } catch {
             await setReachability(id, .offline("\(error)"))
         }
+    }
+
+    /// Этот `refresh` всё ещё актуален: сервер в списке с тем же конфигом, а его не сменил новый.
+    private func isCurrent(_ id: UUID, token: UUID, config: ServerConfig) -> Bool {
+        inFlight[id]?.token == token && configs[id] == config
     }
 
     private static func isUnreachable(_ status: BootstrapStatus) -> Bool {

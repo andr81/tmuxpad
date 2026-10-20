@@ -421,7 +421,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 
 1. `completed/20261020-host-script.md` — host-скрипт и Docker-стенд (фаза 2 целиком, часть фазы 0). Linux.
 2. `completed/20261020-tmuxpad-core.md` — пакет ядра `TmuxPadCore` по §5.2: `HostAPI`, `ConnectionPool`, `HostBootstrap`, `TerminalSession`, модели, тесты против стенда плана 1 (фаза 1 без Keychain/SE, ядро фаз 4–5). Linux.
-3. `20261020-core-ui-support.md` — логика для UI, которую можно тестировать без Apple-фреймворков: `MouseReport` и ввод терминала мимо `copy-cancel`, `SessionTree`, подсказка имени, `OpenSessionsRoster`, `TreeRefresher`; переносимость стенда на macOS. Linux или Mac.
+3. `completed/20261020-core-ui-support.md` — логика для UI, которую можно тестировать без Apple-фреймворков: `MouseReport` и ввод терминала мимо `copy-cancel`, `SessionTree`, подсказка имени, `OpenSessionsRoster`, `TreeRefresher`; переносимость стенда на macOS. Linux или Mac.
 4. `20261020-app-foundation.md` — Xcode-проект (XcodeGen), Keychain/Secure Enclave, хранилища, настройки ключей и серверов, «Проверить подключение», «Подготовить сервер», токен, журнал диагностики (фазы 0–2 в части приложения). Mac.
 5. `20261020-app-sidebar.md` — `TreeModel`, сайдбар, мастера «Новая сессия» и «Подключиться», kill (фаза 3). Mac.
 6. `20261020-app-terminal.md` — `TerminalScreen` на SwiftTerm, открытые терминалы, клавиатура, скролл и чип, плашки (фаза 4). Mac.

@@ -45,6 +45,8 @@ need_client() { [[ -n $CLIENT ]] || die "TMUXPAD_CLIENT is required" 2; }
 # the agent gets -n/--session-id/--resume only when the command is claude itself
 CMD_FIRST=${CMD%%[[:space:]]*}
 is_claude() { [[ ${CMD_FIRST##*/} == claude ]]; }
+# the pane runs a login shell, the exec channel does not: ask where the pane asks
+claude_has_name() { bash -lc "$CMD --help" </dev/null 2>/dev/null | grep -q -- --name; }
 
 # tmux_version - MAJOR.MINOR of the installed tmux (`3.2a` -> 3.2, `next-3.5` -> 3.5)
 tmux_version() {
@@ -82,12 +84,11 @@ doctor() {
 		fi
 	fi
 
-	# the pane runs a login shell, the exec channel does not: look where the pane looks
 	if ! is_claude; then
 		report ok claude "custom command"
 	elif path=$(bash -lc "command -v $(printf '%q' "$CMD_FIRST")" </dev/null 2>/dev/null) && [[ -n $path ]]; then
 		report ok claude "${path##*$'\n'}"
-		if bash -lc "$CMD --help" </dev/null 2>/dev/null | grep -q -- --name; then
+		if claude_has_name; then
 			report ok claude_name "--name supported"
 		else
 			report warn claude_name "no --name in \`$CMD_FIRST --help\`, sessions will start unnamed"
@@ -124,19 +125,24 @@ setup() {
 
 	# OSC 52 (clipboard) and OSC 9/777 (notifications) from the agent have to
 	# pass through tmux. No global `mouse on`: new and attach set it per session.
-	local conf=$HOME/.tmux.conf v
+	local conf=$HOME/.tmux.conf v opt
+	local -a opts=('set-clipboard on' 'history-limit 50000')
+	# tmux before 3.3 stops reading the config at an unknown option
+	if v=$(tmux_version) && version_ge "$v" 3.3; then
+		opts+=('allow-passthrough on')
+	fi
 	if ! grep -qsxF '# tmuxpad: begin' "$conf"; then
 		end_newline "$conf"
 		{
 			echo '# tmuxpad: begin'
-			echo 'set -g set-clipboard on'
-			echo 'set -g history-limit 50000'
-			# tmux before 3.3 stops reading the config at an unknown option
-			if v=$(tmux_version) && version_ge "$v" 3.3; then
-				echo 'set -g allow-passthrough on'
-			fi
+			for opt in "${opts[@]}"; do echo "set -g $opt"; done
 			echo '# tmuxpad: end'
-		} >>"$conf"
+		} >>"$conf" || exit 1
+		# a running server read the config before the block was there
+		if tmux has-session 2>/dev/null; then
+			# shellcheck disable=SC2086 # option and value are two words
+			for opt in "${opts[@]}"; do tmux set -g $opt; done
+		fi
 	fi
 
 	doctor
@@ -151,15 +157,17 @@ auth() {
 	local token
 	IFS= read -r token
 	[[ $token =~ ^[A-Za-z0-9_-]+$ ]] || die "no usable token on stdin" 2
-	mkdir -p "$STATE"
 	local env=$STATE/env
-	touch "$env"
-	chmod 600 "$env"
-	rm -f "$env.tmp"
-	grep -v '^export CLAUDE_CODE_OAUTH_TOKEN=' "$env" >"$env.tmp" || true
-	printf "export CLAUDE_CODE_OAUTH_TOKEN='%s'\n" "$token" >>"$env.tmp"
-	chmod 600 "$env.tmp"
-	mv "$env.tmp" "$env"
+	if ! { mkdir -p "$STATE" && touch "$env" && chmod 600 "$env" && rm -f "$env.tmp"; }; then
+		die "cannot write $env" 1
+	fi
+	# grep exits 1 when env has no other lines, which is fine
+	grep -v '^export CLAUDE_CODE_OAUTH_TOKEN=' "$env" >"$env.tmp"
+	(($? <= 1)) || die "cannot write $env.tmp" 1
+	if ! { printf "export CLAUDE_CODE_OAUTH_TOKEN='%s'\n" "$token" >>"$env.tmp" &&
+		chmod 600 "$env.tmp" && mv "$env.tmp" "$env"; }; then
+		die "cannot write $env" 1
+	fi
 	echo "token stored in $env"
 }
 
@@ -174,10 +182,11 @@ mine() {
 }
 
 # prune_clients - drop the client files of PIDs tmux no longer lists. A file
-# whose PID is still the script before its `exec tmux attach-session` is kept:
-# a list running next to an attach must not unmark that client.
+# whose PID is still the script before its `exec tmux attach-session`, or the
+# tmux client after it but before the server lists it, is kept: a list running
+# next to an attach must not unmark that client.
 prune_clients() {
-	local live f pid
+	local live f pid comm
 	live=$(tmux list-clients -F '#{client_pid}' 2>/dev/null)
 	for f in "$STATE"/clients/*; do
 		[[ -e $f ]] || continue
@@ -185,6 +194,7 @@ prune_clients() {
 		if [[ $pid =~ ^[0-9]+$ ]]; then
 			grep -qxF "$pid" <<<"$live" && continue
 			grep -qsF tmuxpad-host "/proc/$pid/cmdline" && continue
+			comm=$(cat "/proc/$pid/comm" 2>/dev/null) && [[ $comm == tmux ]] && continue
 		fi
 		rm -f "$f"
 	done
@@ -204,7 +214,8 @@ list() {
 
 	printf 'V\t1\n'
 	while IFS=$'\t' read -r name path activity; do
-		[[ -n $name ]] || continue
+		# a hand-made session with a name attach would refuse is not listed
+		valid_name "$name" || continue
 		path=$(realpath -m -- "$path")
 		[[ $path == "$PROJECTS"/* && ${path#"$PROJECTS"/} != */* ]] || continue
 		printf 'S\t%s\t%s\t%s\t%s\n' "$name" "${others[$name]:-0}" "${path##*/}" "$activity"
@@ -236,7 +247,7 @@ claude_flags() {
 	fi
 	uuid=$(cat /proc/sys/kernel/random/uuid) || return 1
 	mkdir -p "$STATE" && printf '%s\t%s\n' "$uuid" "$2" >"$file" || return 1
-	if bash -lc "$CMD --help" </dev/null 2>/dev/null | grep -q -- --name; then
+	if claude_has_name; then
 		echo "-n $1 --session-id $uuid"
 	else
 		echo "--session-id $uuid"
@@ -252,7 +263,11 @@ new() {
 	# both land inside the sh -c '...' that send-keys types
 	[[ $CMD != *\'* && $STATE != *\'* ]] || die "a quote in TMUXPAD_CMD or the state path" 2
 	tmux has-session -t "=$name" 2>/dev/null && die "session $name exists" 3
-	pane=$(tmux new-session -d -P -F '#{pane_id}' -s "$name" -c "$dir") || die "cannot create session $name" 1
+	if ! pane=$(tmux new-session -d -P -F '#{pane_id}' -s "$name" -c "$dir"); then
+		# a parallel new with the same name won the race
+		tmux has-session -t "=$name" 2>/dev/null && die "session $name exists" 3
+		die "cannot create session $name" 1
+	fi
 	tmux set -t "=$name:" mouse on
 	if is_claude; then
 		flags=$(claude_flags "$name" "$project") || {
@@ -273,9 +288,11 @@ new() {
 # attach_impl NAME DETACH_ALL - the attach steps of §7. Only this device's
 # stale clients are detached; take passes DETACH_ALL and detaches everyone.
 attach_impl() {
-	local name=$1 pid tty
+	local name=$1 pid tty w
 	valid_name "$name" || die "bad session name: $name" 2
 	need_client
+	# every tmux call fails on a TERM tmux cannot load, has-session included
+	infocmp "${TERM:-}" >/dev/null 2>&1 || export TERM=xterm-256color
 	tmux has-session -t "=$name" 2>/dev/null || die "no session $name" 4
 	prune_clients
 	while IFS=$'\t' read -r pid tty; do
@@ -283,9 +300,11 @@ attach_impl() {
 		mine "$pid" && tmux detach-client -t "$tty" 2>/dev/null
 	done < <(tmux list-clients -t "=$name" -F '#{client_pid}'$'\t''#{client_tty}' 2>/dev/null)
 	tmux set -t "=$name:" mouse on
-	# in case the user set `smallest` globally: the most recently active client sizes the window
-	tmux set -w -t "=$name:" window-size latest
-	infocmp "${TERM:-}" >/dev/null 2>&1 || export TERM=xterm-256color
+	# in case the user set `smallest` globally: the most recently active client
+	# sizes the window, on every window of the session
+	while IFS= read -r w; do
+		tmux set -w -t "$w" window-size latest
+	done < <(tmux list-windows -t "=$name" -F '#{window_id}' 2>/dev/null)
 	mkdir -p "$STATE/clients"
 	# after exec the tmux client PID is $$: the file ties the client to the device
 	printf '%s\n' "$CLIENT" >"$STATE/clients/$$"

@@ -40,6 +40,8 @@ test_new_bad_names() {
 	assert_exit 2 h new api nothere
 	assert_exit 2 h new api ../api
 	assert_exit 2 h new api
+	assert_exit 2 h new "$(printf 'a%.0s' {1..65})" api
+	assert_exit 2 h new api "$(printf 'p%.0s' {1..129})"
 	assert_eq 0 "$(r 'tmux list-sessions 2>/dev/null | wc -l')" "sessions"
 }
 
@@ -129,4 +131,21 @@ test_new_exit_keeps_session() {
 	sleep 2
 	assert_exit 0 r 'tmux has-session -t =api'
 	assert_eq bash "$(r "tmux display -p -t =api: '#{pane_current_command}'")" "pane runs the shell again"
+}
+
+test_new_name_limits() {
+	local long
+	long=$(printf 'a%.0s' {1..64})
+	assert_exit 0 h new "$long" api
+	assert_exit 0 h new -x api
+	wait_log 2 || return 1
+	assert_contains "$(r 'cat ~/claude-args.log')" '|-n -x --session-id '
+	r "mkdir ~/projects/_$(printf 'p%.0s' {1..127})"
+	assert_exit 0 h new deep "_$(printf 'p%.0s' {1..127})"
+}
+
+test_new_cleans_up_on_failure() {
+	r 'touch ~/.tmuxpad'
+	assert_exit 1 h new api api
+	assert_exit 1 r 'tmux has-session -t =api'
 }

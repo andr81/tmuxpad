@@ -264,7 +264,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       все). Зовётся из `list`, `attach`, `take`. Файлы с именем не из цифр — удалять тоже.
       Не удаляется файл PID, который ещё исполняет скрипт до `exec` (`/proc/<pid>/cmdline`
       содержит `tmuxpad-host`) — гонка `list` с параллельным `attach`; внесено в §7 спеки.
-- [x] `others_for NAME`: число клиентов сессии из `tmux list-clients -t =NAME -F
+- [x] подсчёт `others` прямо в `list`, одним `list-clients` на все сессии (отдельной функции `others_for` нет); исходно — `others_for NAME`: число клиентов сессии из `tmux list-clients -t =NAME -F
       '#{client_pid}'`, у которых **нет** файла `$STATE/clients/<pid>` с содержимым, равным
       `$CLIENT`; при пустом `CLIENT` — все клиенты чужие. Один общий `list-clients -F
       '#{session_name}\t#{client_pid}'` на весь `list`, а не по сессии.

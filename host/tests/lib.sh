@@ -43,7 +43,6 @@ h() { timeout 20 ssh "${SSH_OPTS[@]}" dev@127.0.0.1 -- "$(hostcmd "$@")"; }
 attach_bg() {
 	timeout 120 ssh -tt -n "${SSH_OPTS[@]}" dev@127.0.0.1 "$(hostcmd "${2:-attach}" "$1")" >/dev/null 2>&1 &
 	local pid=$!
-	BG_PIDS+=("$pid")
 	# tests run in subshells: the file is what reset and the trap see
 	echo "$pid" >>"$TMP/bg.pids"
 	echo "$pid"
@@ -53,7 +52,6 @@ attach_bg() {
 tmux_bg() {
 	timeout 120 ssh -tt -n "${SSH_OPTS[@]}" dev@127.0.0.1 "tmux $*" >/dev/null 2>&1 &
 	local pid=$!
-	BG_PIDS+=("$pid")
 	echo "$pid" >>"$TMP/bg.pids"
 	echo "$pid"
 }
@@ -64,7 +62,6 @@ kill_bg() {
 		while read -r pid; do kill "$pid" 2>/dev/null; done <"$TMP/bg.pids"
 		rm -f "$TMP/bg.pids"
 	fi
-	BG_PIDS=()
 }
 
 # wait_clients NAME N - wait up to 5 s for exactly N tmux clients on NAME
@@ -92,7 +89,7 @@ wait_log() {
 reset() {
 	kill_bg
 	CLIENT=$CLIENT_A PROJECTS=projects CMD=claude
-	r 'tmux kill-server 2>/dev/null; rm -rf ~/.tmuxpad ~/.claude ~/claude-args.log ~/.tmux.conf;
+	r 'tmux kill-server 2>/dev/null; rm -rf ~/.tmuxpad ~/.claude ~/claude-args.log ~/.tmux.conf ~/proj-link ~/projects;
 		mkdir -p ~/projects/api ~/projects/web ~/projects/my.app; touch ~/projects/README.md'
 }
 

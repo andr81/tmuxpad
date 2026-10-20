@@ -40,11 +40,13 @@ test_attach_writes_client_file() {
 
 test_attach_sets_options() {
 	attach_session
-	r 'tmux set -t =api: mouse off; tmux set -w -t =api: window-size smallest'
+	r 'tmux set -t =api: mouse off; tmux set -w -t =api: window-size smallest
+		tmux new-window -d -t =api: && tmux set -w -t =api:1 window-size smallest'
 	attach_bg api >/dev/null
 	wait_clients api 1 || return 1
 	assert_eq 'mouse on' "$(r 'tmux show -t =api: mouse')" "mouse"
-	assert_eq 'window-size latest' "$(r 'tmux show -w -t =api: window-size')" "window-size"
+	assert_eq 'latest
+latest' "$(r "tmux list-windows -t =api -F '#{window-size}'")" "window-size on every window"
 }
 
 test_attach_detaches_own_zombie() {
@@ -107,6 +109,7 @@ test_copy_cancel() {
 	assert_exit 0 h copy-cancel api
 	assert_eq 0 "$(r "tmux display -p -t =api: '#{pane_in_mode}'")" "after copy-cancel"
 	assert_exit 0 h copy-cancel api
+	assert_exit 0 h copy-cancel nope
 	assert_exit 2 h copy-cancel 'bad name'
 }
 
@@ -134,4 +137,23 @@ test_detach_on_ssh_close() {
 		sleep 0.2
 	done
 	fail "clients after closing ssh: $n"
+}
+
+test_attach_unknown_term() {
+	attach_session
+	TERM=bogus-term attach_bg api >/dev/null
+	wait_clients api 1
+}
+
+# =NAME is an exact match: without it tmux would take api2 for api
+test_exact_session_names() {
+	r 'tmux new -d -s api2 -c ~/projects/api'
+	r 'tmux copy-mode -t =api2:'
+	assert_exit 4 h attach api
+	assert_exit 4 h take api
+	assert_exit 0 h kill api
+	assert_exit 0 h copy-cancel api
+	assert_eq 1 "$(r "tmux display -p -t =api2: '#{pane_in_mode}'")" "api2 still in copy-mode"
+	assert_exit 0 h new api api
+	assert_exit 0 r 'tmux has-session -t =api && tmux has-session -t =api2'
 }

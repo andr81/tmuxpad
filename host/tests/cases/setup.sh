@@ -118,3 +118,29 @@ test_auth_rejects_garbage() {
 	assert_eq 2 "$code" "exit code"
 	assert_exit 1 r 'test -e ~/.tmuxpad/env'
 }
+
+test_auth_input_forms() {
+	local code
+	printf '' | h auth >/dev/null 2>&1
+	code=$?
+	assert_eq 2 "$code" "empty stdin"
+	r "mkdir -p ~/.tmuxpad && echo 'export FOO=1' > ~/.tmuxpad/env"
+	printf 'tok_1' | h auth >/dev/null
+	assert_eq "export FOO=1
+export CLAUDE_CODE_OAUTH_TOKEN='tok_1'" "$(r 'cat ~/.tmuxpad/env')" "no trailing newline, other lines kept"
+}
+
+test_auth_unwritable_state() {
+	local code
+	r 'touch ~/.tmuxpad'
+	printf 'tok_1\n' | h auth >/dev/null 2>&1
+	code=$?
+	assert_eq 1 "$code" "exit code"
+}
+
+test_setup_applies_to_running_server() {
+	r 'tmux -f /dev/null new -d -s other && tmux set -g history-limit 2000'
+	h setup >/dev/null
+	assert_eq 50000 "$(r 'tmux show -gv history-limit')" "history-limit"
+	assert_eq on "$(r 'tmux show -gv set-clipboard')" "set-clipboard"
+}

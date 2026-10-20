@@ -28,14 +28,14 @@ env TMUXPAD_CLIENT=<uuid> TMUXPAD_PROJECTS=<root> TMUXPAD_CMD=<cmd> "$HOME"/.loc
 |---|---|---|
 | `version` | печатает `tmuxpad-host 1` | 0 |
 | `list` | сессии и проекты, TSV `V 1` | 0; 2 — корня проектов нет |
-| `new NAME PROJECT` | tmux-сессия в папке проекта, агент через `send-keys`; stdout пустой | 0; 2 — неверное имя, проект или окружение; 3 — сессия уже есть; 1 — ошибка tmux |
-| `attach NAME` | выкидывает своих зависших клиентов, `exec tmux attach-session` без `-d` | 2 — неверное имя или нет `TMUXPAD_CLIENT`; 4 — сессии нет |
+| `new NAME PROJECT` | tmux-сессия в папке проекта, агент через `send-keys`; stdout пустой | 0; 2 — неверное имя, проект или окружение; 3 — сессия уже есть; 1 — ошибка tmux или записи `~/.tmuxpad/NAME.claude` |
+| `attach NAME` | выкидывает своих зависших клиентов, `exec tmux attach-session` без `-d` | 2 — неверное имя или нет `TMUXPAD_CLIENT`; 4 — сессии нет; после проверок процесс заменяется `tmux attach-session`, код — его (0 при detach) |
 | `take NAME` | то же с `-d`: выкидывает всех (кнопка «Забрать») | как у `attach` |
 | `copy-cancel NAME` | `send-keys -X cancel`, выход из copy-mode | 0, в том числе вне режима; 2 — неверное имя |
 | `kill NAME` | убивает сессию и `NAME.claude` | 0, в том числе если сессии нет; 2 — неверное имя |
-| `setup` | `~/.tmuxpad/`, корень проектов, блок в `~/.tmux.conf`; идемпотентно; в конце `doctor` | как у `doctor` |
+| `setup` | `~/.tmuxpad/`, корень проектов, блок в `~/.tmux.conf`; идемпотентно, запущенному tmux-серверу опции ставит сразу; в конце `doctor` | как у `doctor` |
 | `doctor` | проверки сервера | 0; 1 — есть хоть один `fail` |
-| `auth` | токен Claude из stdin в `~/.tmuxpad/env` (0600) | 0; 2 — нет годного токена |
+| `auth` | токен Claude из stdin в `~/.tmuxpad/env` (0600) | 0; 2 — нет годного токена; 1 — не удалось записать |
 
 Неизвестная подкоманда и плохой `TMUXPAD_CLIENT` — код 2.
 
@@ -59,14 +59,16 @@ S	<name>	<others>	<project>	<activity_epoch>
 P	<project>	<abs_path>
 ```
 
-`S` — сессии, у которых `session_path` лежит прямо в корне проектов, отсортированы по
-имени. `others` — число клиентов сессии без метки текущего `TMUXPAD_CLIENT`. `P` — каталоги
+`S` — сессии, у которых `session_path` лежит прямо в корне проектов и имя проходит
+валидацию, отсортированы по имени. `others` — число клиентов сессии без метки текущего `TMUXPAD_CLIENT`. `P` — каталоги
 корня с валидным именем, по алфавиту.
 
 ## Формат `doctor`
 
 TSV `ok|warn|fail<TAB>KEY<TAB>MESSAGE`, ключи по порядку: `tmux` (≥ 3.1), `claude` (в PATH
-login-шелла), `claude_name` (поддержка `--name`, иначе `warn`), `projects`, `script`.
+login-шелла), `claude_name` (поддержка `--name`, иначе `warn`), `projects`, `script`. `claude_name` есть,
+только когда команда — `claude` и он найден; при своей `TMUXPAD_CMD` — `ok claude custom command`
+без `claude_name`.
 
 ## Файлы состояния
 

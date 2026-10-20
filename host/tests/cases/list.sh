@@ -79,3 +79,39 @@ test_list_prunes_stale_client_files() {
 test_list_no_projects_root() {
 	PROJECTS=nope assert_exit 2 h list
 }
+
+test_list_others_per_session() {
+	session api projects/api
+	session web projects/web
+	attach_bg api >/dev/null
+	CLIENT=$CLIENT_B attach_bg web >/dev/null
+	tmux_bg attach -t =web >/dev/null
+	wait_clients api 1 || return 1
+	wait_clients web 2 || return 1
+	assert_eq 0 "$(CLIENT=$CLIENT_A others_of api)" "api for A"
+	assert_eq 2 "$(CLIENT=$CLIENT_A others_of web)" "web for A"
+	assert_eq 1 "$(CLIENT=$CLIENT_B others_of web)" "web for B"
+}
+
+test_list_skips_bad_session_names() {
+	local out
+	r "tmux new -d -s 'my work' -c ~/projects/api"
+	session api projects/api
+	out=$(h list)
+	assert_eq 1 "$(grep -c '^S' <<<"$out")" "S lines"
+	assert_not_contains "$out" 'my work'
+}
+
+# a client file is kept while its PID is still the script before exec or the
+# tmux client the server does not list yet, and dropped for any other process
+test_list_keeps_client_files_of_attaching_pids() {
+	local script client other
+	r 'mkdir -p ~/.tmuxpad/clients && cp /bin/sleep /tmp/tmux'
+	script=$(r "bash -c 'exec -a tmuxpad-host.sh sleep 30' >/dev/null 2>&1 </dev/null & echo \$!")
+	client=$(r '/tmp/tmux 30 >/dev/null 2>&1 </dev/null & echo $!')
+	other=$(r 'sleep 30 >/dev/null 2>&1 </dev/null & echo $!')
+	r "for p in $script $client $other; do echo x > ~/.tmuxpad/clients/\$p; done"
+	assert_exit 0 h list
+	assert_eq "$(printf '%s\n' "$script" "$client" | sort)" "$(r 'ls ~/.tmuxpad/clients | sort')" "client files"
+	r "kill $script $client $other"
+}

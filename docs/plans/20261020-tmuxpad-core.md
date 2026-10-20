@@ -503,13 +503,13 @@ host/tests/run.sh                                             # стенд ск�
 (create), `TmuxPadCore/Tests/TmuxPadCoreTests/{AsyncSemaphoreTests,ServerConnectionTests,PoolIntegrationTests}.swift`
 (create), `Tests/Support/FakeTransport.swift`.
 
-- [ ] `Pool/PoolSettings.swift`: `keepalive: Duration` (из `ServerConfig.keepaliveSeconds`),
+- [x] `Pool/PoolSettings.swift`: `keepalive: Duration` (из `ServerConfig.keepaliveSeconds`),
       `pingTimeout = .seconds(5)`, `backoff: [Duration] = [1, 2, 5, 10] с`, `connectTimeout =
       .seconds(15)`, `execSlots = 2`, `ptySlots = 8`, `execTimeout = .seconds(20)`.
       `Pool/ConnectionState.swift` — enum решения 7, `Equatable`, `Sendable`.
       `Pool/AsyncSemaphore.swift` — actor с `acquire()`/`release()` и `withSlot(_:)`, FIFO,
       поддержка отмены (`withTaskCancellationHandler`, снятие из очереди).
-- [ ] `Pool/ServerConnection.swift`: `public actor ServerConnection` (`config: ServerConfig`,
+- [x] `Pool/ServerConnection.swift`: `public actor ServerConnection` (`config: ServerConfig`,
       `deviceID: UUID`, `transport`, `auth: SSHAuth`, `hostKeys`, `settings`, `log`):
       `connect()` (`.connecting` → `.connected`; ошибка → `.failed(описание)`, `hostKeyChanged`
       не ретраится никогда), `disconnect()` (явно, без реконнекта), `reconnectNow()` (сброс
@@ -528,17 +528,17 @@ host/tests/run.sh                                             # стенд ск�
       до `reconnectNow()`. Все переходы — в `DiagnosticsLog` с причиной. Открытые PTY-каналы
       при смерти соединения закрываются транспортом сами; их переоткрытие — дело
       `TerminalSession` (Task 5), пул лишь публикует состояние.
-- [ ] `Pool/ConnectionPool.swift`: `public actor ConnectionPool` — `connection(for config:
+- [x] `Pool/ConnectionPool.swift`: `public actor ConnectionPool` — `connection(for config:
       ServerConfig, auth: SSHAuth) -> ServerConnection` (создаёт один раз по `config.id`, при
       изменившемся `host`/`port`/`user`/`keyID` пересоздаёт), `remove(id:)` с `disconnect`,
       `disconnectAll()` (уход в фон, §6), `reconnectAll()` (возврат из фона, смена сети),
       общий `DiagnosticsLog`.
-- [ ] `FakeTransport`: `connect` считает попытки, по сценарию падает N раз подряд
+- [x] `FakeTransport`: `connect` считает попытки, по сценарию падает N раз подряд
       (`failNextConnects`), выдаёт `FakeConnection`, у которого `exec` можно задержать
       (`execDelay`) или зависнуть (`hangExec = true`), `dropConnection()` стреляет в
       `onDisconnect`, `openPTY` ведёт счёт открытых каналов и даёт `FakePTY` с ручным `emit(
       Data)` и `close(exitCode:)`.
-- [ ] `AsyncSemaphoreTests`: при 2 слотах и 5 задачах одновременно внутри не больше 2 (счётчик
+- [x] `AsyncSemaphoreTests`: при 2 слотах и 5 задачах одновременно внутри не больше 2 (счётчик
       с `Atomic`/actor), FIFO порядок выдачи, отменённая ждущая задача не получает слот.
       `ServerConnectionTests` (фейк, интервалы 20–50 мс): `connectPublishesStates`
       (`.connecting` → `.connected`); `execUsesTwoSlots` (3 параллельных `exec` с задержкой →
@@ -550,11 +550,22 @@ host/tests/run.sh                                             # стенд ск�
       `backoffThenFailed` (`failNextConnects = 10` → четыре попытки с ожиданиями из `backoff`,
       затем `.failed`, попыток ровно 5 = 1 начальная + 4; `reconnectNow()` → снова попытка);
       `explicitDisconnectDoesNotReconnect`; `hostKeyChangedIsFatal` (не ретраится).
-- [ ] `PoolIntegrationTests` (стенд): `connectExecPing` (реальный `connect`, `exec("true")`,
+- [x] `PoolIntegrationTests` (стенд): `connectExecPing` (реальный `connect`, `exec("true")`,
       state `.connected`); `killSessionReconnects` (`exec("kill -9 $PPID")` → `.reconnecting` →
       `.connected` ≤ 10 с, затем `api.version()` работает); `disconnectAllAndReconnectAll`.
-- [ ] `swift test --skip IntegrationTests` и `scripts/test.sh` зелёные, без предупреждений;
+- [x] `swift test --skip IntegrationTests` и `scripts/test.sh` зелёные, без предупреждений;
       коммит.
+
+      Отклонения при исполнении: `connect()` пробрасывает ошибку первой попытки, а пул сам
+      продолжает попытки по `backoff` (отсюда «1 начальная + 4»); кроме `hostKeyChanged` без
+      повторов уходит в `.failed` и `authFailed`. `reconnectNow()` — это `connect()` без ошибки
+      (при живом соединении ничего не делает). Пинг не обновляет `lastExecAt`, иначе каждый второй
+      такт пропускался бы; пинг идёт через тот же семафор exec (лимит `MaxSessions`), ожидание
+      слота входит в `pingTimeout`. PTY пула заворачивается в `PooledPTY`: слот освобождают
+      `close()`, конец вывода канала и смерть соединения. `openPTY` у `ServerConnection` с
+      параметрами по умолчанию `term = xterm-256color`, `LANG = en_US.UTF-8`. Пул при смене
+      прочих полей конфига обновляет `ServerConnection.update(config:settings:)` на месте;
+      `api` стал изолированным свойством. Добавлены юнит-тесты `ConnectionPoolTests`.
 
 ### Task 5: `TerminalSurface` и `TerminalSession`
 

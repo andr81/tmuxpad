@@ -8,11 +8,11 @@
 
 | Каталог | Что внутри |
 |---|---|
-| `Models/` | модели §5.1 (`ServerConfig`, `SSHKeyInfo`, `ServerSnapshot`, `RemoteSession`, `RemoteProject`, `DoctorReport`), валидация имён сессий и проектов |
+| `Models/` | модели §5.1 (`ServerConfig`, `SSHKeyInfo`, `ServerSnapshot`, `RemoteSession`, `RemoteProject`, `DoctorReport`), валидация имён сессий и проектов, подсказка имени `Validation.suggestedSessionName(from:)`; `SessionTree` — дерево сайдбара из снимка (проекты → сессии, `byActivity`); `OpenSessionsRoster` — открытые терминалы: порядок вкладок, вытеснение самого давно неактивного сверх 8, JSON |
 | `Host/` | `HostCommand` (exec-строки с экранированием), `HostAPI` (подкоманды скрипта, коды выхода → `HostError`), парсеры `list` V1 и `doctor`, `HostBootstrap` (проверка версии и установка скрипта), `HostScript` (скрипт-ресурс) |
 | `SSH/` | протоколы `SSHTransport` / `SSHConnection` / `PTYChannel` (§12), `CitadelTransport` на swift-nio-ssh, `SessionChannel` (exec, exec со stdin + EOF, PTY + exec), ключи Ed25519 (`SSHKeys`), `TOFUHostKeyValidator`, протоколы `KeyStore` / `HostKeyStore` с in-memory реализациями |
-| `Pool/` | `ConnectionPool` и `ServerConnection`: одно соединение на сервер, 2 слота exec (`AsyncSemaphore`), до 8 PTY, exec-пинг `true`, бэкофф-реконнект, `ConnectionState`; интервалы — `PoolSettings` |
-| `Terminal/` | `TerminalSurface` (протокол экрана), `TerminalSession`: PTY `attach`, resize, `copy-cancel` перед первым вводом после скролла, правило выбивания (§6.1), `TerminalState` |
+| `Pool/` | `ConnectionPool` и `ServerConnection`: одно соединение на сервер, 2 слота exec (`AsyncSemaphore`), до 8 PTY, exec-пинг `true`, бэкофф-реконнект, `ConnectionState`; интервалы — `PoolSettings`; `TreeRefresher` — опрос `list` серверов раз в 10 с, `ServerTreeState` (доступность, снимок, `BootstrapStatus`, `attention`) |
+| `Terminal/` | `TerminalSurface` (протокол экрана, `copyModeSuspected`), `TerminalSession`: PTY `attach`, resize, `input(_:)` — мышиные отчёты мимо `copy-cancel`, ввод с `copy-cancel` перед первым нажатием после скролла, `cancelCopyMode()`, правило выбивания (§6.1), `TerminalState`; `MouseReport` — разбор исходящих байтов на SGR/X10-отчёты (`TerminalInput`) |
 | `Diagnostics/` | `DiagnosticsLog`: кольцевой буфер событий без секретов и байтов терминала, `export()` для «Поделиться» (§3.6) |
 | `Resources/` | `tmuxpad-host.sh` — копия `host/tmuxpad-host.sh` |
 
@@ -32,6 +32,17 @@
 - `scenePhase → .active` → `ConnectionPool.reconnectAll()`, смена сети (`NWPathMonitor`) →
   `reconnectAll(force: true)`: рвёт и соединения, которые выглядят живыми.
 - `TerminalSurface` — SwiftTerm (позже, возможно, libghostty); вызовы приходят не с main.
+- Делегат SwiftTerm `send(source:data:)` зовёт `TerminalSession.input(_:)` по порядку прихода
+  байтов; чип «Прокрутка ✕» показывается по `copyModeSuspected(true)` (колесо вверх, скролл) и
+  прячется по `copyModeSuspected(false)`; тап по нему — `cancelCopyMode()`.
+- `TreeModel` подписывается на `TreeRefresher.updates()`, `start()`/`stop()` — по `scenePhase`,
+  серверы — `setServers(_:)`; после «Установить» — `markPrepared(_:)`, pull-to-refresh —
+  `refresh(id, force: true)`. Сервер без `ServerConfig.hostKeyFingerprint` опрос не подключает
+  (`.needsSetup("Connection not checked")`): после «Доверять» приложение пишет отпечаток в
+  `ServerConfig` и передаёт обновлённый список в `setServers(_:)`. При `ServerTreeState.attention`
+  (`authFailed`, `hostKeyChanged`) UI открывает проверку сервера, а не «Повторить».
+- `OpenSessionsModel` держит `OpenSessionsRoster` (в UserDefaults) и делает
+  `detach()` терминалам, которые вернул `open(_:)` как вытесненные.
 - `deviceID` из Keychain и `ServerConfig` из JSON-хранилища приложения передаются в `ConnectionPool`.
 
 ## Скрипт-ресурс
@@ -66,3 +77,7 @@ shellcheck -s bash host/tests/bench.sh TmuxPadCore/scripts/test.sh
 `host/tests/.bench/`. `up` идемпотентен и печатает `export TMUXPAD_BENCH_PORT=…
 TMUXPAD_BENCH_KEY=… TMUXPAD_BENCH_USER=dev`; `scripts/test.sh` делает `up` → `swift test` →
 `down`. `TMUXPAD_TEST_BASE=ubuntu:22.04` — стенд на tmux 3.2a.
+
+На macOS оба скрипта идут системным bash 3.2; нужен Docker (Docker Desktop или OrbStack) и,
+желательно, `brew install coreutils`: без `timeout`/`gtimeout` `bench.sh` предупреждает и ждёт
+ssh без таймаута.

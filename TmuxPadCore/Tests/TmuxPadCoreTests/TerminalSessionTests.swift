@@ -71,6 +71,135 @@ struct TerminalSessionTests {
         #expect(pty.sent == [Data("a".utf8), Data("b".utf8)])
     }
 
+    static let wheelUp = Data("\u{1B}[<64;10;5M".utf8)
+    static let wheelDown = Data("\u{1B}[<65;10;5M".utf8)
+
+    static func copyCancels(_ transport: FakeTransport) -> Int {
+        transport.lastConnection?.execCalls.filter { $0.command.contains("copy-cancel") }.count ?? 0
+    }
+
+    @Test func wheelGoesPastCopyCancel() async throws {
+        let transport = FakeTransport()
+        let (_, session, surface) = try await Self.make(transport)
+        await session.start()
+        let pty = try await Self.pty(transport)
+        try await session.input(Self.wheelUp)
+        try await session.input(Self.wheelUp)
+        try await session.input(Self.wheelDown)
+        #expect(Self.copyCancels(transport) == 0)
+        #expect(surface.copyModeCalls == [true])
+        try await session.input(Data("x".utf8))
+        let journal = try #require(transport.lastConnection).journal.filter { !$0.hasPrefix("exec true") }
+        #expect(journal.count == 5)
+        #expect(journal[3].contains("tmuxpad-host.sh copy-cancel 'api'"))
+        #expect(journal[4] == "pty x")
+        #expect(Self.copyCancels(transport) == 1)
+        #expect(surface.copyModeCalls == [true, false])
+        #expect(pty.sent == [Self.wheelUp, Self.wheelUp, Self.wheelDown, Data("x".utf8)])
+    }
+
+    @Test func otherMouseKeepsFlagDown() async throws {
+        let transport = FakeTransport()
+        let (_, session, surface) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        try await session.input(Data("\u{1B}[<0;3;4M\u{1B}[<0;3;4m".utf8))
+        try await session.input(Data("x".utf8))
+        #expect(Self.copyCancels(transport) == 0)
+        #expect(surface.copyModeCalls.isEmpty)
+    }
+
+    @Test func cancelCopyModeOnlyWhenSuspected() async throws {
+        let transport = FakeTransport()
+        let (_, session, surface) = try await Self.make(transport)
+        await session.start()
+        let pty = try await Self.pty(transport)
+        await session.cancelCopyMode()
+        #expect(Self.copyCancels(transport) == 0)
+        try await session.input(Self.wheelUp)
+        await session.cancelCopyMode()
+        #expect(Self.copyCancels(transport) == 1)
+        #expect(surface.copyModeCalls == [true, false])
+        await session.cancelCopyMode()
+        try await session.input(Data("x".utf8))
+        #expect(Self.copyCancels(transport) == 1)
+        #expect(pty.sent == [Self.wheelUp, Data("x".utf8)])
+    }
+
+    @Test func mixedInputKeepsOrder() async throws {
+        let transport = FakeTransport()
+        let (_, session, _) = try await Self.make(transport)
+        await session.start()
+        let pty = try await Self.pty(transport)
+        try await session.input(Self.wheelUp)
+        transport.lastConnection?.execDelay = .milliseconds(100)
+        // колесо приходит, пока клавиатура ждёт copy-cancel
+        async let first: Void = session.input(Data("a".utf8))
+        try await Task.sleep(for: .milliseconds(20))
+        try await session.input(Self.wheelDown)
+        try await first
+        #expect(pty.sent == [Self.wheelUp, Data("a".utf8), Self.wheelDown])
+    }
+
+    @Test func reconnectKeepsCopyModeFlag() async throws {
+        let transport = FakeTransport()
+        let (_, session, surface) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        try await session.input(Self.wheelUp)
+        await session.reconnect()
+        let second = try await Self.pty(transport, 2)
+        try await session.input(Data("x".utf8))
+        #expect(Self.copyCancels(transport) == 1)
+        #expect(second.sent == [Data("x".utf8)])
+        #expect(surface.copyModeCalls == [true, false])
+    }
+
+    @Test func takeKeepsCopyModeFlag() async throws {
+        let transport = FakeTransport()
+        let (_, session, surface) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        try await session.input(Self.wheelUp)
+        await session.take()
+        let second = try await Self.pty(transport, 2)
+        try await session.input(Data("x".utf8))
+        let journal = try #require(transport.lastConnection).journal.filter { !$0.hasPrefix("exec true") }
+        #expect(journal.suffix(2).first?.contains("copy-cancel") == true)
+        #expect(journal.last == "pty x")
+        #expect(second.sent == [Data("x".utf8)])
+        #expect(surface.copyModeCalls == [true, false])
+    }
+
+    @Test func failedCopyCancelKeepsFlag() async throws {
+        let transport = FakeTransport()
+        let (_, session, surface) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        try await session.input(Self.wheelUp)
+        let connection = try #require(transport.lastConnection)
+        connection.respond(when: { $0.contains("copy-cancel") }, with: .failure(SSHError.disconnected))
+        await session.cancelCopyMode()
+        #expect(Self.copyCancels(transport) == 1)
+        #expect(surface.copyModeCalls == [true, false, true])
+        await session.reconnect()
+        let second = try await Self.pty(transport, 2)
+        try await session.input(Data("x".utf8))
+        #expect(Self.copyCancels(transport) == 2)
+        #expect(second.sent == [Data("x".utf8)])
+        #expect(surface.copyModeCalls == [true, false, true, false])
+    }
+
+    @Test func detachClearsCopyModeFlag() async throws {
+        let transport = FakeTransport()
+        let (_, session, surface) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        try await session.input(Self.wheelUp)
+        await session.detach()
+        #expect(surface.copyModeCalls == [true, false])
+    }
+
     @Test func resizeForwards() async throws {
         let transport = FakeTransport()
         let (_, session, _) = try await Self.make(transport)

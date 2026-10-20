@@ -7,12 +7,31 @@
 #   TMUXPAD_TEST_BASE=ubuntu:22.04 host/tests/bench.sh up
 set -u
 
-HERE=$(cd "$(dirname "$0")" && pwd)
+HERE=$(cd "$(dirname "$0")" && pwd -P)
 STATE=$HERE/.bench
 BASE=${TMUXPAD_TEST_BASE:-ubuntu:24.04}
 IMAGE=tmuxpad-test:${BASE//[:\/]/-}
 
 log() { echo "bench: $*" >&2; }
+
+# GNU timeout, else gtimeout (Homebrew coreutils on macOS), else none:
+# up warns once, with_timeout runs without a limit.
+TIMEOUT=
+if command -v timeout >/dev/null 2>&1; then
+	TIMEOUT=timeout
+elif command -v gtimeout >/dev/null 2>&1; then
+	TIMEOUT=gtimeout
+fi
+
+# with_timeout SECONDS CMD...
+with_timeout() {
+	if [[ -n $TIMEOUT ]]; then
+		"$TIMEOUT" "$@"
+	else
+		shift
+		"$@"
+	fi
+}
 
 alive() {
 	[[ -f $STATE/cid && -f $STATE/port && -f $STATE/key ]] || return 1
@@ -20,7 +39,7 @@ alive() {
 }
 
 ssh_ok() {
-	timeout 10 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+	with_timeout 10 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 		-o ConnectTimeout=5 -o LogLevel=ERROR -o BatchMode=yes \
 		-i "$STATE/key" -p "$(cat "$STATE/port")" dev@127.0.0.1 true </dev/null >/dev/null 2>&1
 }
@@ -47,6 +66,7 @@ up() {
 	echo "$cid" >"$STATE/cid"
 	port=$(docker port "$cid" 22 | head -n1)
 	echo "${port##*:}" >"$STATE/port"
+	[[ -n $TIMEOUT ]] || log "warning: no timeout/gtimeout, waiting for ssh without a time limit (brew install coreutils)"
 	for ((i = 0; i < 60; i++)); do
 		ssh_ok && break
 		sleep 0.5

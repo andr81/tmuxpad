@@ -1,11 +1,12 @@
 import Foundation
 @testable import TmuxPadCore
 
-/// Экран для тестов: копит байты и состояния, размер задаётся.
+/// Экран для тестов: копит байты, состояния и вызовы `copyModeSuspected`, размер задаётся.
 final class RecordingSurface: TerminalSurface, @unchecked Sendable {
     private let lock = NSLock()
     private var bytes = Data()
     private var recorded: [TerminalState] = []
+    private var suspicions: [Bool] = []
     private var currentSize: (cols: Int, rows: Int)
 
     init(cols: Int = 80, rows: Int = 24) {
@@ -23,6 +24,15 @@ final class RecordingSurface: TerminalSurface, @unchecked Sendable {
 
     func stateChanged(_ state: TerminalState) {
         lock.withLock { recorded.append(state) }
+    }
+
+    func copyModeSuspected(_ suspected: Bool) {
+        lock.withLock { suspicions.append(suspected) }
+    }
+
+    /// Аргументы `copyModeSuspected` по порядку.
+    var copyModeCalls: [Bool] {
+        lock.withLock { suspicions }
     }
 
     var output: Data {

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Состояние репозитория
 
-Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2). Приложения и `project.yml` ещё нет (план 3, на Mac); когда появятся, добавь сюда реальные команды сборки. Не выдумывай их заранее.
+Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2) вместе с логикой для State без view (план 3). Приложения и `project.yml` ещё нет (план 4 `app-foundation`, на Mac); когда появятся, добавь сюда реальные команды сборки. Не выдумывай их заранее.
 
 Раскладка `host/`:
 - `host/tmuxpad-host.sh` — сам скрипт; `host/README.md` — подкоманды, коды выхода, форматы, файлы состояния;
@@ -21,7 +21,7 @@ host/tests/run.sh -k test_list_others              # один тест, по п�
 ```
 
 Раскладка `TmuxPadCore/` (подробнее — `TmuxPadCore/README.md`):
-- `Sources/TmuxPadCore/` — `Models/`, `Host/` (`HostAPI`, `HostBootstrap`, парсеры), `SSH/` (транспорт, ключи, TOFU), `Pool/` (`ConnectionPool`, `ServerConnection`), `Terminal/` (`TerminalSession`, `TerminalSurface`), `Diagnostics/`, `Resources/tmuxpad-host.sh`;
+- `Sources/TmuxPadCore/` — `Models/` (в т. ч. `SessionTree`, `OpenSessionsRoster`), `Host/` (`HostAPI`, `HostBootstrap`, парсеры), `SSH/` (транспорт, ключи, TOFU), `Pool/` (`ConnectionPool`, `ServerConnection`, `TreeRefresher`), `Terminal/` (`TerminalSession`, `TerminalSurface`, `MouseReport`), `Diagnostics/`, `Resources/tmuxpad-host.sh`;
 - `Tests/TmuxPadCoreTests/` — Swift Testing: `*Tests.swift` юнит (пул и терминал на `FakeTransport`), `*IntegrationTests.swift` против стенда, без стенда пропускаются;
 - `scripts/test.sh` — `host/tests/bench.sh up` → `swift test` → `down`; `host/tests/bench.sh` — долгоживущий контейнер того же образа, состояние в `host/tests/.bench/`.
 
@@ -36,6 +36,8 @@ TmuxPadCore/scripts/test.sh                                   # стенд + в�
 TmuxPadCore/scripts/test.sh --filter HostAPIIntegrationTests  # один suite или тест (regex по имени)
 shellcheck -s bash host/tests/bench.sh TmuxPadCore/scripts/test.sh
 ```
+
+`host/tests/bench.sh` и `TmuxPadCore/scripts/test.sh` идут и под системным bash 3.2 macOS без GNU coreutils: без `mapfile`, `declare -A`, `${v,,}`, `readlink -f`, `stat -c`, `timeout` — только через `with_timeout`. `bash -n` из bash 5 этого не ловит, проверка — `docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n host/tests/bench.sh` (и то же для `test.sh`). `run.sh` и `lib.sh` — только Linux.
 
 Решения, которые меняют поведение, сначала вносятся в спеку, потом в код.
 
@@ -54,6 +56,7 @@ TmuxPad — iPad-клиент (iPadOS 17+, Swift 6, SwiftUI) для работы
 - **Keepalive — прикладной exec-пинг `true`.** В swift-nio-ssh/Citadel встроенного keepalive нет.
 - **`attach` без `-d`.** Приложение выкидывает только собственных зависших клиентов (`detach-client` по файлам `~/.tmuxpad/clients/<pid>` с тем же `TMUXPAD_CLIENT`); чужих выкидывает только `take` по явной кнопке «Забрать» (§6.1). Размер окна решает `window-size latest`, отсюда порог tmux ≥ 3.1. `list` отдаёт число чужих (`others`), а не `session_attached`.
 - **Ввод в copy-mode tmux глотается.** Перед первым вводом после скролла приложение вызывает `copy-cancel NAME` через exec и ждёт его (§3.5). Биндинги tmux и глобальный `mouse on` в `~/.tmux.conf` не трогаем: `mouse` ставится на сессию в `new`/`attach`.
+- **Мышиные отчёты SwiftTerm идут в PTY мимо `copy-cancel`** (`TerminalSession.input`, разбор — `MouseReport`), иначе второй шаг прокрутки выводит pane из copy-mode. Клавиатура и мышь приходят из SwiftTerm одним делегатным `send`.
 - **Таргеты tmux в скрипте**: для pane/окна (`send-keys -X`, `set`/`show` любых опций, включая session-опцию `mouse`) — `=NAME:`, голый `=NAME` даёт `can't find pane` или `no such session`; для session-команд — `=NAME`.
 - **Агент запускается через `send-keys` во внутренний шелл tmux-сессии**, а не как её команда: выход из claude не должен убивать сессию.
 - **Имя Claude-сессии = имя tmux-сессии** (`claude -n NAME --session-id <uuid>`); после ребута сервера — `--resume <uuid>`, UUID в `~/.tmuxpad/NAME.claude`.

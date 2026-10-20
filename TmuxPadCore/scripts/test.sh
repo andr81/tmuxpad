@@ -5,7 +5,7 @@
 #   TmuxPadCore/scripts/test.sh --filter HostAPIIntegrationTests
 set -u
 
-ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+ROOT=$(cd "$(dirname "$0")/../.." && pwd -P)
 BENCH=$ROOT/host/tests/bench.sh
 
 trap '"$BENCH" down' EXIT

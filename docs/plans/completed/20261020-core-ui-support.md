@@ -78,7 +78,7 @@ GNU `timeout`).
    снимает, и без `copy-cancel` первый ввод после обрыва tmux проглотил бы. Сейчас `begin()`
    (`TerminalSession.swift`) флаг не трогает — так и остаётся.
 4. **`cancelCopyMode() async`** — действие чипа: если флаг поднят, встаёт в очередь `sendTail`,
-   выполняет `server.api.copyCancel(session:)` (ошибка — только в журнал, как в `send`),
+   выполняет `server.api.copyCancel(session:)` (ошибка — в журнал и флаг обратно, как в `send`: pane мог остаться в copy-mode),
    сбрасывает флаг и уведомляет экран. При опущенном флаге ничего не делает.
 5. **`Validation.suggestedSessionName(from:) -> String`** в `Models/Validation.swift`:
    пробелы и `.` → `-`, прочие символы вне `[A-Za-z0-9_-]` удаляются, подряд идущие `-`
@@ -124,7 +124,7 @@ GNU `timeout`).
    `ServerConnection.stateUpdates()`: текущее состояние каждого сервера и все следующие).
    Методы: `setServers(_ configs: [ServerConfig])` (добавленные — `.unknown`, удалённые —
    `pool.remove(id:)` и выпадают из выхода), `start()` (периодический цикл; на каждом тике
-   `refresh` всех серверов параллельно), `stop()` (уход в фон — дерево не опрашивается),
+   `refresh` всех серверов параллельно, без ожидания медленных), `stop()` (уход в фон — дерево не опрашивается),
    `refresh(_ id: UUID? = nil, force: Bool = false) async` (тик — без `force`;
    pull-to-refresh и «Повторить» — с `force`, решение 9; все или один; ждёт завершения).
    Один `refresh` на сервер одновременно: второй вызов, пока первый идёт, ждёт его результата,
@@ -289,17 +289,17 @@ docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n TmuxPadCore/scripts/test.sh
 `.../TerminalSessionTests.swift`, `.../TerminalIntegrationTests.swift`,
 `.../Support/RecordingSurface.swift`.
 
-- [ ] `Terminal/MouseReport.swift`: `public enum TerminalInput: Sendable, Equatable { case
+- [x] `Terminal/MouseReport.swift`: `public enum TerminalInput: Sendable, Equatable { case
       keyboard, wheelUp, otherMouse }` и `public enum MouseReport { public static func
       classify(_ bytes: Data) -> TerminalInput }` по решению 1: последовательный разбор с
       позиции 0; каждый отчёт должен начинаться ровно с `0x1B 0x5B`; SGR — `0x3C`, три
       десятичных поля через `;` (1–4 цифры каждое), финальный `M` или `m`; X10 — `0x4D` и ровно
       три байта ≥ 32; любой остаток или несовпадение → `.keyboard`; пустой буфер → `.keyboard`.
       Код кнопки после снятия модификаторов `b & ~28`: 64 → колесо вверх.
-- [ ] `TerminalSurface.swift`: в протокол — `func copyModeSuspected(_ suspected: Bool)` с
+- [x] `TerminalSurface.swift`: в протокол — `func copyModeSuspected(_ suspected: Bool)` с
       doc-комментарием «чип "Прокрутка ✕" (§3.5); вызывается только при смене значения, не с
       main»; `extension TerminalSurface { public func copyModeSuspected(_ suspected: Bool) {} }`.
-- [ ] `TerminalSession.swift`: приватный `setCopyModeSuspected(_ value: Bool)` меняет
+- [x] `TerminalSession.swift`: приватный `setCopyModeSuspected(_ value: Bool)` меняет
       `needsCopyCancel` и вызывает `surface.copyModeSuspected` только при смене значения;
       `noteScrolledUp()` идёт через него. Новый `public func input(_ bytes: Data) async throws`
       по решению 2: общая постановка в очередь `sendTail` вынесена из `send` в
@@ -307,19 +307,19 @@ docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n TmuxPadCore/scripts/test.sh
       `.wheelUp` — `setCopyModeSuspected(true)`, `enqueue(cancelFirst: false)`; `.otherMouse` —
       `enqueue(cancelFirst: false)`; `.keyboard` — то же, что `send`. `send` сбрасывает флаг
       через `setCopyModeSuspected(false)`.
-- [ ] `TerminalSession.swift`: `public func cancelCopyMode() async` по решению 4 (через
+- [x] `TerminalSession.swift`: `public func cancelCopyMode() async` по решению 4 (через
       `enqueue` с пустыми данными и `cancelFirst: true`, без записи пустого буфера в PTY);
       `detach()` зовёт `setCopyModeSuspected(false)`; `take()`, `reconnect()` и открытие
       нового канала флаг не трогают (решение 3).
-- [ ] `Support/RecordingSurface.swift`: запись вызовов `copyModeSuspected` в массив для
+- [x] `Support/RecordingSurface.swift`: запись вызовов `copyModeSuspected` в массив для
       проверок.
-- [ ] `MouseReportTests` и новые случаи `TerminalSessionTests` из Testing Strategy.
-- [ ] `TerminalIntegrationTests`: тест «колесо вверх входит в copy-mode, второе колесо не
+- [x] `MouseReportTests` и новые случаи `TerminalSessionTests` из Testing Strategy.
+- [x] `TerminalIntegrationTests`: тест «колесо вверх входит в copy-mode, второе колесо не
       выходит, клавиатура выходит и печатает» из Testing Strategy. SGR-байты строятся хелпером
       `sgrWheel(up: Bool, col: Int, row: Int) -> Data` в тесте. Если tmux на стенде не входит в
       copy-mode от колеса (нужен `mouse on`, его ставит `attach`), тест сначала проверяет
       `#{mouse}` = `on`.
-- [ ] Сборка без предупреждений, `swift test --skip IntegrationTests`, `scripts/test.sh
+- [x] Сборка без предупреждений, `swift test --skip IntegrationTests`, `scripts/test.sh
       --filter Terminal`.
 
 ### Task 2: подсказка имени, `SessionTree`, `OpenSessionsRoster`
@@ -329,17 +329,17 @@ docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n TmuxPadCore/scripts/test.sh
 `TmuxPadCore/Tests/TmuxPadCoreTests/{ValidationTests,SessionTreeTests,OpenSessionsRosterTests}.swift`
 (`ValidationTests` — modify, остальные create).
 
-- [ ] `Validation.suggestedSessionName(from:)` по решению 5; doc-комментарий со ссылкой на
+- [x] `Validation.suggestedSessionName(from:)` по решению 5; doc-комментарий со ссылкой на
       §3.3 и причиной (`.` допустима в проекте, но не в сессии).
-- [ ] `Models/SessionTree.swift`: `ProjectNode`, `SessionNode`, `enum SessionTree` с
+- [x] `Models/SessionTree.swift`: `ProjectNode`, `SessionNode`, `enum SessionTree` с
       `build(snapshot:openSessions:showEmptyProjects:)` и `byActivity(snapshot:)` по решению 6.
       Все типы `public`, `Sendable`, `Hashable`; у `ProjectNode` и `SessionNode` есть `id`
       (`name`) для `ForEach`/`List` — `Identifiable`.
-- [ ] `Models/OpenSessionsRoster.swift`: `OpenSessionKey` и `OpenSessionsRoster` по решению 7;
+- [x] `Models/OpenSessionsRoster.swift`: `OpenSessionKey` и `OpenSessionsRoster` по решению 7;
       `limit` — параметр инициализатора (по умолчанию 8), декодирование проверяет `limit ≥ 1`
       и отбрасывает дубликаты в `tabs`.
-- [ ] Тесты из Testing Strategy для всех трёх.
-- [ ] Сборка без предупреждений, `swift test --skip IntegrationTests`.
+- [x] Тесты из Testing Strategy для всех трёх.
+- [x] Сборка без предупреждений, `swift test --skip IntegrationTests`.
 
 ### Task 3: `TreeRefresher` — опрос серверов для дерева
 
@@ -348,39 +348,39 @@ docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n TmuxPadCore/scripts/test.sh
 `.../TreeRefresherIntegrationTests.swift` (create), `.../Support/FakeTransport.swift` (если
 фейку не хватает сценариев: падение `connect` по команде теста, счётчик вызовов `list`).
 
-- [ ] `Pool/TreeRefresher.swift`: `public struct ServerTreeState` и `public actor
+- [x] `Pool/TreeRefresher.swift`: `public struct ServerTreeState` и `public actor
       TreeRefresher` по решениям 8–9: `init(pool:bootstrap:auth:interval:)`,
       `setServers(_:)`, `start()`, `stop()`, `refresh(_:force:)`, `markPrepared(_:)`, `state(for:)
       -> ServerTreeState?`, `updates()` (как `ServerConnection.stateUpdates()`: `AsyncStream`
       с `.bufferingNewest(64)`, подписка снимается отменой, первым приходит состояние всех
       известных серверов). Дедупликация: словарь `inFlight: [UUID: Task<Void, Never>]`,
       второй `refresh` ждёт `inFlight[id]?.value`.
-- [ ] Эпохи и вызовы пула — по решению 9: `connect()` только из `.disconnected`,
+- [x] Эпохи и вызовы пула — по решению 9: `connect()` только из `.disconnected`,
       `reconnectNow()` только при `refresh(id, force: true)`; `since` из `.connected(since:)`
       сравнивается с запомненным после чтения `state`, новое значение сбрасывает кешированный
       `bootstrap`. Подписок на `stateUpdates()` и фоновых задач на сервер нет.
       `markPrepared` — по решению 8.
-- [ ] Ошибки и состояния — по решению 9; каждое изменение `reachability` пишется в
+- [x] Ошибки и состояния — по решению 9; каждое изменение `reachability` пишется в
       `DiagnosticsLog` пула (`kind: .exec`, текст без секретов: метка сервера и новое
       состояние).
-- [ ] `TreeRefresherTests` и `TreeRefresherIntegrationTests` из Testing Strategy;
+- [x] `TreeRefresherTests` и `TreeRefresherIntegrationTests` из Testing Strategy;
       интеграционный suite — `.serialized`, `.enabled(if: Bench.isAvailable)`, все ожидания
       через `withTimeout`.
-- [ ] Сборка без предупреждений, `swift test --skip IntegrationTests`, `scripts/test.sh
+- [x] Сборка без предупреждений, `swift test --skip IntegrationTests`, `scripts/test.sh
       --filter TreeRefresher`.
 
 ### Task 4: стенд на macOS
 
 **Файлы:** `host/tests/bench.sh`, `TmuxPadCore/scripts/test.sh`.
 
-- [ ] В `bench.sh` — функция `with_timeout` по решению 11; все вызовы `timeout` заменить на
+- [x] В `bench.sh` — функция `with_timeout` по решению 11; все вызовы `timeout` заменить на
       неё (в `test.sh` их нет, функция там не нужна). Сообщение при отсутствии обоих: `warning: no timeout/gtimeout, running without a time
       limit (brew install coreutils)`.
-- [ ] Пройтись по обоим скриптам на bash 3.2: заменить `mapfile`/`readarray`, ассоциативные
+- [x] Пройтись по обоим скриптам на bash 3.2: заменить `mapfile`/`readarray`, ассоциативные
       массивы, `${var,,}`/`${var^^}`, `wait -n`, `sed -i` без суффикса, `readlink -f`,
       `realpath`, `stat -c`, `date -d`, `grep -P`, если встречаются, на переносимые формы.
       Пути к каталогу скрипта — `cd "$(dirname "$0")" && pwd -P`.
-- [ ] Проверка на Linux: `shellcheck -s bash` обоих скриптов чист;
+- [x] Проверка на Linux: `shellcheck -s bash` обоих скриптов чист;
       `TmuxPadCore/scripts/test.sh --filter TransportIntegrationTests` проходит; синтаксис
       bash 3.2 — `docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n host/tests/bench.sh` и то
       же для `TmuxPadCore/scripts/test.sh` (`bash -n` хоста bash 5 конструкции 3.2 не ловит);
@@ -394,17 +394,17 @@ docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n TmuxPadCore/scripts/test.sh
 **Файлы:** `TmuxPadCore/README.md`, `CLAUDE.md`, `docs/tmuxpad-spec.md` (только при
 расхождении), `docs/plans/20261020-core-ui-support.md` (move).
 
-- [ ] `TmuxPadCore/README.md`: в таблицу модулей — `Terminal/MouseReport`, `Models/SessionTree`,
+- [x] `TmuxPadCore/README.md`: в таблицу модулей — `Terminal/MouseReport`, `Models/SessionTree`,
       `Models/OpenSessionsRoster`, `Pool/TreeRefresher`; в «Что реализует приложение» — делегат
       SwiftTerm `send(source:data:)` зовёт `TerminalSession.input(_:)` и показывает чип по
       результату и по `copyModeSuspected`; `TreeModel` подписывается на
       `TreeRefresher.updates()`; `OpenSessionsModel` держит `OpenSessionsRoster` и делает
       `detach()` вытесненным; стенд на macOS требует Docker и, желательно, `brew install
       coreutils`.
-- [ ] `CLAUDE.md`, «Инварианты»: «Мышиные отчёты SwiftTerm идут в PTY мимо `copy-cancel`
+- [x] `CLAUDE.md`, «Инварианты»: «Мышиные отчёты SwiftTerm идут в PTY мимо `copy-cancel`
       (`TerminalSession.input`), иначе второй шаг прокрутки выводит pane из copy-mode».
-- [ ] Полный прогон Validation Commands; в progress-лог — число тестов по видам.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Полный прогон Validation Commands; в progress-лог — число тестов по видам.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
 
 ## Post-Completion
 

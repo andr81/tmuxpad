@@ -96,6 +96,40 @@ struct TerminalIntegrationTests {
         }
     }
 
+    /// SGR-отчёт колеса (режим 1006), координаты 1-based.
+    static func sgrWheel(up: Bool, col: Int, row: Int) -> Data {
+        Data("\u{1B}[<\(up ? 64 : 65);\(col);\(row)M".utf8)
+    }
+
+    static func inMode(_ raw: any SSHConnection) async throws -> String {
+        try await Bench.tmux(raw, "display -p -t =api: '#{pane_in_mode}'")
+    }
+
+    @Test func wheelScrollsWithoutLeavingCopyMode() async throws {
+        try await withSession { raw, server in
+            let surface = RecordingSurface()
+            let session = TerminalSession(server: server, name: "api", surface: surface)
+            await session.start()
+            #expect(try await Bench.eventually { try await Self.clients(raw).count == 1 })
+            #expect(try await Bench.tmux(raw, "show -v -t =api: mouse") == "on\n")
+            try await session.send(Data("seq 1 500\n".utf8))
+            #expect(try await Bench.eventually { try await Self.capture(raw).contains("500") })
+            for _ in 0..<3 {
+                try await session.input(Self.sgrWheel(up: true, col: 10, row: 5))
+            }
+            #expect(try await Bench.eventually { try await Self.inMode(raw) == "1\n" })
+            #expect(surface.copyModeCalls == [true])
+            try await session.input(Self.sgrWheel(up: true, col: 10, row: 5))
+            try await Task.sleep(for: .milliseconds(300))
+            #expect(try await Self.inMode(raw) == "1\n")
+            try await session.input(Data("echo wheel-ok\n".utf8))
+            #expect(try await Bench.eventually { try await Self.inMode(raw) == "0\n" })
+            #expect(try await Bench.eventually { try await Self.capture(raw).contains("wheel-ok") })
+            #expect(surface.copyModeCalls == [true, false])
+            await session.detach()
+        }
+    }
+
     @Test func takeKicksOther() async throws {
         try await withSession { raw, server in
             let other = try Self.server(deviceID: UUID())

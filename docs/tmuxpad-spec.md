@@ -164,7 +164,7 @@
 | Язык / UI | **Swift 6, SwiftUI**, UIKit где нужно | как agterm; NavigationSplitView даёт сайдбар-дерево из коробки |
 | Минимальная ОС | **iPadOS 17** | `@Observable`, SwiftData, актуальный NavigationSplitView |
 | Терминал | **[SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)** (MIT) | зрелый VT-эмулятор с готовым `TerminalView` для iOS, мышь, OSC 52, true color; на нём построены коммерческие SSH-клиенты |
-| SSH | **[Citadel](https://github.com/orlandos-nl/Citadel)** поверх Apple **swift-nio-ssh** | чистый Swift, exec-каналы + PTY на одном соединении, поддерживает Ed25519 и P-256; никакого libssh2/OpenSSL. Проверено 2026-10-20: Citadel 0.12.1 (swift-nio-ssh 0.3.7, swift-nio 2.104.0, swift-crypto 3.15.1) собирается в режиме Swift 6 на Linux aarch64 в образе `swift:6.1-noble`, чистая сборка 6,5 мин на этом хосте |
+| SSH | **[Citadel](https://github.com/orlandos-nl/Citadel)** поверх Apple **swift-nio-ssh** | чистый Swift, exec-каналы + PTY на одном соединении, поддерживает Ed25519 и P-256; никакого libssh2/OpenSSL. Проверено 2026-10-20: Citadel 0.12.1 (swift-nio-ssh 0.3.7, swift-nio 2.104.0, swift-crypto 3.15.1) собирается в режиме Swift 6 на Linux aarch64 в образе `swift:6.1-noble`, чистая сборка 6,5 мин на этом хосте. Citadel даёт соединение, аутентификацию, разбор OpenSSH-ключей и валидатор хост-ключа; сами каналы (exec со stdin и EOF для `auth`/установки скрипта, PTY + exec для `attach`) ядро открывает через `NIOSSHHandler.createChannel` напрямую: в публичном API Citadel 0.12.1 `withPTY` открывает только shell, а у `TTYStdinWriter` нет EOF (§5.2) |
 | Ключи | **Secure Enclave P-256** (`ecdsa-sha2-nistp256`), запасной вариант Ed25519 в Keychain | ключ SE невозможно извлечь с устройства; swift-nio-ssh принимает SE-ключ напрямую |
 | Хранение | Настройки серверов — **SwiftData** (или Codable JSON); секреты — **Keychain** (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) | |
 | Сервер | **bash-скрипт** `tmuxpad-host.sh` (порт `agt-remote-host.sh`) | один round-trip на `list`, логика tmux на стороне сервера, легко отлаживать по ssh руками |
@@ -201,7 +201,7 @@ App
 │   ├── TerminalSession        PTY-канал ↔ TerminalView, resize, состояние
 │   └── HostBootstrap          установка host-скрипта, проверка версии
 └── Resources
-    └── tmuxpad-host.sh        встроен в бандл, ставится на сервер
+    └── tmuxpad-host.sh        ресурс пакета TmuxPadCore (§5.2), ставится на сервер
 ```
 
 **Ключевые решения**
@@ -254,14 +254,14 @@ enum ServerReachability { case unknown, online, offline(Error), needsSetup(Strin
 
 ### 5.2 Разделение по платформам сборки
 
-Слой Core живёт отдельным SwiftPM-пакетом **`TmuxPadCore`** без `import UIKit`/`SwiftUI`, приложение в Xcode подключает его как зависимость. Причина практическая: разработка идёт с Linux-хоста (aarch64, без Xcode), где ralphex исполняет планы, а Mac нужен только для того, что требует Apple-фреймворков. Граница совпадает с границей слоёв из §5 и не даёт её размыть.
+Слой Core живёт отдельным SwiftPM-пакетом **`TmuxPadCore`** без `import UIKit`/`SwiftUI`, приложение в Xcode подключает его как зависимость. Пакет лежит в каталоге `TmuxPadCore/` репозитория (`Package.swift`, `Sources/TmuxPadCore`, `Tests/TmuxPadCoreTests`). Host-скрипт входит в него ресурсом `Sources/TmuxPadCore/Resources/tmuxpad-host.sh` — копией `host/tmuxpad-host.sh`, их побайтовое равенство проверяет тест; `HostBootstrap` берёт скрипт из `Bundle.module`, приложению отдельная копия в бандле не нужна. Причина практическая: разработка идёт с Linux-хоста (aarch64, без Xcode), где ralphex исполняет планы, а Mac нужен только для того, что требует Apple-фреймворков. Граница совпадает с границей слоёв из §5 и не даёт её размыть.
 
 | Где собирается и тестируется | Что |
 |---|---|
 | **Linux и Mac** (`TmuxPadCore`, `swift test`) | `HostAPI` (парсер `list`, коды выхода → ошибки), валидация имён, модели §5.1, `ConnectionPool` на Citadel/swift-nio-ssh (очередь exec на 2 слота, exec-пинг, бэкофф, автомат состояний реконнекта), `HostBootstrap`, протокол `TerminalSurface` и `TerminalSession` без view, ключи Ed25519 через swift-crypto, протоколы хранилищ (`KeyStore`, `HostKeyStore`) с in-memory реализациями для тестов. Интеграционные тесты — против того же Docker-контейнера sshd + tmux, что и host-скрипт |
 | **Только Mac** (Xcode-проект) | SwiftUI/UIKit: сайдбар, мастера, `TerminalScreen` на `SwiftTerm.TerminalView`; Keychain и Secure Enclave (реализации `KeyStore`/`HostKeyStore`), SwiftData, `NWPathMonitor`, `scenePhase`, XcodeGen, подпись, симулятор, TestFlight; спайки с железом iPad (клавиатура, поворот, Stage Manager) |
 
-Правила: в `TmuxPadCore` платформенный код только под `#if canImport(...)`, и такого кода должно быть мало; всё, что зависит от Keychain, SE, сети iPadOS, прячется за протоколом с реализацией в приложении. Тулчейн на Linux — официальный Swift 6 (swift.org, aarch64) или образ `swift:6.x` в Docker.
+Правила: в `TmuxPadCore` платформенный код только под `#if canImport(...)`, и такого кода должно быть мало; всё, что зависит от Keychain, SE, сети iPadOS, прячется за протоколом с реализацией в приложении. SSH — за узким протоколом `SSHTransport` (§12): реализация в ядре на Citadel + NIOSSH, в юнит-тестах пула и терминала — фейк; ключ для аутентификации приходит в ядро как `NIOSSHPrivateKey` (Ed25519 ядро делает само через swift-crypto, Secure Enclave P-256 заворачивает приложение). Тулчейн на Linux — официальный Swift 6 с swift.org (aarch64); на хосте разработки стоит 6.1.3 в `~/.local/swift-6.1.3`, симлинки `swift*` в `~/.local/bin`.
 
 ---
 
@@ -274,7 +274,7 @@ iPadOS замораживает приложение в фоне; сокеты �
 | `scenePhase → .background` | `beginBackgroundTask` (до ~30 с работы), затем соединения закрываются. Если вернулись раньше — ничего не рвём |
 | `scenePhase → .active` | Для каждого сервера с открытыми сессиями: reconnect → `list` → для каждой открытой сессии, которая ещё существует, новый PTY-канал `attach` (без `-d`, tmux отдаёт полный экран); исчезнувшие получают заглушку «Сессия завершена». Чужие клиенты не мешают (§6.1). Плашка «Переподключение…» на время |
 | Смена сети (`NWPathMonitor`) | Принудительный reconnect, не дожидаясь keepalive-таймаута |
-| Пинг не ответил 2 раза подряд (§5) | Соединение мёртвое → reconnect с бэкоффом 1 → 2 → 5 → 10 с (аналог `AGT_REMOTE_RETRY`) |
+| Пинг не ответил 2 раза подряд (§5) | Соединение мёртвое → reconnect с бэкоффом 1 → 2 → 5 → 10 с (аналог `AGT_REMOTE_RETRY`); после четырёх неудачных попыток пул останавливается в состоянии `failed` и ждёт явного запроса (возврат из фона, смена сети, кнопка «Повторить») — иначе в офлайне батарея уходила бы на бесконечные попытки |
 | Канал закрылся с выходом 0, приложение detach не делало | Проверяем `list`: сессии нет → заглушка «Сессия завершена»; сессия есть → нас выбил чужой `attach -d`: один раз переподключаемся молча, при повторе в течение минуты — плашка «Отключено другим клиентом» (§6.1) |
 | Сервер недоступен | Сервер в дереве `⚠ offline`, прочие работают; открытые терминалы этого сервера — плашка с кнопкой «Повторить» |
 
@@ -373,7 +373,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 
 - Приватный ключ: Secure Enclave (неизвлекаемый) или Keychain `ThisDeviceOnly`; никогда не логируется, не попадает в бэкапы.
 - Опционально: Face ID перед первым использованием ключа в сессии приложения (`LAContext` / access control у SE-ключа).
-- Хост-ключ: TOFU с явным подтверждением отпечатка; смена отпечатка → блокирующее предупреждение, подключение только после ручного «Сбросить».
+- Хост-ключ: TOFU с явным подтверждением отпечатка (отпечаток — `SHA256:<base64 без '='>` от wire-формата ключа, как печатает OpenSSH); смена отпечатка → блокирующее предупреждение, подключение только после ручного «Сбросить».
 - Без паролей в v1 (только ключи) — меньше поверхность и не надо хранить пароли.
 - Имена сессий/проектов валидируются и в приложении, и в скрипте; в exec-строки ничего не подставляется без экранирования (одинарные кавычки + запрет `'`, как в рецепте).
 - Токен Claude (`auth`) передаётся через stdin, не в аргументах; на сервере `0600`.
@@ -417,7 +417,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 Исполнение — планами ralphex в `docs/plans/` (формат: Overview с решениями, Context, задачи с чекбоксами):
 
 1. `completed/20261020-host-script.md` — host-скрипт и Docker-стенд (фаза 2 целиком, часть фазы 0). Linux.
-2. `TmuxPadCore` — пакет ядра по §5.2: `HostAPI`, `ConnectionPool`, `HostBootstrap`, модели, тесты против стенда плана 1 (фаза 1 без Keychain/SE, ядро фаз 4–5). Linux.
+2. `20261020-tmuxpad-core.md` — пакет ядра `TmuxPadCore` по §5.2: `HostAPI`, `ConnectionPool`, `HostBootstrap`, `TerminalSession`, модели, тесты против стенда плана 1 (фаза 1 без Keychain/SE, ядро фаз 4–5). Linux.
 3. Приложение: Xcode-проект, UI, терминал, ключи, жизненный цикл поверх ядра (фазы 0, 3, 4, 5, 6 в части UI). Mac.
 
 Фазы ниже остаются картой требований; планы режут их по платформе сборки, а не по порядку.
@@ -520,6 +520,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 - 2026-10-20: `mouse on` только на сессиях приложения, `setup` не трогает `~/.profile` и глобальный `mouse` (§7).
 - 2026-10-20: `NAME.claude` хранит проект; смена проекта или потеря транскрипта → новый UUID (§7).
 - 2026-10-20: одно окно приложения, exec-строки через `env`, журнал диагностики в v1 (§5, §3.6).
+- 2026-10-20: ядро — пакет в `TmuxPadCore/` со скриптом-ресурсом; каналы SSH через NIOSSH поверх соединения Citadel за протоколом `SSHTransport`; реконнект останавливается после четырёх попыток до явного запроса (§4, §5.2, §6).
 
 ---
 

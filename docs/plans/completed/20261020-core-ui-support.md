@@ -394,17 +394,17 @@ docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n TmuxPadCore/scripts/test.sh
 **Файлы:** `TmuxPadCore/README.md`, `CLAUDE.md`, `docs/tmuxpad-spec.md` (только при
 расхождении), `docs/plans/20261020-core-ui-support.md` (move).
 
-- [ ] `TmuxPadCore/README.md`: в таблицу модулей — `Terminal/MouseReport`, `Models/SessionTree`,
+- [x] `TmuxPadCore/README.md`: в таблицу модулей — `Terminal/MouseReport`, `Models/SessionTree`,
       `Models/OpenSessionsRoster`, `Pool/TreeRefresher`; в «Что реализует приложение» — делегат
       SwiftTerm `send(source:data:)` зовёт `TerminalSession.input(_:)` и показывает чип по
       результату и по `copyModeSuspected`; `TreeModel` подписывается на
       `TreeRefresher.updates()`; `OpenSessionsModel` держит `OpenSessionsRoster` и делает
       `detach()` вытесненным; стенд на macOS требует Docker и, желательно, `brew install
       coreutils`.
-- [ ] `CLAUDE.md`, «Инварианты»: «Мышиные отчёты SwiftTerm идут в PTY мимо `copy-cancel`
+- [x] `CLAUDE.md`, «Инварианты»: «Мышиные отчёты SwiftTerm идут в PTY мимо `copy-cancel`
       (`TerminalSession.input`), иначе второй шаг прокрутки выводит pane из copy-mode».
-- [ ] Полный прогон Validation Commands; в progress-лог — число тестов по видам.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Полный прогон Validation Commands; в progress-лог — число тестов по видам.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
 
 ## Post-Completion
 

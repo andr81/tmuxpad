@@ -221,6 +221,55 @@ list() {
 	return 0
 }
 
+# ---------------------------------------------------------------- new
+
+# claude_flags NAME PROJECT - the agent's flags; keeps $STATE/NAME.claude, a
+# `<uuid>\t<project>` line: resume it while the transcript is there and the
+# project is the same, otherwise a new conversation under a new UUID
+claude_flags() {
+	local file=$STATE/$1.claude uuid='' project='' t
+	if [[ -f $file ]]; then
+		IFS=$'\t' read -r uuid project <"$file"
+		if [[ $project == "$2" && $uuid =~ ^[0-9a-f-]{36}$ ]]; then
+			for t in "$HOME"/.claude/projects/*/"$uuid".jsonl; do
+				[[ -f $t ]] && echo "--resume $uuid" && return 0
+			done
+		fi
+	fi
+	uuid=$(cat /proc/sys/kernel/random/uuid) || return 1
+	mkdir -p "$STATE" && printf '%s\t%s\n' "$uuid" "$2" >"$file" || return 1
+	if bash -lc "$CMD --help" </dev/null 2>/dev/null | grep -q -- --name; then
+		echo "-n $1 --session-id $uuid"
+	else
+		echo "--session-id $uuid"
+	fi
+}
+
+new() {
+	local name=${1:-} project=${2:-} dir pane flags=''
+	valid_name "$name" || die "bad session name: $name" 2
+	valid_project "$project" || die "bad project name: $project" 2
+	dir=$PROJECTS/$project
+	[[ -d $dir ]] || die "no project $dir" 2
+	# both land inside the sh -c '...' that send-keys types
+	[[ $CMD != *\'* && $STATE != *\'* ]] || die "a quote in TMUXPAD_CMD or the state path" 2
+	tmux has-session -t "=$name" 2>/dev/null && die "session $name exists" 3
+	pane=$(tmux new-session -d -P -F '#{pane_id}' -s "$name" -c "$dir") || die "cannot create session $name" 1
+	tmux set -t "=$name:" mouse on
+	if is_claude; then
+		flags=$(claude_flags "$name" "$project") || {
+			tmux kill-session -t "=$name" 2>/dev/null
+			die "cannot store the conversation UUID" 1
+		}
+	fi
+	# typed into the pane's shell, not run as the session command: the agent
+	# exiting leaves the session and its shell alive
+	if ! tmux send-keys -t "$pane" "sh -c '[ -f \"$STATE/env\" ] && . \"$STATE/env\"; exec $CMD${flags:+ $flags}'" Enter; then
+		tmux kill-session -t "=$name" 2>/dev/null
+		die "cannot start the agent in $name" 1
+	fi
+}
+
 # ---------------------------------------------------------------- attach
 
 # minimal for now: mark the client and attach (the full steps of §7 come later)
@@ -243,7 +292,8 @@ setup) setup ;;
 doctor) doctor ;;
 auth) auth ;;
 list) list ;;
+new) new "${2:-}" "${3:-}" ;;
 attach) attach "${2:-}" ;;
-new | take | copy-cancel | kill) not_implemented "$1" ;;
+take | copy-cancel | kill) not_implemented "$1" ;;
 *) usage ;;
 esac

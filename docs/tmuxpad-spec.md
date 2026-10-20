@@ -316,7 +316,7 @@ tmuxpad-host.sh doctor               → проверки: tmux≥3.1, claude в
 1. `tmux has-session -t =NAME` → иначе `exit 4`;
 2. чистка: файлы в `~/.tmuxpad/clients/`, PID-ов которых нет в `tmux list-clients`, удаляются (то же делает `list`); исключение — PID, который ещё исполняет сам скрипт до `exec` (`/proc/<pid>/cmdline` содержит `tmuxpad-host`): иначе `list`, идущий параллельно с `attach`, снял бы метку с клиента;
 3. свои зомби: `tmux list-clients -t =NAME -F '#{client_pid}\t#{client_tty}'`, для PID-ов, чей файл содержит текущий `TMUXPAD_CLIENT`, — `tmux detach-client -t <tty>`;
-4. `tmux set -t =NAME mouse on` и `tmux set -w -t '=NAME:' window-size latest`;
+4. `tmux set -t =NAME: mouse on` и `tmux set -w -t '=NAME:' window-size latest`;
 5. UUID устройства → `~/.tmuxpad/clients/$$`; из-за `exec` PID tmux-клиента совпадает с `$$`, так что файл однозначно связывает клиента tmux с устройством;
 6. `exec tmux attach-session -t =NAME`.
 
@@ -335,7 +335,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 **`new NAME PROJECT`** — по шагам из запроса:
 1. валидация имени и проекта, проверка `[[ -d $PROJECTS/$PROJECT ]]`;
 2. `tmux has-session -t =NAME` → если есть, `exit 3` (приложение предложит подключиться);
-3. `pane=$(tmux new-session -d -P -F '#{pane_id}' -s NAME -c DIR)` — tmux-сессия с именем, сразу в папке проекта; затем `tmux set -t =NAME mouse on`;
+3. `pane=$(tmux new-session -d -P -F '#{pane_id}' -s NAME -c DIR)` — tmux-сессия с именем, сразу в папке проекта; затем `tmux set -t =NAME: mouse on`;
 4. UUID разговора: `~/.tmuxpad/NAME.claude` — строка `<uuid>\t<project>`, создаётся при первом `new`, хранится до `kill`. Если файл есть, но проект в нём другой (сессию убили руками через tmux и создали с тем же именем в другом проекте) — новый UUID и перезапись файла: Claude Code резюмит по UUID из любого каталога (проверено на 2.1.304), и без этого в новый проект приехал бы разговор старого. Источник UUID — `/proc/sys/kernel/random/uuid` (есть на любом Linux), `uuidgen` не нужен;
 5. `tmux send-keys -t $pane "sh -c '[ -f ~/.tmuxpad/env ] && . ~/.tmuxpad/env; exec $CMD <флаги>'" Enter` — claude стартует внутри login-шелла, поэтому его выход не убивает tmux-сессию.
 

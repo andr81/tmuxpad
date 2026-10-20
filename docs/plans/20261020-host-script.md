@@ -95,7 +95,7 @@ shellcheck, tmux 3.4 и sshd. Поэтому план закрывает §7 с�
     `tmux detach-client -t <tty>` выкидывает ровно этого клиента, второй остаётся.
   - `send-keys -t '=NAME:' -X cancel` выводит pane из copy-mode; с таргетом `=NAME` (без
     двоеточия) — `can't find pane`. Вне режима — stderr `not in a mode`, код 1.
-  - `mouse` — session-опция (`tmux set -t =NAME mouse on` работает), `window-size` —
+  - `mouse` — session-опция (`tmux set -t =NAME: mouse on`; с `-t =NAME` без двоеточия — `no such session`, у `set` таргет — pane), `window-size` —
     window-опция, по умолчанию `latest`.
   - Нажатие печатной клавиши в copy-mode не выходит из него (`pane_in_mode` остаётся 1).
 - Проверено на Claude Code 2.1.304: флаги `-n, --name <name>`, `--session-id <uuid>`,
@@ -300,22 +300,22 @@ host/tests/run.sh -k test_list_others              # один тест (подс
 
 **Файлы:** `host/tmuxpad-host.sh`, `host/tests/cases/new.sh` (create).
 
-- [ ] `new NAME PROJECT` по §7: `valid_name`/`valid_project` иначе 2; `[[ -d $PROJECTS/$PROJECT ]]`
+- [x] `new NAME PROJECT` по §7: `valid_name`/`valid_project` иначе 2; `[[ -d $PROJECTS/$PROJECT ]]`
       иначе 2; `$CMD` и `$STATE` не содержат `'` иначе 2 (они попадают внутрь `sh -c '…'`);
       `tmux has-session -t =NAME` → `exit 3`; `pane=$(tmux new-session -d -P -F '#{pane_id}'
-      -s NAME -c DIR)` иначе 1; `tmux set -t =NAME mouse on`.
-- [ ] Ветка claude (первое слово `$CMD` по basename == `claude`): файл `$STATE/NAME.claude`
+      -s NAME -c DIR)` иначе 1; `tmux set -t =NAME: mouse on`.
+- [x] Ветка claude (первое слово `$CMD` по basename == `claude`): файл `$STATE/NAME.claude`
       формата `<uuid>\t<project>`; читать его, если есть: при совпадении `project` и наличии
       транскрипта по глобу `"$HOME"/.claude/projects/*/"$uuid".jsonl` — флаги `--resume
       <uuid>`; иначе (файла нет / проект другой / транскрипта нет) — новый UUID из
       `/proc/sys/kernel/random/uuid`, перезапись файла, флаги `--session-id <uuid>` плюс
       `-n NAME`, если `bash -lc "<cmd> --help" | grep -q -- --name`. Иная команда: флагов нет,
       файл не создаётся и существующий не трогается.
-- [ ] Запуск: `tmux send-keys -t "$pane" "sh -c '[ -f \"$STATE/env\" ] && . \"$STATE/env\";
+- [x] Запуск: `tmux send-keys -t "$pane" "sh -c '[ -f \"$STATE/env\" ] && . \"$STATE/env\";
       exec $CMD $flags'" Enter` (одним аргументом + `Enter`, как в рецепте; `-l` не нужен);
       при ошибке `send-keys` — `kill-session` и `exit 1`, чтобы не оставлять пустую сессию.
       Stdout пустой.
-- [ ] Тесты `new.sh` (после `new` ждать `wait_log`): `test_new_creates_session` (сессия есть,
+- [x] Тесты `new.sh` (после `new` ждать `wait_log`): `test_new_creates_session` (сессия есть,
       `#{session_path}` = `/home/dev/projects/api`, `mouse on` у сессии, `api.claude` =
       `<uuid>\tapi`, где uuid проходит regex; лог заглушки: `pwd=/home/dev/projects/api`,
       аргументы `-n api --session-id <тот же uuid>`, `token=none`); `test_new_conflict`
@@ -334,7 +334,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       затем `new` → в логе `token=tok_1`); `test_new_exit_keeps_session` (`CMD='sleep 1000'`,
       `r tmux send-keys -t =api: C-c` → через 2 с сессия жива, pane — шелл: выход команды не
       убивает сессию, инвариант CLAUDE.md).
-- [ ] shellcheck, `run.sh` зелёный; коммит.
+- [x] shellcheck, `run.sh` зелёный; коммит.
 
 ### Task 5: `attach`, `take`, `copy-cancel`, `kill`
 
@@ -344,7 +344,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       `tmux has-session -t =NAME` иначе `exit 4`; `prune_clients`; для строк `tmux list-clients
       -t =NAME -F '#{client_pid}\t#{client_tty}'` — если `$STATE/clients/<pid>` существует и
       равен `$CLIENT` → `tmux detach-client -t <tty>` (выкидываем только свои зомби);
-      `tmux set -t =NAME mouse on`; `tmux set -w -t '=NAME:' window-size latest`;
+      `tmux set -t =NAME: mouse on`; `tmux set -w -t '=NAME:' window-size latest`;
       `infocmp "${TERM:-}" || export TERM=xterm-256color` (из рецепта); `mkdir -p
       $STATE/clients`, `printf '%s\n' "$CLIENT" > "$STATE/clients/$$"`; `exec tmux
       attach-session ${DETACH_ALL:+-d} -t =NAME`. `attach` = `attach_impl NAME ""`,

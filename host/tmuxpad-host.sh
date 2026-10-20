@@ -184,7 +184,8 @@ mine() {
 # prune_clients - drop the client files of PIDs tmux no longer lists. A file
 # whose PID is still the script before its `exec tmux attach-session`, or the
 # tmux client after it but before the server lists it, is kept: a list running
-# next to an attach must not unmark that client.
+# next to an attach must not unmark that client. tmux renames its client to
+# "tmux: client" right after exec, so both comm forms count.
 prune_clients() {
 	local live f pid comm
 	live=$(tmux list-clients -F '#{client_pid}' 2>/dev/null)
@@ -194,7 +195,7 @@ prune_clients() {
 		if [[ $pid =~ ^[0-9]+$ ]]; then
 			grep -qxF "$pid" <<<"$live" && continue
 			grep -qsF tmuxpad-host "/proc/$pid/cmdline" && continue
-			comm=$(cat "/proc/$pid/comm" 2>/dev/null) && [[ $comm == tmux ]] && continue
+			comm=$(cat "/proc/$pid/comm" 2>/dev/null) && [[ $comm == tmux || $comm == "tmux: client" ]] && continue
 		fi
 		rm -f "$f"
 	done

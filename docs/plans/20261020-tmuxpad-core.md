@@ -329,7 +329,7 @@ host/tests/run.sh                                             # стенд ск�
 (create), `TmuxPadCore/Tests/TmuxPadCoreTests/Support/{Bench,Timeout}.swift` (create),
 `TmuxPadCore/Tests/TmuxPadCoreTests/{KeysTests,TOFUTests,TransportIntegrationTests}.swift` (create).
 
-- [ ] `SSH/SSHTransport.swift`: протоколы `SSHTransport`, `SSHConnection`, `PTYChannel`
+- [x] `SSH/SSHTransport.swift`: протоколы `SSHTransport`, `SSHConnection`, `PTYChannel`
       (`output: AsyncThrowingStream<Data, Error>` — поток байтов до закрытия; `send(_ data:
       Data) async throws`; `resize(cols:rows:) async throws`; `close() async`; `exitCode: Int?`
       после закрытия) и типы `SSHEndpoint` (`host`, `port`, `connectTimeout: Duration`),
@@ -337,7 +337,7 @@ host/tests/run.sh                                             # стенд ск�
       `stdout: Data`, `stderr: Data`, `duration: Duration`), `ConnectOutcome` (`connection`,
       `hostKeyFingerprint`, `firstSeen: Bool`). Всё `Sendable`; `NIOSSHPrivateKey` оборачивается
       в `struct SSHPrivateKey: @unchecked Sendable` с комментарием почему (тип NIOSSH не помечен).
-- [ ] `SSH/Keys.swift`: `enum SSHKeys` — `generateEd25519() -> (NIOSSHPrivateKey, publicKeyOpenSSH:
+- [x] `SSH/Keys.swift`: `enum SSHKeys` — `generateEd25519() -> (NIOSSHPrivateKey, publicKeyOpenSSH:
       String)`, `importOpenSSHEd25519(_ text: String, passphrase: String?) throws ->
       NIOSSHPrivateKey` через `Curve25519.Signing.PrivateKey(sshEd25519:decryptionKey:)`
       (ошибка разбора → свой `KeyError.invalidKey(String)`, ошибки Citadel наружу не выходят),
@@ -346,15 +346,15 @@ host/tests/run.sh                                             # стенд ск�
       `SHA256:` + base64 без `=` от `write(to:)`; `authorizedKeysCommand(publicKey:) -> String`
       — строка из §3.7 (`mkdir -p ~/.ssh && echo '<pub>' >> ~/.ssh/authorized_keys && chmod 600
       ~/.ssh/authorized_keys`).
-- [ ] `SSH/Stores.swift`: протоколы `KeyStore` и `HostKeyStore` по решению 4 (методы `async
+- [x] `SSH/Stores.swift`: протоколы `KeyStore` и `HostKeyStore` по решению 4 (методы `async
       throws`), `InMemoryKeyStore`, `InMemoryHostKeyStore` (actors).
-- [ ] `SSH/TOFUHostKeyValidator.swift`: `final class TOFUHostKeyValidator:
+- [x] `SSH/TOFUHostKeyValidator.swift`: `final class TOFUHostKeyValidator:
       NIOSSHClientServerAuthenticationDelegate` — в `validateHostKey(hostKey:validationCompletePromise:)`
       считает отпечаток, сравнивает с `expected: String?` (снимок из `HostKeyStore`, читается до
       подключения), пишет результат в `NIOLockedValueBox` (`seen: String`, `firstSeen: Bool`);
       несовпадение → `promise.fail(SSHError.hostKeyChanged(expected:actual:))`. После успешного
       `connect` транспорт сохраняет новый отпечаток в `HostKeyStore`.
-- [ ] `SSH/SessionChannel.swift`: `SessionChannelHandler` (ChannelDuplexHandler, `InboundIn =
+- [x] `SSH/SessionChannel.swift`: `SessionChannelHandler` (ChannelDuplexHandler, `InboundIn =
       SSHChannelData`) и `final class SessionChannel` поверх `Channel`: `open(on: NIOSSHHandler,
       eventLoop:, command:, env: [(String, String)], pty: PTYRequest?) async throws` —
       `createChannel` с таймаутом из настроек (не 15 с Citadel, а `connectTimeout`), в
@@ -365,7 +365,7 @@ host/tests/run.sh                                             # стенд ск�
       `AsyncStream<Data>`, `exit: Int?` из `ExitStatus`, `closed` — continuation по
       `channelInactive`. `write(_:)`, `eof()` (`close(mode: .output)`), `resize` →
       `WindowChangeRequest`, `close()`.
-- [ ] `SSH/CitadelTransport.swift`: `public final class CitadelTransport: SSHTransport` —
+- [x] `SSH/CitadelTransport.swift`: `public final class CitadelTransport: SSHTransport` —
       `ClientBootstrap(group: .singleton).connectTimeout(…).channelOption(TCP_NODELAY)`,
       `connect(host:port:)`, затем `SSHClient.connect(on: channel, settings: SSHClientSettings(
       host:, port:, authenticationMethod: { .custom(KeyAuthDelegate(user:key:)) } или
@@ -378,7 +378,7 @@ host/tests/run.sh                                             # стенд ск�
       Citadel/NIO маппятся: `AuthenticationFailed` → `.authFailed`, `InvalidHostKey`/наш
       `hostKeyChanged` → как есть, `NIOConnectionError`/`ChannelError.connectTimeout` →
       `.connectFailed(описание)`.
-- [ ] `host/tests/bench.sh` (bash, `set -u`, shellcheck-чистый): `up` — образ
+- [x] `host/tests/bench.sh` (bash, `set -u`, shellcheck-чистый): `up` — образ
       `tmuxpad-test:${BASE//[:\/]/-}` из `host/tests/docker` (`TMUXPAD_TEST_BASE`, по умолчанию
       `ubuntu:24.04`), `host/tests/.bench/` с `key`/`key.pub` (`ssh-keygen -q -t ed25519 -N ''`),
       контейнер `docker run -d --rm -p 127.0.0.1::22 -e AUTHORIZED_KEY=…`, `cid` и `port` в
@@ -387,19 +387,19 @@ host/tests/run.sh                                             # стенд ск�
       TMUXPAD_BENCH_USER=dev`; `down` — `docker rm -f`, `rm -rf host/tests/.bench`.
       `TmuxPadCore/scripts/test.sh`: `eval "$(host/tests/bench.sh up)"`, `swift test
       --package-path TmuxPadCore "$@"`, `down` в `trap`, код `swift test`.
-- [ ] `Tests/Support/Bench.swift`: `enum Bench` — `isAvailable` (есть `TMUXPAD_BENCH_PORT`),
+- [x] `Tests/Support/Bench.swift`: `enum Bench` — `isAvailable` (есть `TMUXPAD_BENCH_PORT`),
       `endpoint`, `auth()` (ключ из файла через `SSHKeys.importOpenSSHEd25519`), `connect()`
       → `CitadelConnection` с `InMemoryHostKeyStore` (первое подключение), `reset(_ conn)` —
       exec строки сброса из решения 10, `tmux(_ conn, _ args)` — `exec("tmux \(args)")` с
       возвратом stdout. `Timeout.swift`: `withTimeout(_ duration:, _ body:)` на `TaskGroup`.
-- [ ] Юнит-тесты `KeysTests`: сгенерированный Ed25519 экспортируется в `ssh-ed25519 AAAA… comment`
+- [x] Юнит-тесты `KeysTests`: сгенерированный Ed25519 экспортируется в `ssh-ed25519 AAAA… comment`
       и парсится обратно `NIOSSHPublicKey(openSSHPublicKey:)`; отпечаток — 7 + 43 символа,
       детерминирован; `authorizedKeysCommand` содержит публичный ключ. Для импорта — ключ,
       сгенерированный `ssh-keygen` на лету в тесте (`Process` есть на Linux и macOS; на iOS тест
       не выполняется) либо фикстура в `Tests/Fixtures/ed25519_test` (без passphrase, сгенерирован
       для тестов, в коммите). `TOFUTests`: валидатор с `expected == nil` → `firstSeen`,
       совпадение → ok, другой ключ → `hostKeyChanged` с обоими отпечатками.
-- [ ] `TransportIntegrationTests` (стенд): `connectAndEcho` (`exec("echo ok")` → `ok\n`, код 0);
+- [x] `TransportIntegrationTests` (стенд): `connectAndEcho` (`exec("echo ok")` → `ok\n`, код 0);
       `exitCodeAndStderr` (`exec("echo err >&2; exit 3")` → код 3, stderr `err\n`, stdout пуст);
       `stdinWithEOF` (`exec("cat", stdin: 100 КБ)` возвращает те же байты — без EOF `cat` не
       завершился бы); `ptyExec` (`openPTY(command: "tty; stty size; sleep 0.2", cols: 100, rows:
@@ -412,8 +412,21 @@ host/tests/run.sh                                             # стенд ск�
       `.authFailed`); `maxSessions` (10 PTY `sleep 30` открываются, 11-й → `.channelRefused` за
       < 5 с; закрыть все); `disconnectIsObserved` (`exec("kill -9 $PPID")` → `onDisconnect`
       срабатывает ≤ 5 с, `isConnected == false`).
-- [ ] shellcheck на `bench.sh` и `test.sh`; `swift test --skip IntegrationTests` зелёный;
+- [x] shellcheck на `bench.sh` и `test.sh`; `swift test --skip IntegrationTests` зелёный;
       `TmuxPadCore/scripts/test.sh` зелёный; коммит.
+
+      Отклонения при исполнении: `SSHClient.connect(on:settings:)` Citadel 0.12.1 зовёт
+      `syncOperations.addHandlers` не с event loop канала и падает на precondition NIO, поэтому
+      `CitadelTransport` ставит `NIOSSHHandler` (делегаты `KeyAuthDelegate` и TOFU) сам в
+      `channelInitializer` бутстрапа — до соединения, иначе баннер сервера иногда терялся; от
+      Citadel остались ключи OpenSSH, спека §4 и §5 поправлена. `onDisconnect` — от `closeFuture`
+      TCP-канала. `exec` получил параметр `environment` (удобная перегрузка без него — в
+      расширении), EOF и запись stdin в exec нефатальны (быстрая команда закрывает канал раньше).
+      `generateEd25519` возвращает `GeneratedKey` с `privateKeyOpenSSH` для `KeyStore`,
+      `KeyStore.privateKey` — `SSHPrivateKey?` (Sendable-обёртка). `envRequestLang` проверяет
+      доставку env по `LC_TMUXPAD`: `LANG` на стенде перетирает pam_env из `/etc/default/locale`,
+      так же и у OpenSSH-клиента. Тестовому таргету добавлены `NIOSSH`, `NIOCore`, `NIOEmbedded`,
+      библиотеке — `NIOConcurrencyHelpers`.
 
 ### Task 3: `HostAPI` и `HostBootstrap` на настоящем скрипте
 

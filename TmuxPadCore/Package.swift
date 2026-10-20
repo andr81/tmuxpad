@@ -21,13 +21,19 @@ let package = Package(
                 .product(name: "NIOSSH", package: "swift-nio-ssh"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "Crypto", package: "swift-crypto"),
             ],
             resources: [.copy("Resources/tmuxpad-host.sh")]
         ),
         .testTarget(
             name: "TmuxPadCoreTests",
-            dependencies: ["TmuxPadCore"]
+            dependencies: [
+                "TmuxPadCore",
+                .product(name: "NIOSSH", package: "swift-nio-ssh"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOEmbedded", package: "swift-nio"),
+            ]
         ),
     ],
     swiftLanguageModes: [.v6]

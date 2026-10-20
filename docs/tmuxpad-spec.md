@@ -338,7 +338,7 @@ V	1
 S	<name>	<others>	<project>	<activity_epoch>
 P	<project>	<abs_path>
 ```
-tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_activity}`; фильтр «path лежит прямо в корне проектов» — как в рецепте, но корень и `session_path` сравниваются после `realpath`, иначе симлинк в пути ломает фильтр. `activity` нужен приложению для сортировки сессий в мастере «Подключиться» и подписи «активность N мин назад». `others` — число клиентов сессии из `tmux list-clients -F '#{session_name}\t#{client_pid}'`, у которых нет файла в `~/.tmuxpad/clients/` с текущим `TMUXPAD_CLIENT`. Клиенты рецепта agterm и обычного `tmux attach` с Mac всегда чужие.
+tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_activity}`; фильтр «path лежит прямо в корне проектов» — как в рецепте, но корень и родитель `session_path` сравниваются после `realpath`, иначе симлинк в пути ломает фильтр; последний компонент не раскрывается, поэтому проект-симлинк остаётся под своим именем. `activity` нужен приложению для сортировки сессий в мастере «Подключиться» и подписи «активность N мин назад». `others` — число клиентов сессии из `tmux list-clients -F '#{session_name}\t#{client_pid}'`, у которых нет файла в `~/.tmuxpad/clients/` с текущим `TMUXPAD_CLIENT`. Клиенты рецепта agterm и обычного `tmux attach` с Mac всегда чужие.
 
 **`new NAME PROJECT`** — по шагам из запроса:
 1. валидация имени и проекта, проверка `[[ -d $PROJECTS/$PROJECT ]]`;

@@ -48,6 +48,16 @@ test_list_symlinked_root() {
 	assert_contains "$out" 'P	api	/home/dev/projects/api'
 }
 
+test_list_symlinked_project() {
+	local out
+	r 'mkdir -p ~/elsewhere/foo && ln -sfn ~/elsewhere/foo ~/projects/foo && ln -sfn api ~/projects/alias'
+	assert_exit 0 h new s1 foo
+	assert_exit 0 h new s2 alias
+	out=$(h list)
+	assert_contains "$out" 'S	s1	0	foo	'
+	assert_contains "$out" 'S	s2	0	alias	'
+}
+
 test_list_others() {
 	session api projects/api
 	attach_bg api >/dev/null

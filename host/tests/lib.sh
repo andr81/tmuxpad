@@ -89,7 +89,7 @@ wait_log() {
 reset() {
 	kill_bg
 	CLIENT=$CLIENT_A PROJECTS=projects CMD=claude
-	r 'tmux kill-server 2>/dev/null; rm -rf ~/.tmuxpad ~/.claude ~/claude-args.log ~/.tmux.conf ~/proj-link ~/projects;
+	r 'tmux kill-server 2>/dev/null; rm -rf ~/.tmuxpad ~/.claude ~/claude-args.log ~/.tmux.conf ~/proj-link ~/projects ~/elsewhere;
 		mkdir -p ~/projects/api ~/projects/web ~/projects/my.app; touch ~/projects/README.md'
 }
 

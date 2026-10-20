@@ -216,8 +216,10 @@ list() {
 	while IFS=$'\t' read -r name path activity; do
 		# a hand-made session with a name attach would refuse is not listed
 		valid_name "$name" || continue
-		path=$(realpath -m -- "$path")
-		[[ $path == "$PROJECTS"/* && ${path#"$PROJECTS"/} != */* ]] || continue
+		# only the parent is resolved: a symlinked project keeps its own name
+		path=${path%/}
+		[[ $path == */* && $(realpath -m -- "${path%/*}/") == "$PROJECTS" ]] || continue
+		valid_project "${path##*/}" || continue
 		printf 'S\t%s\t%s\t%s\t%s\n' "$name" "${others[$name]:-0}" "${path##*/}" "$activity"
 	done < <(tmux list-sessions -F '#{session_name}'$'\t''#{session_path}'$'\t''#{session_activity}' 2>/dev/null |
 		LC_ALL=C sort -t $'\t' -k1,1)

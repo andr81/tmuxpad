@@ -42,8 +42,6 @@ valid_name() { [[ $1 =~ ^[A-Za-z0-9_-]{1,64}$ ]]; }
 valid_project() { [[ $1 =~ ^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$ ]]; }
 need_client() { [[ -n $CLIENT ]] || die "TMUXPAD_CLIENT is required" 2; }
 
-not_implemented() { die "not implemented: $1" 1; }
-
 # the agent gets -n/--session-id/--resume only when the command is claude itself
 CMD_FIRST=${CMD%%[[:space:]]*}
 is_claude() { [[ ${CMD_FIRST##*/} == claude ]]; }
@@ -270,16 +268,42 @@ new() {
 	fi
 }
 
-# ---------------------------------------------------------------- attach
+# ---------------------------------------------------------------- attach, take, copy-cancel, kill
 
-# minimal for now: mark the client and attach (the full steps of §7 come later)
-attach() {
-	valid_name "${1:-}" || die "bad session name: ${1:-}" 2
+# attach_impl NAME DETACH_ALL - the attach steps of §7. Only this device's
+# stale clients are detached; take passes DETACH_ALL and detaches everyone.
+attach_impl() {
+	local name=$1 pid tty
+	valid_name "$name" || die "bad session name: $name" 2
 	need_client
-	tmux has-session -t "=$1" 2>/dev/null || die "no session $1" 4
+	tmux has-session -t "=$name" 2>/dev/null || die "no session $name" 4
+	prune_clients
+	while IFS=$'\t' read -r pid tty; do
+		[[ -n $pid ]] || continue
+		mine "$pid" && tmux detach-client -t "$tty" 2>/dev/null
+	done < <(tmux list-clients -t "=$name" -F '#{client_pid}'$'\t''#{client_tty}' 2>/dev/null)
+	tmux set -t "=$name:" mouse on
+	# in case the user set `smallest` globally: the most recently active client sizes the window
+	tmux set -w -t "=$name:" window-size latest
+	infocmp "${TERM:-}" >/dev/null 2>&1 || export TERM=xterm-256color
 	mkdir -p "$STATE/clients"
+	# after exec the tmux client PID is $$: the file ties the client to the device
 	printf '%s\n' "$CLIENT" >"$STATE/clients/$$"
-	exec tmux attach-session -t "=$1"
+	exec tmux attach-session ${2:+-d} -t "=$name"
+}
+
+copy_cancel() {
+	valid_name "${1:-}" || die "bad session name: ${1:-}" 2
+	# outside copy-mode tmux says `not in a mode`, which is fine
+	tmux send-keys -t "=$1:" -X cancel 2>/dev/null
+	exit 0
+}
+
+kill_session() {
+	valid_name "${1:-}" || die "bad session name: ${1:-}" 2
+	tmux kill-session -t "=$1" 2>/dev/null || true
+	rm -f "$STATE/$1.claude"
+	exit 0
 }
 
 usage() {
@@ -293,7 +317,9 @@ doctor) doctor ;;
 auth) auth ;;
 list) list ;;
 new) new "${2:-}" "${3:-}" ;;
-attach) attach "${2:-}" ;;
-take | copy-cancel | kill) not_implemented "$1" ;;
+attach) attach_impl "${2:-}" "" ;;
+take) attach_impl "${2:-}" 1 ;;
+copy-cancel) copy_cancel "${2:-}" ;;
+kill) kill_session "${2:-}" ;;
 *) usage ;;
 esac

@@ -340,7 +340,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
 
 **Файлы:** `host/tmuxpad-host.sh`, `host/tests/cases/attach.sh` (create).
 
-- [ ] `attach_impl NAME DETACH_ALL` по шагам §7: `valid_name` иначе 2; `need_client`;
+- [x] `attach_impl NAME DETACH_ALL` по шагам §7: `valid_name` иначе 2; `need_client`;
       `tmux has-session -t =NAME` иначе `exit 4`; `prune_clients`; для строк `tmux list-clients
       -t =NAME -F '#{client_pid}\t#{client_tty}'` — если `$STATE/clients/<pid>` существует и
       равен `$CLIENT` → `tmux detach-client -t <tty>` (выкидываем только свои зомби);
@@ -349,11 +349,11 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       $STATE/clients`, `printf '%s\n' "$CLIENT" > "$STATE/clients/$$"`; `exec tmux
       attach-session ${DETACH_ALL:+-d} -t =NAME`. `attach` = `attach_impl NAME ""`,
       `take` = `attach_impl NAME 1`. Временную заглушку из Task 3 заменить.
-- [ ] `copy-cancel NAME`: `valid_name` иначе 2; `tmux send-keys -t "=NAME:" -X cancel
+- [x] `copy-cancel NAME`: `valid_name` иначе 2; `tmux send-keys -t "=NAME:" -X cancel
       2>/dev/null; exit 0` — вне режима tmux ругается `not in a mode`, это штатно.
-- [ ] `kill NAME`: `valid_name` иначе 2; `tmux kill-session -t =NAME 2>/dev/null || true`;
+- [x] `kill NAME`: `valid_name` иначе 2; `tmux kill-session -t =NAME 2>/dev/null || true`;
       `rm -f "$STATE/NAME.claude"`; `exit 0` всегда (идемпотентно, как в рецепте).
-- [ ] Тесты `attach.sh` (сессия через `h new api api`, `CMD='sleep 1000'` чтобы заглушка не
+- [x] Тесты `attach.sh` (сессия через `h new api api`, `CMD='sleep 1000'` чтобы заглушка не
       мешала): `test_attach_missing_session` (`h attach nope` → 4, `h take nope` → 4);
       `test_attach_requires_client` (`CLIENT= h attach api` → 2); `test_attach_writes_client_file`
       (`attach_bg api`, `wait_clients api 1`; PID клиента из `list-clients` равен имени файла
@@ -371,7 +371,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       `test_kill` (`h kill api` → 0, сессии нет, `api.claude` нет; второй `kill api` → 0;
       `kill 'bad name'` → 2); `test_detach_on_ssh_close` (`attach_bg api`, `kill <ssh pid>`
       → через ≤3 с клиентов 0: закрытие канала приложением = корректный detach, §6).
-- [ ] shellcheck, `run.sh` зелёный на 24.04 и 22.04; коммит.
+- [x] shellcheck, `run.sh` зелёный на 24.04 и 22.04; коммит.
 
 ### Task 6: документация, матрица и завершение
 

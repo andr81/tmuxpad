@@ -38,9 +38,10 @@ r() { timeout 20 ssh "${SSH_OPTS[@]}" dev@127.0.0.1 -- "$*"; }
 # h SUB ARGS... - a host script subcommand, called the way the app calls it
 h() { timeout 20 ssh "${SSH_OPTS[@]}" dev@127.0.0.1 -- "$(hostcmd "$@")"; }
 
-# attach_bg NAME - a tmux client in the background, with a pty; prints its PID
+# attach_bg NAME [SUB] - a tmux client in the background through `SUB NAME`
+# (attach by default), with a pty; prints the PID of the local ssh
 attach_bg() {
-	timeout 120 ssh -tt -n "${SSH_OPTS[@]}" dev@127.0.0.1 "$(hostcmd attach "$1")" >/dev/null 2>&1 &
+	timeout 120 ssh -tt -n "${SSH_OPTS[@]}" dev@127.0.0.1 "$(hostcmd "${2:-attach}" "$1")" >/dev/null 2>&1 &
 	local pid=$!
 	BG_PIDS+=("$pid")
 	# tests run in subshells: the file is what reset and the trap see

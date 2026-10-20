@@ -348,25 +348,25 @@ docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n TmuxPadCore/scripts/test.sh
 `.../TreeRefresherIntegrationTests.swift` (create), `.../Support/FakeTransport.swift` (если
 фейку не хватает сценариев: падение `connect` по команде теста, счётчик вызовов `list`).
 
-- [ ] `Pool/TreeRefresher.swift`: `public struct ServerTreeState` и `public actor
+- [x] `Pool/TreeRefresher.swift`: `public struct ServerTreeState` и `public actor
       TreeRefresher` по решениям 8–9: `init(pool:bootstrap:auth:interval:)`,
       `setServers(_:)`, `start()`, `stop()`, `refresh(_:force:)`, `markPrepared(_:)`, `state(for:)
       -> ServerTreeState?`, `updates()` (как `ServerConnection.stateUpdates()`: `AsyncStream`
       с `.bufferingNewest(64)`, подписка снимается отменой, первым приходит состояние всех
       известных серверов). Дедупликация: словарь `inFlight: [UUID: Task<Void, Never>]`,
       второй `refresh` ждёт `inFlight[id]?.value`.
-- [ ] Эпохи и вызовы пула — по решению 9: `connect()` только из `.disconnected`,
+- [x] Эпохи и вызовы пула — по решению 9: `connect()` только из `.disconnected`,
       `reconnectNow()` только при `refresh(id, force: true)`; `since` из `.connected(since:)`
       сравнивается с запомненным после чтения `state`, новое значение сбрасывает кешированный
       `bootstrap`. Подписок на `stateUpdates()` и фоновых задач на сервер нет.
       `markPrepared` — по решению 8.
-- [ ] Ошибки и состояния — по решению 9; каждое изменение `reachability` пишется в
+- [x] Ошибки и состояния — по решению 9; каждое изменение `reachability` пишется в
       `DiagnosticsLog` пула (`kind: .exec`, текст без секретов: метка сервера и новое
       состояние).
-- [ ] `TreeRefresherTests` и `TreeRefresherIntegrationTests` из Testing Strategy;
+- [x] `TreeRefresherTests` и `TreeRefresherIntegrationTests` из Testing Strategy;
       интеграционный suite — `.serialized`, `.enabled(if: Bench.isAvailable)`, все ожидания
       через `withTimeout`.
-- [ ] Сборка без предупреждений, `swift test --skip IntegrationTests`, `scripts/test.sh
+- [x] Сборка без предупреждений, `swift test --skip IntegrationTests`, `scripts/test.sh
       --filter TreeRefresher`.
 
 ### Task 4: стенд на macOS

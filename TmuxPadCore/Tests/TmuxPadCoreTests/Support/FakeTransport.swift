@@ -74,6 +74,8 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
 
     private let lock = NSLock()
     private var responses: [Response] = []
+    /// Постоянные ответы по фрагменту команды; новый ответ на тот же фрагмент заменяет старый.
+    private var standing: [(fragment: String, result: ExecResult)] = []
     private var calls: [Call] = []
     private var connected = true
     private var delay: Duration?
@@ -97,6 +99,20 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
     /// Ответ на команду, содержащую `fragment`.
     func respond(containing fragment: String, exitCode: Int = 0, stdout: String = "", stderr: String = "") {
         respond(when: { $0.contains(fragment) }, with: .success(Self.result(exitCode: exitCode, stdout: stdout, stderr: stderr)))
+    }
+
+    /// Ответ на каждую команду с `fragment`, из очереди не уходит; очередь `respond` проверяется раньше.
+    func respondAlways(containing fragment: String, exitCode: Int = 0, stdout: String = "", stderr: String = "") {
+        let result = Self.result(exitCode: exitCode, stdout: stdout, stderr: stderr)
+        lock.withLock {
+            standing.removeAll { $0.fragment == fragment }
+            standing.append((fragment, result))
+        }
+    }
+
+    /// Сколько `exec` содержали `fragment`.
+    func execCount(containing fragment: String) -> Int {
+        execCalls.filter { $0.command.contains(fragment) }.count
     }
 
     static func result(exitCode: Int = 0, stdout: String = "", stderr: String = "") -> ExecResult {
@@ -182,6 +198,9 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
             }
             if let index = responses.firstIndex(where: { $0.matches(command) }) {
                 return responses.remove(at: index).result
+            }
+            if let response = standing.first(where: { command.contains($0.fragment) }) {
+                return .success(response.result)
             }
             return .success(Self.result())
         }

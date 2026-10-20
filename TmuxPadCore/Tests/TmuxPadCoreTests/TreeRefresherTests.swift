@@ -239,6 +239,23 @@ struct TreeRefresherTests {
         #expect(rig.listCalls == calls)
     }
 
+    @Test func slowServerDoesNotHoldTicks() async throws {
+        let rig = try Rig()
+        let slow = ServerConfig(label: "slow", host: "slow.example", user: "dev", keyID: UUID(), hostKeyFingerprint: "SHA256:fake")
+        let key = SSHKeys.generateEd25519().privateKey
+        let refresher = TreeRefresher(pool: rig.pool, bootstrap: try HostBootstrap(), auth: { config in
+            if config.id == slow.id {
+                try await Task.sleep(for: .seconds(30))
+            }
+            return .privateKey(key, user: "dev")
+        }, interval: .milliseconds(50))
+        await refresher.setServers([rig.config, slow])
+        await refresher.start()
+        #expect(try await Bench.eventually(.seconds(3)) { rig.listCalls >= 3 })
+        #expect(await refresher.state(for: slow.id)?.refreshing == true)
+        await refresher.stop()
+    }
+
     @Test func removedServerLeavesPoolAndOutput() async throws {
         let rig = try Rig()
         let other = ServerConfig(label: "other", host: "other.example", user: "dev", keyID: UUID(), hostKeyFingerprint: "SHA256:fake")

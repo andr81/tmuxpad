@@ -134,13 +134,21 @@ public actor TreeRefresher {
                 guard let self else {
                     return
                 }
-                await self.refresh()
+                await self.tick()
                 do {
                     try await Task.sleep(for: interval)
                 } catch {
                     return
                 }
             }
+        }
+    }
+
+    /// Тик не ждёт серверов: один зависший `list` (до таймаута exec) задержал бы обновление
+    /// остальных. Сервер с идущим `refresh` пропускается, а не встаёт в очередь за ним.
+    private func tick() {
+        for id in order where inFlight[id] == nil {
+            Task { await self.refreshOne(id, force: false) }
         }
     }
 

@@ -2,7 +2,7 @@
 
 Слой Core приложения TmuxPad (спека `docs/tmuxpad-spec.md`, §5.2): всё, что собирается и
 тестируется без Apple-фреймворков. SwiftPM-пакет, Swift 6, iOS 17+ / macOS 14+ / Linux. Ни UIKit,
-ни SwiftUI, ни Keychain, ни SwiftData: платформенное — за протоколами, реализации в приложении.
+ни SwiftUI, ни Keychain, ни файловых хранилищ: платформенное — за протоколами, реализации в приложении.
 
 ## Модули
 
@@ -32,7 +32,7 @@
 - `scenePhase → .active` → `ConnectionPool.reconnectAll()`, смена сети (`NWPathMonitor`) →
   `reconnectAll(force: true)`: рвёт и соединения, которые выглядят живыми.
 - `TerminalSurface` — SwiftTerm (позже, возможно, libghostty); вызовы приходят не с main.
-- `deviceID` из Keychain и `ServerConfig` из SwiftData передаются в `ConnectionPool`.
+- `deviceID` из Keychain и `ServerConfig` из JSON-хранилища приложения передаются в `ConnectionPool`.
 
 ## Скрипт-ресурс
 

@@ -112,9 +112,10 @@
 ### 3.5 Терминал
 
 - Аппаратная клавиатура: полный ввод, Esc, Ctrl-комбинации, Option как Meta (настройка). `⌘`-шорткаты приложения перехватываются, остальное уходит в терминал.
-- Экранная клавиатура: `inputAccessoryView` с Esc / Ctrl (залипающий) / Tab / стрелки / `|` `~` `/` `-`.
-- Скролл одним пальцем → колесо мыши в tmux. SwiftTerm делает это сам: при `allowMouseReporting = true` (по умолчанию) и включённой мыши в приложении вертикальный drag одним пальцем уходит как wheel-события. Со стороны tmux нужна мышь в сессии: `new` и `attach` ставят session-опцию `mouse on` (`set -t =NAME: mouse on`); глобальный `mouse` в `~/.tmux.conf` `setup` не трогает. Двумя пальцами SwiftTerm листает свой локальный буфер; под tmux он почти пустой, поэтому основной жест — один палец.
+- Экранная клавиатура: `inputAccessoryView` с Esc / Ctrl (залипающий) / Tab / стрелки / `|` `~` `/` `-`. Это встроенный `TerminalAccessory` SwiftTerm, он стоит у `TerminalView` по умолчанию; своя панель не нужна.
+- Скролл одним пальцем → колесо мыши в tmux. SwiftTerm делает это сам начиная с 1.99.0: при `allowMouseReporting = true` (по умолчанию) и включённой мыши в приложении вертикальный drag одним пальцем уходит как wheel-события. В 1.20.0 и раньше тот же drag шлёт нажатие и движение кнопки, а не колесо (проверено по исходникам 2026-10-20), поэтому нижняя граница — 1.99.0. Со стороны tmux нужна мышь в сессии: `new` и `attach` ставят session-опцию `mouse on` (`set -t =NAME: mouse on`); глобальный `mouse` в `~/.tmux.conf` `setup` не трогает. Двумя пальцами SwiftTerm листает свой локальный буфер; под tmux он почти пустой, поэтому основной жест — один палец.
 - **Выход из copy-mode.** Ввод в copy-mode tmux **не** выводит из него, клавиши глотаются (проверено на tmux 3.4); выходят `q`, Esc или прокрутка вниз до конца. Поэтому после первого wheel-up приложение считает, что pane в copy-mode, показывает над терминалом чип «Прокрутка ✕» и перед первым вводом с клавиатуры (или по тапу на чип) выполняет `host copy-cancel NAME` через exec-канал, дожидается завершения и только затем отправляет ввод в PTY. Чип скрывается после ввода или тапа; если пользователь сам долистал до конца и copy-mode уже закрылся, чип может остаться до следующего ввода — допустимо, `copy-cancel` в этом случае ничего не делает. Биндинги tmux не трогаем: таблицы клавиш глобальные и сломали бы copy-mode пользователю на Mac.
+- **Мышь и клавиатура идут одним путём.** SwiftTerm отдаёт и ввод, и мышиные отчёты (колесо, тап) через один делегатный `send`. Поэтому ядро разбирает исходящие байты (`MouseReport`: SGR `ESC [ < b ; x ; y M|m` и X10 `ESC [ M b x y`). Отчёт колеса вверх включает чип, прочие мышиные отчёты уходят в PTY как есть и `copy-cancel` не вызывают: иначе второй же шаг прокрутки выводил бы pane из copy-mode. Всё остальное — ввод, перед первым после скролла идёт `copy-cancel`.
 - Выделение текста → копирование. Буфер обмена с сервера через OSC 52 (`set-clipboard on` уже в рецепте).
 - Pinch — размер шрифта. Одно значение на устройство (UserDefaults), общее для всех серверов и сессий; меняется сразу во всех открытых терминалах.
 - Поворот, Split View, Stage Manager → `window-change` в PTY → tmux перерисовывает.
@@ -162,11 +163,11 @@
 | Слой | Выбор | Почему |
 |---|---|---|
 | Язык / UI | **Swift 6, SwiftUI**, UIKit где нужно | как agterm; NavigationSplitView даёт сайдбар-дерево из коробки |
-| Минимальная ОС | **iPadOS 17** | `@Observable`, SwiftData, актуальный NavigationSplitView |
-| Терминал | **[SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)** (MIT) | зрелый VT-эмулятор с готовым `TerminalView` для iOS, мышь, OSC 52, true color; на нём построены коммерческие SSH-клиенты |
+| Минимальная ОС | **iPadOS 17** | `@Observable`, актуальный NavigationSplitView |
+| Терминал | **[SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)** (MIT) | зрелый VT-эмулятор с готовым `TerminalView` для iOS, мышь, OSC 52, true color; на нём построены коммерческие SSH-клиенты. Версия — от 1.99.0 (2026-10-08): с неё drag одним пальцем шлёт колесо (§3.5); манифест 1.99.0 — `swift-tools-version:6.2`, нужен Xcode 26 |
 | SSH | **[Citadel](https://github.com/orlandos-nl/Citadel)** поверх Apple **swift-nio-ssh** | чистый Swift, exec-каналы + PTY на одном соединении, поддерживает Ed25519 и P-256; никакого libssh2/OpenSSL. Проверено 2026-10-20: Citadel 0.12.1 (swift-nio-ssh 0.3.7, swift-nio 2.104.0, swift-crypto 3.15.1) собирается в режиме Swift 6 на Linux aarch64 в образе `swift:6.1-noble`, чистая сборка 6,5 мин на этом хосте. От Citadel ядро берёт разбор и экспорт OpenSSH-ключей; соединение и аутентификацию ядро поднимает на swift-nio-ssh само (`NIOSSHHandler` в инициализаторе своего TCP-канала, свои делегаты ключа и TOFU): `SSHClient.connect(on:settings:)` Citadel 0.12.1 трогает пайплайн не с event loop канала и падает на precondition NIO (проверено 2026-10-20); сами каналы (exec со stdin и EOF для `auth`/установки скрипта, PTY + exec для `attach`) ядро открывает через `NIOSSHHandler.createChannel` напрямую: в публичном API Citadel 0.12.1 `withPTY` открывает только shell, а у `TTYStdinWriter` нет EOF (§5.2) |
 | Ключи | **Secure Enclave P-256** (`ecdsa-sha2-nistp256`), запасной вариант Ed25519 в Keychain | ключ SE невозможно извлечь с устройства; swift-nio-ssh принимает SE-ключ напрямую |
-| Хранение | Настройки серверов — **SwiftData** (или Codable JSON); секреты — **Keychain** (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) | |
+| Хранение | Настройки серверов — **Codable JSON** (`servers.json` и `keys.json` в Application Support): `ServerConfig` и `SSHKeyInfo` — Codable-структуры ядра, серверов единицы, а SwiftData потребовал бы дублирующих `@Model`-классов и миграций без выигрыша (решение 2026-10-20); секреты — **Keychain** (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) | |
 | Сервер | **bash-скрипт** `tmuxpad-host.sh` (порт `agt-remote-host.sh`) | один round-trip на `list`, логика tmux на стороне сервера, легко отлаживать по ssh руками |
 | Тесты | Swift Testing / XCTest; интеграционные — Docker-контейнер с sshd + tmux. Ядро (`TmuxPadCore`) собирается и тестируется на Linux (§5.2) | |
 | Сборка / раздача | Xcode, XcodeGen (`project.yml`, как в agterm); TestFlight | бесплатный аккаунт = переподпись раз в 7 дней; для нормальной жизни нужен Apple Developer ($99/год) |
@@ -190,9 +191,9 @@ App
 │   ├── NewSessionWizard, AttachWizard
 │   └── Settings (Servers, Keys, Terminal)
 ├── State (@Observable)
-│   ├── ServerStore            конфиги серверов (SwiftData)
-│   ├── TreeModel              снимок list по каждому серверу + статус доступности
-│   └── OpenSessionsModel      открытые терминалы, выбранная сессия
+│   ├── ServerStore            конфиги серверов (Codable JSON)
+│   ├── TreeModel              снимок list по каждому серверу + статус доступности (опрос — TreeRefresher ядра)
+│   └── OpenSessionsModel      открытые терминалы, выбранная сессия (порядок и вытеснение — OpenSessionsRoster ядра)
 ├── Core
 │   ├── KeyManager             генерация/импорт/экспорт ключей, Keychain, Secure Enclave
 │   ├── HostKeyStore           TOFU-отпечатки
@@ -207,7 +208,7 @@ App
 **Ключевые решения**
 
 - **Одно SSH-соединение на сервер**, внутри — сколько угодно каналов: exec для `list`/`new`/`kill` и PTY-канал на каждую открытую сессию. Аналог `ControlMaster` из рецепта: дерево обновляется за миллисекунды.
-- **Открытые терминалы держатся в памяти** (TerminalView + канал) при переключении между ними — переключение мгновенное, без перерисовки. Лимит — 8 открытых (см. «Лимит каналов»); самые старые неактивные отключаются (detach — на сервере ничего не теряется).
+- **Открытые терминалы держатся в памяти** (TerminalView + канал) при переключении между ними — переключение мгновенное, без перерисовки. Лимит — 8 открытых на всё приложение, а не на сервер: так соблюдается и предел PTY-каналов на сервер, и память (см. «Лимит каналов»); самые старые неактивные отключаются (detach — на сервере ничего не теряется).
 - **Лимит каналов.** sshd по умолчанию пускает 10 сессионных каналов на одно соединение (`MaxSessions 10`), exec-каналы тоже считаются. Поэтому на один сервер — не больше 8 PTY-каналов и не больше 2 одновременных exec: `list`, пинг, `new`, `kill` идут через очередь на 2 слота. Отказ сервера открыть канал показываем как ошибку, а не ждём.
 - **Keepalive — прикладной пинг.** В swift-nio-ssh и Citadel keepalive нет, а отправить `keepalive@openssh.com` через публичный API swift-nio-ssh нельзя: из глобальных запросов там доступен только TCP-forwarding. Поэтому `ConnectionPool` раз в `keepaliveSeconds` открывает exec-канал с `true` и ждёт ответа 5 с — вместе с открытием канала; ожидание свободного exec-слота в эти 5 с не входит: занятые слоты значат, что exec идут. Если за этот интервал уже прошёл `list`, пинг пропускается. Два неответа подряд — соединение мёртвое (§6). Обрыв, который заметил сам NIO, приходит раньше через `closeFuture` TCP-канала.
 - **Идентификатор устройства** — UUID, создаётся при первом запуске и хранится в Keychain. Передаётся во все exec-строки как `TMUXPAD_CLIENT`, чтобы host-скрипт отличал клиентов этого iPad от чужих (§6.1, §7).
@@ -258,8 +259,8 @@ enum ServerReachability { case unknown, online, offline(String), needsSetup(Stri
 
 | Где собирается и тестируется | Что |
 |---|---|
-| **Linux и Mac** (`TmuxPadCore`, `swift test`) | `HostAPI` (парсер `list`, коды выхода → ошибки), валидация имён, модели §5.1, `ConnectionPool` на Citadel/swift-nio-ssh (очередь exec на 2 слота, exec-пинг, бэкофф, автомат состояний реконнекта), `HostBootstrap`, протокол `TerminalSurface` и `TerminalSession` без view, ключи Ed25519 через swift-crypto, протоколы хранилищ (`KeyStore`, `HostKeyStore`) с in-memory реализациями для тестов. Интеграционные тесты — против того же Docker-контейнера sshd + tmux, что и host-скрипт |
-| **Только Mac** (Xcode-проект) | SwiftUI/UIKit: сайдбар, мастера, `TerminalScreen` на `SwiftTerm.TerminalView`; Keychain и Secure Enclave (реализации `KeyStore`/`HostKeyStore`), SwiftData, `NWPathMonitor`, `scenePhase`, XcodeGen, подпись, симулятор, TestFlight; спайки с железом iPad (клавиатура, поворот, Stage Manager) |
+| **Linux и Mac** (`TmuxPadCore`, `swift test`) | `HostAPI` (парсер `list`, коды выхода → ошибки), валидация имён, модели §5.1, `ConnectionPool` на Citadel/swift-nio-ssh (очередь exec на 2 слота, exec-пинг, бэкофф, автомат состояний реконнекта), `HostBootstrap`, протокол `TerminalSurface` и `TerminalSession` без view, ключи Ed25519 через swift-crypto, протоколы хранилищ (`KeyStore`, `HostKeyStore`) с in-memory реализациями для тестов; логика без view для слоя State: разбор мышиных отчётов `MouseReport`, построение дерева `SessionTree`, подсказка имени сессии, порядок и вытеснение открытых терминалов `OpenSessionsRoster`, опрос серверов `TreeRefresher` (план 3). `@Observable`-модели приложения — тонкие обёртки над ними. Интеграционные тесты — против того же Docker-контейнера sshd + tmux, что и host-скрипт |
+| **Только Mac** (Xcode-проект) | SwiftUI/UIKit: сайдбар, мастера, `TerminalScreen` на `SwiftTerm.TerminalView`; Keychain и Secure Enclave (реализации `KeyStore`/`HostKeyStore`), JSON-хранилище серверов и ключей, `NWPathMonitor`, `scenePhase`, XcodeGen, подпись, симулятор, TestFlight; спайки с железом iPad (клавиатура, поворот, Stage Manager) |
 
 Правила: в `TmuxPadCore` платформенный код только под `#if canImport(...)`, и такого кода должно быть мало; всё, что зависит от Keychain, SE, сети iPadOS, прячется за протоколом с реализацией в приложении. SSH — за узким протоколом `SSHTransport` (§12): реализация в ядре на Citadel + NIOSSH, в юнит-тестах пула и терминала — фейк; ключ для аутентификации приходит в ядро как `NIOSSHPrivateKey` (Ed25519 ядро делает само через swift-crypto, Secure Enclave P-256 заворачивает приложение). Тулчейн на Linux — официальный Swift 6 с swift.org (aarch64); на хосте разработки стоит 6.1.3 в `~/.local/swift-6.1.3`, симлинки `swift*` в `~/.local/bin`.
 
@@ -420,7 +421,13 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 
 1. `completed/20261020-host-script.md` — host-скрипт и Docker-стенд (фаза 2 целиком, часть фазы 0). Linux.
 2. `completed/20261020-tmuxpad-core.md` — пакет ядра `TmuxPadCore` по §5.2: `HostAPI`, `ConnectionPool`, `HostBootstrap`, `TerminalSession`, модели, тесты против стенда плана 1 (фаза 1 без Keychain/SE, ядро фаз 4–5). Linux.
-3. Приложение: Xcode-проект, UI, терминал, ключи, жизненный цикл поверх ядра (фазы 0, 3, 4, 5, 6 в части UI). Mac.
+3. `20261020-core-ui-support.md` — логика для UI, которую можно тестировать без Apple-фреймворков: `MouseReport` и ввод терминала мимо `copy-cancel`, `SessionTree`, подсказка имени, `OpenSessionsRoster`, `TreeRefresher`; переносимость стенда на macOS. Linux или Mac.
+4. `20261020-app-foundation.md` — Xcode-проект (XcodeGen), Keychain/Secure Enclave, хранилища, настройки ключей и серверов, «Проверить подключение», «Подготовить сервер», токен, журнал диагностики (фазы 0–2 в части приложения). Mac.
+5. `20261020-app-sidebar.md` — `TreeModel`, сайдбар, мастера «Новая сессия» и «Подключиться», kill (фаза 3). Mac.
+6. `20261020-app-terminal.md` — `TerminalScreen` на SwiftTerm, открытые терминалы, клавиатура, скролл и чип, плашки (фаза 4). Mac.
+7. `20261020-app-lifecycle-release.md` — `scenePhase`, `NWPathMonitor`, восстановление открытых сессий, онбординг, настройки терминала, Face ID, README, UI-смоук, TestFlight (фазы 5–6). Mac.
+
+Фаза 7 (статус агента, v1.1) плана пока не имеет: её делают после того, как v1 поживёт на устройстве.
 
 Фазы ниже остаются картой требований; планы режут их по платформе сборки, а не по порядку.
 
@@ -441,7 +448,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 ### Фаза 1 — Ядро: ключи, серверы, соединения · 4–5 дней
 - [ ] `KeyManager`: генерация SE/Ed25519, импорт OpenSSH Ed25519, экспорт публичного ключа, share/QR.
 - [ ] `HostKeyStore` (TOFU) + алерт смены ключа.
-- [ ] `ServerStore` (SwiftData) + экран настроек серверов + «Проверить подключение».
+- [ ] `ServerStore` (Codable JSON) + экран настроек серверов + «Проверить подключение».
 - [ ] `ConnectionPool`: одно соединение на сервер, exec-пинг, очередь exec на 2 слота, бэкофф-реконнект, `NWPathMonitor` — ядро готово (план 2), `NWPathMonitor` и проводка — план 3.
 - [ ] UUID устройства в Keychain.
 - [ ] Журнал диагностики (§3.6): все события пула соединений пишутся в него с первого дня — ядро готово (план 2), экран — план 3.
@@ -523,6 +530,8 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 - 2026-10-20: `NAME.claude` хранит проект; смена проекта или потеря транскрипта → новый UUID (§7).
 - 2026-10-20: одно окно приложения, exec-строки через `env`, журнал диагностики в v1 (§5, §3.6).
 - 2026-10-20: ядро — пакет в `TmuxPadCore/` со скриптом-ресурсом; соединение и каналы SSH — на swift-nio-ssh напрямую (`NIOSSHHandler` в своём TCP-канале), от Citadel только разбор и экспорт OpenSSH-ключей, всё за протоколом `SSHTransport`; реконнект останавливается после четырёх попыток до явного запроса (§4, §5.2, §6).
+- 2026-10-20: SwiftTerm от 1.99.0 (колесо одним пальцем); мышиные отчёты идут в PTY мимо `copy-cancel`, разбор — `MouseReport` в ядре; панель клавиш — встроенная `TerminalAccessory` (§3.5, §4).
+- 2026-10-20: серверы и метаданные ключей — Codable JSON, не SwiftData; лимит 8 открытых терминалов — на всё приложение; логика State без view (`TreeRefresher`, `OpenSessionsRoster`, `SessionTree`) — в ядре, приложение оборачивает её в `@Observable` (§4, §5, §5.2).
 
 ---
 

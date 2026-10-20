@@ -144,7 +144,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
 `host/tests/docker/claude-old` (create), `host/tests/cases/basic.sh` (create),
 `.gitignore` (create).
 
-- [ ] `host/tmuxpad-host.sh`: шапка с атрибуцией рецепта (MIT, ссылка), `set -u`,
+- [x] `host/tmuxpad-host.sh`: шапка с атрибуцией рецепта (MIT, ссылка), `set -u`,
       `VERSION=1`, разбор окружения: `STATE=$HOME/.tmuxpad`,
       `PROJECTS=${TMUXPAD_PROJECTS:-$HOME/projects}` с раскрытием `~`, относительного пути
       и `realpath -m` (симлинк в корне не должен ломать фильтр `list`),
@@ -155,7 +155,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       §7 (`version list new attach take copy-cancel kill setup doctor auth`); не реализованные
       пока печатают `not implemented` и `exit 1`; `version` печатает `tmuxpad-host 1`; без
       аргументов или с неизвестной подкомандой — usage на stderr, `exit 2`.
-- [ ] `host/tests/docker/Dockerfile`: `ARG BASE=ubuntu:24.04`, `FROM $BASE`,
+- [x] `host/tests/docker/Dockerfile`: `ARG BASE=ubuntu:24.04`, `FROM $BASE`,
       `DEBIAN_FRONTEND=noninteractive`, пакеты `openssh-server tmux bash coreutils
       ncurses-bin` (нужен `infocmp`), `useradd -m -s /bin/bash dev`, `mkdir /run/sshd`,
       в `sshd_config`: `PasswordAuthentication no`, `PubkeyAuthentication yes`,
@@ -163,16 +163,16 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       пропускать — приложение передаёт их через `env`, и стенд должен это проверять).
       Заглушки копируются в `/usr/local/bin/claude` и `/usr/local/bin/claude-old` с `chmod
       755`. `EXPOSE 22`, `ENTRYPOINT ["/entrypoint.sh"]`.
-- [ ] `host/tests/docker/entrypoint.sh`: пишет `$AUTHORIZED_KEY` в
+- [x] `host/tests/docker/entrypoint.sh`: пишет `$AUTHORIZED_KEY` в
       `/home/dev/.ssh/authorized_keys` (`mkdir -p`, `chmod 700/600`, `chown -R dev:dev`),
       `exec /usr/sbin/sshd -D -e`. Ключ приходит через переменную окружения, а не монтирование:
       `StrictModes` sshd требует владельца `dev`, с bind-mount это ломается.
-- [ ] `host/tests/docker/claude` (bash): `--version` → `2.1.0 (stub)`; `--help` → многострочный
+- [x] `host/tests/docker/claude` (bash): `--version` → `2.1.0 (stub)`; `--help` → многострочный
       текст, в котором есть `-n, --name <name>`, `--session-id <uuid>`, `-r, --resume [value]`;
       иначе — дописать в `$HOME/claude-args.log` строку
       `$PWD|$*|token=${CLAUDE_CODE_OAUTH_TOKEN:-none}` и `exec sleep infinity`.
       `host/tests/docker/claude-old` — то же, но в `--help` нет `--name`.
-- [ ] `host/tests/lib.sh`: переменные `PORT`, `KEY`, `CLIENT_A=11111111-1111-4111-8111-111111111111`,
+- [x] `host/tests/lib.sh`: переменные `PORT`, `KEY`, `CLIENT_A=11111111-1111-4111-8111-111111111111`,
       `CLIENT_B=22222222-…`; `SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
       -o ConnectTimeout=5 -o LogLevel=ERROR -i "$KEY" -p "$PORT")`; функции:
       `r CMD…` — `timeout 20 ssh "${SSH_OPTS[@]}" dev@127.0.0.1 -- "$*"` (сырая команда);
@@ -190,7 +190,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       ассерты `assert_eq EXP ACT MSG`, `assert_exit CODE CMD…` (выполняет, сравнивает `$?`),
       `assert_contains HAYSTACK NEEDLE`, `assert_not_contains`, `fail MSG` (пишет в `FAILED`,
       `return 1`). Функции-тесты именуются `test_<area>_<case>`.
-- [ ] `host/tests/run.sh`: `set -u`; `TMUXPAD_TEST_BASE=${TMUXPAD_TEST_BASE:-ubuntu:24.04}`;
+- [x] `host/tests/run.sh`: `set -u`; `TMUXPAD_TEST_BASE=${TMUXPAD_TEST_BASE:-ubuntu:24.04}`;
       тег образа `tmuxpad-test:${BASE//[:\/]/-}`; `docker build --build-arg BASE=…`;
       `TMP=$(mktemp -d)`, `ssh-keygen -q -t ed25519 -N '' -f "$TMP/key"`;
       `CID=$(docker run -d --rm -p 127.0.0.1::22 -e AUTHORIZED_KEY="$(cat "$TMP/key.pub")" IMAGE)`,
@@ -201,11 +201,11 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       `host/tests/cases/*.sh`; фильтр `-k SUBSTR`; для каждой `test_*`: `reset`, запуск в
       подоболочке, учёт PASS/FAIL, итог `N passed, M failed`, код выхода 1 при `M>0`.
       Печатать имя теста до запуска, чтобы зависание было видно.
-- [ ] `host/tests/cases/basic.sh`: `test_basic_version` (`h version` → `tmuxpad-host 1`,
+- [x] `host/tests/cases/basic.sh`: `test_basic_version` (`h version` → `tmuxpad-host 1`,
       код 0); `test_basic_usage` (`h` без подкоманды → 2; `h bogus` → 2);
       `test_basic_bad_client` (`CLIENT=not-a-uuid h version` → 2 — валидация окружения идёт
       до диспетчера); `test_basic_install_path` (`r test -x ~/.local/bin/tmuxpad-host.sh`).
-- [ ] `.gitignore`: `.ralphex/`, `*.tmp`, `.DS_Store`. `shellcheck` чист по всем файлам из
+- [x] `.gitignore`: `.ralphex/`, `*.tmp`, `.DS_Store`. `shellcheck` чист по всем файлам из
       Validation Commands; `host/tests/run.sh` зелёный; коммит.
 
 ### Task 2: `setup`, `doctor`, `auth`

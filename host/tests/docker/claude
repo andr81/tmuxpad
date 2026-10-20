@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Claude Code stub: records how it was started and stays alive like the real one.
+case ${1:-} in
+--version) echo '2.1.0 (stub)' ;;
+--help)
+	cat <<'HELP'
+Usage: claude [options] [command] [prompt]
+
+Options:
+  -n, --name <name>         Name of the session
+  --session-id <uuid>       Use a specific session ID for the conversation
+  -r, --resume [value]      Resume a conversation by session ID
+  -h, --help                Display help for command
+HELP
+	;;
+*)
+	printf '%s|%s|token=%s\n' "$PWD" "$*" "${CLAUDE_CODE_OAUTH_TOKEN:-none}" >>"$HOME/claude-args.log"
+	exec sleep infinity
+	;;
+esac

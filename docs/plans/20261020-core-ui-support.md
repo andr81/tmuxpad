@@ -329,17 +329,17 @@ docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n TmuxPadCore/scripts/test.sh
 `TmuxPadCore/Tests/TmuxPadCoreTests/{ValidationTests,SessionTreeTests,OpenSessionsRosterTests}.swift`
 (`ValidationTests` — modify, остальные create).
 
-- [ ] `Validation.suggestedSessionName(from:)` по решению 5; doc-комментарий со ссылкой на
+- [x] `Validation.suggestedSessionName(from:)` по решению 5; doc-комментарий со ссылкой на
       §3.3 и причиной (`.` допустима в проекте, но не в сессии).
-- [ ] `Models/SessionTree.swift`: `ProjectNode`, `SessionNode`, `enum SessionTree` с
+- [x] `Models/SessionTree.swift`: `ProjectNode`, `SessionNode`, `enum SessionTree` с
       `build(snapshot:openSessions:showEmptyProjects:)` и `byActivity(snapshot:)` по решению 6.
       Все типы `public`, `Sendable`, `Hashable`; у `ProjectNode` и `SessionNode` есть `id`
       (`name`) для `ForEach`/`List` — `Identifiable`.
-- [ ] `Models/OpenSessionsRoster.swift`: `OpenSessionKey` и `OpenSessionsRoster` по решению 7;
+- [x] `Models/OpenSessionsRoster.swift`: `OpenSessionKey` и `OpenSessionsRoster` по решению 7;
       `limit` — параметр инициализатора (по умолчанию 8), декодирование проверяет `limit ≥ 1`
       и отбрасывает дубликаты в `tabs`.
-- [ ] Тесты из Testing Strategy для всех трёх.
-- [ ] Сборка без предупреждений, `swift test --skip IntegrationTests`.
+- [x] Тесты из Testing Strategy для всех трёх.
+- [x] Сборка без предупреждений, `swift test --skip IntegrationTests`.
 
 ### Task 3: `TreeRefresher` — опрос серверов для дерева
 

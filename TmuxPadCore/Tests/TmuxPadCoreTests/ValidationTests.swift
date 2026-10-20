@@ -47,6 +47,30 @@ import Testing
         #expect(Validation.isSafeShellValue(value) == safe)
     }
 
+    @Test(arguments: [
+        ("my.project", "my-project"),
+        ("a  b", "a-b"),
+        ("...", "session"),
+        ("Проект", "session"),
+        ("", "session"),
+        ("api_2", "api_2"),
+        ("-a.-.b-", "a-b"),
+        ("Мой app.v2", "app-v2"),
+        (String(repeating: "x", count: 200), String(repeating: "x", count: 64)),
+        (String(repeating: "x", count: 63) + ".y", String(repeating: "x", count: 63)),
+    ])
+    func suggestedSessionNames(project: String, expected: String) {
+        #expect(Validation.suggestedSessionName(from: project) == expected)
+    }
+
+    @Test(arguments: [
+        "my.project", "a  b", "...", "Проект", "", "-", "_", ".hidden", "a\tb\nc", "x'y\"z",
+        "a/b/c", "1.2.3", "🙂 emoji", String(repeating: "ab.", count: 50), "-" + String(repeating: "a", count: 70),
+    ])
+    func suggestedSessionNameIsAlwaysValid(project: String) {
+        #expect(Validation.isValidSessionName(Validation.suggestedSessionName(from: project)))
+    }
+
     @Test func validConfigHasNoIssues() {
         let config = ServerConfig(label: "dev", host: "example.com", user: "dev", keyID: UUID())
         #expect(config.validationIssues().isEmpty)

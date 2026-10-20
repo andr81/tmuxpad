@@ -48,6 +48,15 @@ attach_bg() {
 	echo "$pid"
 }
 
+# tmux_bg ARGS... - a plain tmux client (not through the script) in the background
+tmux_bg() {
+	timeout 120 ssh -tt -n "${SSH_OPTS[@]}" dev@127.0.0.1 "tmux $*" >/dev/null 2>&1 &
+	local pid=$!
+	BG_PIDS+=("$pid")
+	echo "$pid" >>"$TMP/bg.pids"
+	echo "$pid"
+}
+
 kill_bg() {
 	local pid
 	if [[ -f $TMP/bg.pids ]]; then

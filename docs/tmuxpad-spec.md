@@ -314,7 +314,7 @@ tmuxpad-host.sh doctor               → проверки: tmux≥3.1, claude в
 
 **`attach NAME`** по шагам:
 1. `tmux has-session -t =NAME` → иначе `exit 4`;
-2. чистка: файлы в `~/.tmuxpad/clients/`, PID-ов которых нет в `tmux list-clients`, удаляются (то же делает `list`);
+2. чистка: файлы в `~/.tmuxpad/clients/`, PID-ов которых нет в `tmux list-clients`, удаляются (то же делает `list`); исключение — PID, который ещё исполняет сам скрипт до `exec` (`/proc/<pid>/cmdline` содержит `tmuxpad-host`): иначе `list`, идущий параллельно с `attach`, снял бы метку с клиента;
 3. свои зомби: `tmux list-clients -t =NAME -F '#{client_pid}\t#{client_tty}'`, для PID-ов, чей файл содержит текущий `TMUXPAD_CLIENT`, — `tmux detach-client -t <tty>`;
 4. `tmux set -t =NAME mouse on` и `tmux set -w -t '=NAME:' window-size latest`;
 5. UUID устройства → `~/.tmuxpad/clients/$$`; из-за `exec` PID tmux-клиента совпадает с `$$`, так что файл однозначно связывает клиента tmux с устройством;

@@ -165,6 +165,74 @@ auth() {
 	echo "token stored in $env"
 }
 
+# ---------------------------------------------------------------- clients, list
+
+# mine PID - the tmux client PID belongs to this device: its file holds $CLIENT
+mine() {
+	local f=$STATE/clients/$1 id
+	[[ -n $CLIENT && -f $f ]] || return 1
+	IFS= read -r id <"$f"
+	[[ $id == "$CLIENT" ]]
+}
+
+# prune_clients - drop the client files of PIDs tmux no longer lists. A file
+# whose PID is still the script before its `exec tmux attach-session` is kept:
+# a list running next to an attach must not unmark that client.
+prune_clients() {
+	local live f pid
+	live=$(tmux list-clients -F '#{client_pid}' 2>/dev/null)
+	for f in "$STATE"/clients/*; do
+		[[ -e $f ]] || continue
+		pid=${f##*/}
+		if [[ $pid =~ ^[0-9]+$ ]]; then
+			grep -qxF "$pid" <<<"$live" && continue
+			grep -qsF tmuxpad-host "/proc/$pid/cmdline" && continue
+		fi
+		rm -f "$f"
+	done
+}
+
+list() {
+	[[ -d $PROJECTS ]] || die "$PROJECTS is not a directory, run setup" 2
+	prune_clients
+
+	# others: clients of the session not marked with this device's UUID
+	local -A others=()
+	local name pid path activity d
+	while IFS=$'\t' read -r name pid; do
+		[[ -n $name ]] || continue
+		mine "$pid" || others[$name]=$((${others[$name]:-0} + 1))
+	done < <(tmux list-clients -F '#{session_name}'$'\t''#{client_pid}' 2>/dev/null)
+
+	printf 'V\t1\n'
+	while IFS=$'\t' read -r name path activity; do
+		[[ -n $name ]] || continue
+		path=$(realpath -m -- "$path")
+		[[ $path == "$PROJECTS"/* && ${path#"$PROJECTS"/} != */* ]] || continue
+		printf 'S\t%s\t%s\t%s\t%s\n' "$name" "${others[$name]:-0}" "${path##*/}" "$activity"
+	done < <(tmux list-sessions -F '#{session_name}'$'\t''#{session_path}'$'\t''#{session_activity}' 2>/dev/null |
+		LC_ALL=C sort -t $'\t' -k1,1)
+
+	for d in "$PROJECTS"/*/; do
+		[[ -d $d ]] || continue
+		d=${d%/}
+		valid_project "${d##*/}" && printf 'P\t%s\t%s\n' "${d##*/}" "$d"
+	done
+	return 0
+}
+
+# ---------------------------------------------------------------- attach
+
+# minimal for now: mark the client and attach (the full steps of §7 come later)
+attach() {
+	valid_name "${1:-}" || die "bad session name: ${1:-}" 2
+	need_client
+	tmux has-session -t "=$1" 2>/dev/null || die "no session $1" 4
+	mkdir -p "$STATE/clients"
+	printf '%s\n' "$CLIENT" >"$STATE/clients/$$"
+	exec tmux attach-session -t "=$1"
+}
+
 usage() {
 	die "usage: ${0##*/} version | list | new NAME PROJECT | attach NAME | take NAME | copy-cancel NAME | kill NAME | setup | doctor | auth" 2
 }
@@ -174,6 +242,8 @@ version) echo "tmuxpad-host $VERSION" ;;
 setup) setup ;;
 doctor) doctor ;;
 auth) auth ;;
-list | new | attach | take | copy-cancel | kill) not_implemented "$1" ;;
+list) list ;;
+attach) attach "${2:-}" ;;
+new | take | copy-cancel | kill) not_implemented "$1" ;;
 *) usage ;;
 esac

@@ -259,14 +259,16 @@ host/tests/run.sh -k test_list_others              # один тест (подс
 
 **Файлы:** `host/tmuxpad-host.sh`, `host/tests/cases/list.sh` (create).
 
-- [ ] `prune_clients`: удаляет файлы `$STATE/clients/<pid>`, для которых PID нет в выводе
+- [x] `prune_clients`: удаляет файлы `$STATE/clients/<pid>`, для которых PID нет в выводе
       `tmux list-clients -F '#{client_pid}'` (tmux-сервер не запущен → список пуст → удалить
       все). Зовётся из `list`, `attach`, `take`. Файлы с именем не из цифр — удалять тоже.
-- [ ] `others_for NAME`: число клиентов сессии из `tmux list-clients -t =NAME -F
+      Не удаляется файл PID, который ещё исполняет скрипт до `exec` (`/proc/<pid>/cmdline`
+      содержит `tmuxpad-host`) — гонка `list` с параллельным `attach`; внесено в §7 спеки.
+- [x] `others_for NAME`: число клиентов сессии из `tmux list-clients -t =NAME -F
       '#{client_pid}'`, у которых **нет** файла `$STATE/clients/<pid>` с содержимым, равным
       `$CLIENT`; при пустом `CLIENT` — все клиенты чужие. Один общий `list-clients -F
       '#{session_name}\t#{client_pid}'` на весь `list`, а не по сессии.
-- [ ] `list`: печатает `V\t1`; затем для каждой строки `tmux list-sessions -F
+- [x] `list`: печатает `V\t1`; затем для каждой строки `tmux list-sessions -F
       '#{session_name}\t#{session_path}\t#{session_activity}' 2>/dev/null` — `realpath -m`
       пути, фильтр «родитель пути == `$PROJECTS`» (как в рецепте: `path == "$PROJECTS"/* &&
       ${path#"$PROJECTS"/} != */*`), строка `S\t<name>\t<others>\t<project>\t<activity>`,
@@ -275,7 +277,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       скрытые каталоги пропускаются). Отсутствие tmux-сервера — не ошибка: только `V` и `P`,
       код 0. Отсутствие `$PROJECTS` — `exit 2` с сообщением (приложение покажет «нужна
       подготовка»).
-- [ ] Тесты `list.sh` (сессии создаются напрямую `r tmux new -d -s NAME -c DIR`, `new` ещё не
+- [x] Тесты `list.sh` (сессии создаются напрямую `r tmux new -d -s NAME -c DIR`, `new` ещё не
       нужен): `test_list_header_and_projects` (без tmux-сервера: первая строка `V\t1`, ровно
       три `P`-строки `api`, `my.app`, `web` с абсолютными путями `/home/dev/projects/...`,
       `README.md` нет); `test_list_filters_foreign_sessions` (сессия с `-c ~` и сессия с
@@ -292,7 +294,7 @@ host/tests/run.sh -k test_list_others              # один тест (подс
       Для `attach_bg` в этой задаче нужен минимальный `attach`: временно реализовать в скрипте
       запись `$STATE/clients/$$` + `exec tmux attach-session -t =NAME` без остальных шагов
       (полная версия — Task 5); тест на это не писать, он придёт с Task 5.
-- [ ] shellcheck, `run.sh` зелёный на 24.04; коммит.
+- [x] shellcheck, `run.sh` зелёный на 24.04 (и на 22.04); коммит.
 
 ### Task 4: `new`
 

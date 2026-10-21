@@ -115,6 +115,18 @@ struct KeyUnlockerTests {
         #expect(required.locks == 0)
     }
 
+    @Test func enablingMidSessionAsksOnlyAfterBackground() async throws {
+        required.value = false
+        let unlocker = unlocker()
+        try await unlocker.authenticate()
+        required.value = true
+        try await unlocker.authenticate()
+        #expect(prompt.calls == 0)
+        await unlocker.lock()
+        try await unlocker.authenticate()
+        #expect(prompt.calls == 1)
+    }
+
     @Test func promptStartedBeforeBackgroundDoesNotUnlockAfterIt() async throws {
         let unlocker = unlocker()
         prompt.delay = .milliseconds(500)

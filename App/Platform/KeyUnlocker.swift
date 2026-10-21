@@ -6,7 +6,7 @@ import TmuxPadCore
 /// Face ID перед первым использованием ключа в сессии приложения (§8). Успех действует до
 /// ухода в фон (`lock`). В тестах координатора — фейк.
 protocol KeyUnlocking: Sendable {
-    /// Ничего не делает, если проверка выключена или уже пройдена; отказ — `AppError.biometricsDenied`.
+    /// Ничего не спрашивает, если проверка выключена или уже пройдена; отказ — `AppError.biometricsDenied`.
     func authenticate() async throws
     /// Уход в фон: следующее использование ключа снова спросит.
     func lock() async
@@ -58,7 +58,14 @@ actor KeyUnlocker: KeyUnlocking {
     }
 
     func authenticate() async throws {
-        guard isRequired(), !unlocked else {
+        guard !unlocked else {
+            return
+        }
+        // выключенная проверка тоже открывает сессию: включённая посреди неё спросит после
+        // фона или перезапуска, а не тиком опроса дерева каждые 10 с
+        guard isRequired() else {
+            unlocked = true
+            await onUnlock()
             return
         }
         let task: Task<Bool, Error>

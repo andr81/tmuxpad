@@ -29,9 +29,34 @@ public enum SSHKeys {
         let key = NIOSSHPrivateKey(ed25519Key: raw)
         return GeneratedKey(
             privateKey: SSHPrivateKey(key),
-            privateKeyOpenSSH: raw.makeSSHRepresentation(comment: comment),
+            privateKeyOpenSSH: openSSHEd25519(raw, comment: comment),
             publicKeyOpenSSH: publicKeyOpenSSH(key, comment: comment)
         )
+    }
+
+    /// `openssh-key-v1` без шифра. Не `makeSSHRepresentation` Citadel: когда длина приватной
+    /// секции кратна 8 — комментарий длиной 5 по модулю 8, например `tmuxpad-bench`, — тот
+    /// дописывает 8 байт выравнивания вместо 0, и такой файл не читает сам Citadel.
+    public static func openSSHEd25519(_ key: Curve25519.Signing.PrivateKey, comment: String) -> String {
+        func uint32(_ value: UInt32) -> Data {
+            withUnsafeBytes(of: value.bigEndian) { Data($0) }
+        }
+        func string(_ bytes: Data) -> Data {
+            uint32(UInt32(bytes.count)) + bytes
+        }
+        let publicKey = key.publicKey.rawRepresentation
+        let publicBlob = string(Data("ssh-ed25519".utf8)) + string(publicKey)
+        let check = uint32(UInt32.random(in: .min ... .max))
+        var secret = check + check + publicBlob + string(key.rawRepresentation + publicKey) + string(Data(comment.utf8))
+        var pad: UInt8 = 1
+        while secret.count % 8 != 0 {
+            secret.append(pad)
+            pad += 1
+        }
+        let none = string(Data("none".utf8))
+        let body = Data("openssh-key-v1\0".utf8) + none + none + string(Data()) + uint32(1) + string(publicBlob) + string(secret)
+        let base64 = body.base64EncodedString(options: [.lineLength64Characters, .endLineWithLineFeed])
+        return "-----BEGIN OPENSSH PRIVATE KEY-----\n\(base64)\n-----END OPENSSH PRIVATE KEY-----\n"
     }
 
     /// Читает OpenSSH-файл Ed25519 (`openssh-key-v1`, без шифра или с bcrypt + passphrase).

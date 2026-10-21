@@ -59,6 +59,8 @@ scripts/ios-test.sh -only-testing:AppTests/ServerStoreTests
 shellcheck -s bash scripts/ios-test.sh
 ```
 
+Стенд с Docker Desktop падает на `docker-credential-desktop: executable file not found`, если в `PATH` нет `/Applications/Docker.app/Contents/Resources/bin` (так бывает в неинтерактивном шелле): добавь его перед `ios-test.sh` и `bench.sh`.
+
 `scripts/ios-test.sh` тоже идёт под bash 3.2 macOS (те же ограничения, что у `bench.sh`). Предупреждения сборки в коде приложения — ошибка; предупреждения внутри зависимостей (`… is missing a dependency on …` у NIO) не считаются.
 
 Решения, которые меняют поведение, сначала вносятся в спеку, потом в код.
@@ -89,7 +91,7 @@ TmuxPad — iPad-клиент (iPadOS 17+, Swift 6, SwiftUI) для работы
 - **Приложение не логирует токен Claude и приватные ключи**: ни в `DiagnosticsLog`, ни в `print`/`os_log`, ни в тексты ошибок.
 - **Keychain — только через `App/Platform/Keychain.swift`** (`SecItem*` больше нигде): там `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` и сервисы `dev.tmuxpad.*`.
 - **Вопрос «Доверять» — по несовпадению отпечатка с `ServerConfig.hostKeyFingerprint`, а не по `hostKeyFirstSeen`** (`ServerCheckModel.connectTrusted`): ядро пишет ключ в `HostKeyStore` до ответа пользователя. Без вопроса конфиг догоняет только копия сервера, у которой этот отпечаток уже подтверждён для того же `host:port`. Смена адреса в `ServerStore.update` очищает отпечаток. Несовпадение с непустым отпечатком в конфиге (у копии без своего — в конфиге другого сервера с тем же адресом) — не вопрос, а блокировка `hostKeyChanged` с возвратом подтверждённого отпечатка в `HostKeyStore`; поэтому «Сбросить» очищает отпечаток у всех серверов с этим адресом.
-- **OpenSSH-текст Ed25519 пишет `KeychainKeyStore.openSSHText`**, не `makeSSHRepresentation` Citadel и не `SSHKeys.generateEd25519`: при комментарии длиной 5 по модулю 8 они дают файл, который Citadel не читает (`invalidPadding`). Комментарий ключа (`KeychainKeyStore.comment(for:)`) — только `[A-Za-z0-9._-]`: он попадает в shell-команду `authorizedKeysCommand`.
+- **OpenSSH-текст Ed25519 пишет `SSHKeys.openSSHEd25519` ядра** (им пользуются `SSHKeys.generateEd25519` и `KeychainKeyStore`), не `makeSSHRepresentation` Citadel: при комментарии длиной 5 по модулю 8 тот даёт файл, который Citadel не читает (`invalidPadding`). Комментарий ключа (`KeychainKeyStore.comment(for:)`) — только `[A-Za-z0-9._-]`: он попадает в shell-команду `authorizedKeysCommand`.
 - **Ошибки ядра показываются пользователю через `userText(_:)`** из `App/UI/ErrorText.swift`: у `SSHError`/`HostError` английские `description`, новый случай в ядре — новый русский текст и строка в `ErrorTextTests`.
 - iPadOS рвёт сокеты в фоне; устойчивость даёт tmux, приложение переподключается по `scenePhase` и `NWPathMonitor` (§6).
 

@@ -73,7 +73,8 @@ private struct TerminalHost: UIViewRepresentable {
     }
 
     func updateUIView(_ container: TerminalContainerView, context: Context) {
-        container.show(view)
+        // сначала `acceptsInput`: `show` нового терминала при плашке не должен его фокусировать
         container.acceptsInput = acceptsInput
+        container.show(view)
     }
 }

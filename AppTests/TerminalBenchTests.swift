@@ -90,6 +90,42 @@ final class TerminalBenchTests {
         await finish()
     }
 
+    @Test func chipTapLeavesCopyMode() async throws {
+        let terminal = try await openLive("chip")
+        try await waitUntil(timeout: .seconds(10)) { screenText(terminal.view).contains("dev@") }
+        try type("\u{1b}[<64;10;5M", into: terminal)
+        try await waitUntil(timeout: .seconds(10)) { terminal.showsScrollChip }
+        try await waitForExec { try await self.paneInMode("chip") == "1" }
+        await terminal.cancelCopyMode()
+        #expect(!terminal.showsScrollChip)
+        try await waitForExec { try await self.paneInMode("chip") == "0" }
+        await finish()
+    }
+
+    @Test func closeDetachesClient() async throws {
+        let terminal = try await openLive("closing")
+        try await waitForExec { try await self.clients("closing") == 1 }
+        env.openSessions.close(terminal.key)
+        #expect(terminal.isClosed)
+        try await waitForExec { try await self.clients("closing") == 0 }
+        // tmux-сессия на сервере остаётся
+        let alive = try await Bench.exec("tmux has-session -t '=closing'")
+        #expect(alive.exitCode == 0)
+        await finish()
+    }
+
+    @Test func frameChangeResizesWindow() async throws {
+        let terminal = try await openLive("sized")
+        let before = terminal.view.terminalDimensions
+        try await waitForExec { try await self.windowWidth("sized") == before.cols }
+        terminal.view.frame = CGRect(x: 0, y: 0, width: OpenTerminal.initialFrame.width / 2, height: 400)
+        terminal.view.layoutIfNeeded()
+        let after = terminal.view.terminalDimensions
+        #expect(after.cols < before.cols)
+        try await waitForExec { try await self.windowWidth("sized") == after.cols }
+        await finish()
+    }
+
     @Test func killFromOutsideEndsTerminal() async throws {
         let terminal = try await openLive("doomed")
         let killed = try await Bench.exec("tmux kill-session -t '=doomed'")
@@ -127,6 +163,11 @@ final class TerminalBenchTests {
     private func paneInMode(_ name: String) async throws -> String {
         let result = try await Bench.exec("tmux display -p -t '=\(name):' '#{pane_in_mode}'")
         return result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func windowWidth(_ name: String) async throws -> Int? {
+        let result = try await Bench.exec("tmux display -p -t '=\(name):' '#{window_width}'")
+        return Int(result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     /// Клиенты tmux, подключённые к сессии `name`.

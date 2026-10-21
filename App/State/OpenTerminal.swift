@@ -17,8 +17,8 @@ final class OpenTerminal {
         var snapshot: @MainActor (UUID) -> ServerSnapshot?
         var log: DiagnosticsLog?
         var defaults: UserDefaults
-        /// Шрифт всех открытых терминалов и pinch; без него — размер из `defaults`.
-        var appearance: TerminalAppearance? = nil
+        /// Шрифт всех открытых терминалов и pinch.
+        var appearance: TerminalAppearance
     }
 
     let key: OpenSessionKey
@@ -46,7 +46,7 @@ final class OpenTerminal {
         self.key = key
         self.dependencies = dependencies
         view = TmuxTerminalView(frame: Self.initialFrame, defaults: dependencies.defaults)
-        dependencies.appearance?.attach(view)
+        dependencies.appearance.attach(view)
         project = dependencies.snapshot(key.serverID)?.sessions.first { $0.name == key.name }?.project
     }
 
@@ -57,7 +57,11 @@ final class OpenTerminal {
         }
         state = .connecting
         setup = Task { [weak self] in
-            guard let session = await self?.makeSession() else {
+            guard let self else {
+                return nil
+            }
+            guard let session = await makeSession() else {
+                setup = nil
                 return nil
             }
             if take {
@@ -141,20 +145,27 @@ final class OpenTerminal {
 
     // MARK: - Сессия
 
-    /// Сессия есть — она; создание упало — новая попытка.
+    /// Сессия есть — она; нет — новая попытка, одна на все одновременные вызовы (двойной тап
+    /// «Повторить» не создаёт две сессии на один view). Неудачная попытка сама очищает `setup`.
+    /// Закрыли за время ожидания — `nil`.
     private func ready() async -> TerminalSession? {
         guard !isClosed else {
             return nil
         }
-        if let session = await setup?.value {
-            return session
+        if setup == nil {
+            setup = Task { [weak self] in
+                guard let self else {
+                    return nil
+                }
+                let session = await makeSession()
+                if session == nil {
+                    setup = nil
+                }
+                return session
+            }
         }
-        setup = nil
-        guard let session = await makeSession() else {
-            return nil
-        }
-        setup = Task { session }
-        return session
+        let session = await setup?.value
+        return isClosed ? nil : session
     }
 
     private func makeSession() async -> TerminalSession? {
@@ -192,7 +203,7 @@ final class OpenTerminal {
         // кончается вместе с потоком: продолжение держит поверхность, её — сессия
         events = Task { [weak self] in
             for await event in stream {
-                self?.apply(event)
+                await self?.apply(event)
             }
         }
         return session
@@ -203,8 +214,20 @@ final class OpenTerminal {
         case scrollChip(Bool)
     }
 
-    private func apply(_ event: Event) {
+    private func apply(_ event: Event) async {
         switch event {
+        case .state(.live):
+            state = .live
+            // `sizeChanged` во время `attach` ушёл в `resize` без PTY и потерялся
+            let size = view.terminalDimensions
+            delegate?.requestResize(cols: size.cols, rows: size.rows)
+        case let .state(.offline(reason)):
+            // соединение пула в `.failed` (ключ, отпечаток): причина — его ошибка, а не `disconnected` канала
+            if let fatal = await session?.server.lastFatalError {
+                state = .offline(userText(fatal))
+            } else {
+                state = .offline(reason)
+            }
         case let .state(new):
             state = new
         case let .scrollChip(shown):

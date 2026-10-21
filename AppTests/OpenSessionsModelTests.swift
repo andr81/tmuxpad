@@ -71,11 +71,13 @@ struct OpenSessionsModelTests {
     /// Терминалы без сети: соединения нет, сессия так и не создаётся.
     private func modelWithTerminals() -> OpenSessionsModel {
         let model = OpenSessionsModel()
+        let defaults = UserDefaults(suiteName: "dev.tmuxpad.test.\(UUID().uuidString)")!
         let dependencies = OpenTerminal.Dependencies(
             connection: { _ in throw AppError.serverMissing },
             snapshot: { _ in nil },
             log: nil,
-            defaults: UserDefaults(suiteName: "dev.tmuxpad.test.\(UUID().uuidString)")!
+            defaults: defaults,
+            appearance: TerminalAppearance(defaults: defaults)
         )
         model.makeTerminal = { OpenTerminal(key: $0, dependencies: dependencies) }
         return model

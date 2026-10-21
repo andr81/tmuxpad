@@ -9,6 +9,11 @@ final class TerminalContainerView: UIView {
     /// `false` при плашке: терминал отдаёт first responder и не получает его обратно.
     var acceptsInput = true {
         didSet {
+            // `updateUIView` ставит значение на каждое обновление: без смены first responder не
+            // трогаем, иначе терминал отнял бы ввод у поля открытого листа
+            guard acceptsInput != oldValue else {
+                return
+            }
             if acceptsInput {
                 focus()
             } else if let current, current.isFirstResponder {

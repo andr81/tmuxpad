@@ -64,6 +64,8 @@ shellcheck -s bash scripts/ios-test.sh
 
 `scripts/ios-test.sh` тоже идёт под bash 3.2 macOS (те же ограничения, что у `bench.sh`). Предупреждения сборки в коде приложения — ошибка; предупреждения внутри зависимостей (`… is missing a dependency on …` у NIO) не считаются.
 
+`xcodebuild` переписывает `TmuxPadCore/Package.resolved` пинами графа приложения (SwiftTerm и его зависимости); ядру они не нужны — такие правки не коммить, верни файл `git checkout TmuxPadCore/Package.resolved`.
+
 Решения, которые меняют поведение, сначала вносятся в спеку, потом в код.
 
 ## Что строим

@@ -458,18 +458,26 @@ ServersView,ServerEditView,QRCodeView}.swift` (create), `App/UI/Root/RootView.sw
 **Файлы:** `CLAUDE.md`, `docs/tmuxpad-spec.md` (§11 — отметки фаз 1–2; расхождения — если
 были), `docs/plans/20261020-app-foundation.md` (move).
 
-- [ ] `CLAUDE.md`: раскладка `App/`, `AppTests/`, `scripts/ios-test.sh`; инварианты
+- [x] `CLAUDE.md`: раскладка `App/`, `AppTests/`, `scripts/ios-test.sh`; инварианты
       «приложение не логирует токен и приватные ключи», «Keychain только через
       `Platform/Keychain.swift`», «ошибки ядра показываются пользователю через
       `ErrorText.userText`».
-- [ ] Спека §11: отметить сделанные пункты фазы 1 (`KeyManager` без share-экстеншенов,
+- [x] Спека §11: отметить сделанные пункты фазы 1 (`KeyManager` без share-экстеншенов,
       `HostKeyStore` + алерт, `ServerStore` + настройки + «Проверить подключение», UUID
       устройства, экран журнала) и фазы 2 (`HostBootstrap` с отчётом в UI). Там же поправить
       устаревшие ссылки «— план 3» в фазах 1 и 2: экран журнала и отчёт `doctor` — план 4,
       `NWPathMonitor` — план 7.
-- [ ] Полный прогон: Validation Commands и `TmuxPadCore/scripts/test.sh` (ядро на Mac со
+- [x] Полный прогон: Validation Commands и `TmuxPadCore/scripts/test.sh` (ядро на Mac со
       стендом); в progress-лог — число тестов и время.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
+- Заметки исполнения: инвариант про ошибки — свободная функция `userText(_:)` в
+  `App/UI/ErrorText.swift`, отдельного типа `ErrorText` нет. Пункт фазы 1 про `ConnectionPool`
+  в §11 остаётся открытым: `NWPathMonitor` — план 7. Прогон: сборка без предупреждений;
+  `scripts/ios-test.sh` — 51 прошёл, 1 пропущен (SE в симуляторе); ядро со стендом — 191 тест,
+  юнит без Docker — 154. ⚠️ `othersCountsForeignClient` ядра падает, если `TERM` терминала
+  неизвестен контейнеру (`xterm-ghostty` пробрасывается через `ssh -tt`, `tmux attach` сразу
+  выходит); с `TERM=xterm-256color` проходит. Ядро не тронуто: фикс — `TERM` в окружении
+  `Bench.foreignClient`, отдельным планом.
 
 ## Post-Completion
 

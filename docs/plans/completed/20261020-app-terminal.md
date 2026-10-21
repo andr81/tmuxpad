@@ -252,14 +252,14 @@ InputPump}.swift` (create), `AppTests/{EchoTests,SwiftTermSurfaceTests,InputPump
 **Файлы:** `CLAUDE.md`, `docs/tmuxpad-spec.md` (§11 — отметки фаз 0 и 4), `docs/plans/
 20261020-app-terminal.md` (move).
 
-- [ ] `CLAUDE.md`: раскладка `App/Terminal`, `App/UI/Terminal`; инварианты «ввод из SwiftTerm
+- [x] `CLAUDE.md`: раскладка `App/Terminal`, `App/UI/Terminal`; инварианты «ввод из SwiftTerm
       идёт в ядро только через `InputPump` → `TerminalSession.input`, не через `send`», «один
       `TmuxTerminalView` на открытый терминал, не пересоздаётся при переключении», «SwiftTerm
       закреплён точной версией: при обновлении перепроверить колесо и `MouseReport`».
-- [ ] Спека §11: фаза 4 — отметить сделанное; фаза 0 — эхо-тест и PTY с `tmux attach` к
+- [x] Спека §11: фаза 4 — отметить сделанное; фаза 0 — эхо-тест и PTY с `tmux attach` к
       тестовой сессии с resize. Расхождения со спекой — правкой спеки.
-- [ ] Полный прогон Validation Commands; в progress-лог — число тестов.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Полный прогон Validation Commands; в progress-лог — число тестов.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
 
 ## Post-Completion
 

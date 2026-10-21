@@ -436,7 +436,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 3. `completed/20261020-core-ui-support.md` — логика для UI, которую можно тестировать без Apple-фреймворков: `MouseReport` и ввод терминала мимо `copy-cancel`, `SessionTree`, подсказка имени, `OpenSessionsRoster`, `TreeRefresher`; переносимость стенда на macOS. Linux или Mac.
 4. `completed/20261020-app-foundation.md` — Xcode-проект (XcodeGen), Keychain/Secure Enclave, хранилища, настройки ключей и серверов, «Проверить подключение», «Подготовить сервер», токен, журнал диагностики (фазы 0–2 в части приложения). Mac.
 5. `completed/20261020-app-sidebar.md` — `TreeModel`, сайдбар, мастера «Новая сессия» и «Подключиться», kill (фаза 3). Mac.
-6. `20261020-app-terminal.md` — `TerminalScreen` на SwiftTerm, открытые терминалы, клавиатура, скролл и чип, плашки (фаза 4). Mac.
+6. `completed/20261020-app-terminal.md` — `TerminalScreen` на SwiftTerm, открытые терминалы, клавиатура, скролл и чип, плашки (фаза 4). Mac.
 7. `20261020-app-lifecycle-release.md` — `scenePhase`, `NWPathMonitor`, восстановление открытых сессий, онбординг, настройки терминала, Face ID, README, UI-смоук, TestFlight (фазы 5–6). Mac.
 
 Фаза 7 (статус агента, v1.1) плана пока не имеет: её делают после того, как v1 поживёт на устройстве.
@@ -444,8 +444,8 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 Фазы ниже остаются картой требований; планы режут их по платформе сборки, а не по порядку.
 
 ### Фаза 0 — Спайки и проверка рисков · 2–3 дня
-- [ ] Пустой проект (XcodeGen), SwiftTerm `TerminalView` в `UIViewRepresentable`, локальный эхо-тест.
-- [ ] Citadel: подключение по Ed25519, exec `echo ok`, PTY-канал с `tmux attach` к тестовой сессии, resize.
+- [x] Пустой проект (XcodeGen), SwiftTerm `TerminalView` в `UIViewRepresentable`, локальный эхо-тест (планы 4 и 6, `EchoTests`).
+- [x] Citadel: подключение по Ed25519, exec `echo ok`, PTY-канал с `tmux attach` к тестовой сессии, resize (ядро против стенда — план 2; из приложения в симуляторе — `TerminalBenchTests`, план 6).
 - [ ] Secure Enclave P-256 ключ → вход на реальный сервер.
 - [ ] Проверить: аппаратная клавиатура (Esc, Ctrl, Option), скролл одним пальцем в tmux с `mouse on` (встроенный в SwiftTerm), OSC 52, поворот экрана.
 - [ ] Copy-mode: wheel-up пальцем входит в copy-mode, `copy-cancel` через exec выводит из него до того, как уходит ввод; измерить задержку первого символа после скролла.
@@ -487,11 +487,11 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 **Готово, когда:** весь сценарий из запроса работает до момента «открыть терминал».
 
 ### Фаза 4 — Терминал · 4–5 дней
-- [ ] `TerminalSession`: PTY-канал `attach NAME`, `window-change`, состояние (connecting / live / reconnecting / ended).
-- [ ] Кэш открытых терминалов, переключение `⌘1…9`, лимит и автодетач.
-- [ ] Панель над клавиатурой (Esc / Ctrl / Tab / стрелки), Option-as-Meta, перехват `⌘`-шорткатов.
-- [ ] Скролл пальцем → колесо мыши, выделение и копирование, OSC 52, pinch-zoom шрифта.
-- [ ] Плашки «Переподключение…», «Сессия завершена», «Отключено другим клиентом»; чип «Прокрутка» и `copy-cancel` перед первым вводом после скролла.
+- [x] `TerminalSession`: PTY-канал `attach NAME`, `window-change`, состояние (connecting / live / reconnecting / ended) — ядро (план 2), `OpenTerminal` и `SwiftTermSurface` (план 6).
+- [x] Кэш открытых терминалов, переключение `⌘1…9`, лимит и автодетач (план 6).
+- [x] Панель над клавиатурой (Esc / Ctrl / Tab / стрелки), Option-as-Meta, перехват `⌘`-шорткатов (план 6; `⌘`-шорткаты при фокусе в терминале проверяются руками на iPad).
+- [x] Скролл пальцем → колесо мыши, выделение и копирование, OSC 52, pinch-zoom шрифта (план 6).
+- [x] Плашки «Переподключение…», «Сессия завершена», «Отключено другим клиентом»; чип «Прокрутка» и `copy-cancel` перед первым вводом после скролла (план 6).
 
 **Готово, когда:** в claude внутри tmux комфортно работать час подряд с аппаратной и экранной клавиатурой.
 

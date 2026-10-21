@@ -144,9 +144,7 @@ struct ServerEditView: View {
     private func numberField(_ title: String, value: Binding<Int>, issue: String?) -> some View {
         VStack(alignment: .leading) {
             LabeledContent(title) {
-                TextField(title, value: value, format: .number.grouping(.never))
-                    .multilineTextAlignment(.trailing)
-                    .keyboardType(.numberPad)
+                NumberField(title: title, value: value)
             }
             issueText(issue)
         }
@@ -200,5 +198,29 @@ struct ServerEditView: View {
                 self.error = userText(error)
             }
         }
+    }
+}
+
+/// Числовое поле, которое пишет значение на каждое нажатие: `TextField(value:format:)` обновляет
+/// привязку только при Return или потере фокуса, и «Сохранить» видел бы прежнее число.
+/// Нечисловой текст даёт 0 — вне допустимых диапазонов порта и keepalive, поэтому форма покажет ошибку.
+private struct NumberField: View {
+    let title: String
+    @Binding var value: Int
+    @State private var text: String
+
+    init(title: String, value: Binding<Int>) {
+        self.title = title
+        _value = value
+        _text = State(initialValue: String(value.wrappedValue))
+    }
+
+    var body: some View {
+        TextField(title, text: $text)
+            .multilineTextAlignment(.trailing)
+            .keyboardType(.numberPad)
+            .onChange(of: text) { _, newText in
+                value = Int(newText) ?? 0
+            }
     }
 }

@@ -68,6 +68,7 @@ if [[ -n $use_bench ]]; then
 fi
 
 rm -rf "$RESULT"
+# SwiftTerm's build plugin (git info, terminfo table) needs approval; in Xcode it is one click.
 xcodebuild test -project TmuxPad.xcodeproj -scheme TmuxPad \
-	-destination "platform=iOS Simulator,id=$udid" \
+	-destination "platform=iOS Simulator,id=$udid" -skipPackagePluginValidation \
 	-resultBundlePath "$RESULT" -quiet ${args[@]+"${args[@]}"}

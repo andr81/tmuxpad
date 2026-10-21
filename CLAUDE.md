@@ -52,7 +52,7 @@ shellcheck -s bash host/tests/bench.sh TmuxPadCore/scripts/test.sh
 
 ```
 xcodegen generate
-xcodebuild build -project TmuxPad.xcodeproj -scheme TmuxPad -destination 'generic/platform=iOS Simulator' -quiet
+xcodebuild build -project TmuxPad.xcodeproj -scheme TmuxPad -destination 'generic/platform=iOS Simulator' -skipPackagePluginValidation -quiet  # флаг — build-плагин SwiftTerm
 scripts/ios-test.sh                                   # стенд + все AppTests в симуляторе
 scripts/ios-test.sh --no-bench                        # только юнит, без Docker
 scripts/ios-test.sh -only-testing:AppTests/ServerStoreTests

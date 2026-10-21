@@ -18,6 +18,9 @@ packages:
   swift-nio-ssh:
     url: https://github.com/Wellz26/swift-nio-ssh.git
     from: 0.3.4
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    exactVersion: 1.99.0
 targets:
   TmuxPad:
     type: application
@@ -28,6 +31,7 @@ targets:
       - package: swift-nio-ssh
         product: NIOSSH
       - package: Citadel
+      - package: SwiftTerm
     info:
       path: App/Info.plist
       properties:

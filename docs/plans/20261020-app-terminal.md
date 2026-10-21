@@ -207,13 +207,13 @@ swift test --package-path TmuxPadCore --skip IntegrationTests
 InputPump}.swift` (create), `AppTests/{EchoTests,SwiftTermSurfaceTests,InputPumpTests}.swift`
 (create).
 
-- [ ] `project.yml`: пакет `SwiftTerm` — `url: https://github.com/migueldeicaza/SwiftTerm`,
+- [x] `project.yml`: пакет `SwiftTerm` — `url: https://github.com/migueldeicaza/SwiftTerm`,
       `exactVersion: 1.99.0` (точная версия: поведение колеса — часть контракта §3.5, его не
       должно менять обновление); зависимость таргета `TmuxPad`. Сборка проходит.
-- [ ] `SwiftTermSurface` по решению 1, `InputPump` (поток ввода и потребитель) по решению 2,
+- [x] `SwiftTermSurface` по решению 1, `InputPump` (поток ввода и потребитель) по решению 2,
       `TmuxTerminalView` по решению 5, `TerminalDelegate` по решению 6.
-- [ ] `EchoTests`, `SwiftTermSurfaceTests`, `InputPumpTests` по решению 12.
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `EchoTests`, `SwiftTermSurfaceTests`, `InputPumpTests` по решению 12.
+- [x] `scripts/ios-test.sh --no-bench` проходит.
 
 ### Task 2: открытые терминалы и экран терминала
 

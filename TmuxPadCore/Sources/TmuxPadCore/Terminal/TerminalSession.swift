@@ -303,6 +303,7 @@ public actor TerminalSession {
 
     /// Соединение мертво: новый `attach` на каждое `.connected` пула, пока не выйдет. Пока пул
     /// переподключается — `.reconnecting` (§3.5), пул в `.failed` — `.offline` до явного запроса.
+    /// `.disconnected` — тоже `.offline`: само оно не переподключится (пул мог заменить соединение).
     private func transportLost(_ reason: String, _ current: Int) async {
         setState(.reconnecting)
         await record("connection lost: \(reason)")
@@ -321,9 +322,9 @@ public actor TerminalSession {
                     guard await self.retryAfterOffline(current) else {
                         return
                     }
-                case .failed:
+                case .failed, .disconnected:
                     await self.poolChanged(.offline(reason), current)
-                case .connecting, .reconnecting, .disconnected:
+                case .connecting, .reconnecting:
                     await self.poolChanged(.reconnecting, current)
                 }
             }

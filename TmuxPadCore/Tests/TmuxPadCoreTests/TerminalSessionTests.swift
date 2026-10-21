@@ -361,6 +361,18 @@ struct TerminalSessionTests {
         #expect(transport.lastConnection?.openedPTYs.count == 1)
     }
 
+    @Test func disconnectedPoolAfterDropIsOffline() async throws {
+        let transport = FakeTransport()
+        let (server, session, surface) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        // так заканчивается соединение, которое пул заменил: само оно не переподключится
+        await server.disconnect()
+        #expect(try await Bench.eventually { if case .offline = surface.states.last { true } else { false } })
+        try await server.connect()
+        #expect(try await surface.waitFor(.live))
+    }
+
     @Test func refusedChannelIsOfflineWithoutRetry() async throws {
         let transport = FakeTransport()
         let server = try ServerConnectionTests.make(transport, settings: PoolSettings(keepalive: .seconds(60), ptySlots: 0))

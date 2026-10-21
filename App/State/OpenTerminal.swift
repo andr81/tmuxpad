@@ -17,6 +17,8 @@ final class OpenTerminal {
         var snapshot: @MainActor (UUID) -> ServerSnapshot?
         var log: DiagnosticsLog?
         var defaults: UserDefaults
+        /// Шрифт всех открытых терминалов и pinch; без него — размер из `defaults`.
+        var appearance: TerminalAppearance? = nil
     }
 
     let key: OpenSessionKey
@@ -44,6 +46,7 @@ final class OpenTerminal {
         self.key = key
         self.dependencies = dependencies
         view = TmuxTerminalView(frame: Self.initialFrame, defaults: dependencies.defaults)
+        dependencies.appearance?.attach(view)
         project = dependencies.snapshot(key.serverID)?.sessions.first { $0.name == key.name }?.project
     }
 
@@ -89,6 +92,15 @@ final class OpenTerminal {
         guard let session = await ready() else {
             return
         }
+        await session.reconnect()
+    }
+
+    /// «Повторить» в офлайне: немедленная попытка пула и новый `attach`.
+    func retry() async {
+        guard let session = await ready() else {
+            return
+        }
+        await session.server.reconnectNow()
         await session.reconnect()
     }
 

@@ -1,10 +1,11 @@
 import SwiftUI
 import TmuxPadCore
 
-/// «server › project › session» над терминалом.
-struct TerminalHeader: View {
+/// «server › project › session» и `[⋯]` над терминалом.
+struct TerminalHeader<Menu: View>: View {
     let key: OpenSessionKey
     let project: String?
+    @ViewBuilder let menu: Menu
 
     @Environment(ServerStore.self) private var servers
 
@@ -17,6 +18,7 @@ struct TerminalHeader: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer()
+            menu
         }
         .padding(.horizontal)
         .padding(.vertical, 8)

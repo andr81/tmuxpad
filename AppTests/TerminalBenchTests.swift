@@ -74,6 +74,79 @@ final class TerminalBenchTests {
         await finish()
     }
 
+    @Test func wheelUpEntersCopyModeAndTypingLeavesIt() async throws {
+        let terminal = try await openLive("wheel")
+        try await waitUntil(timeout: .seconds(10)) { screenText(terminal.view).contains("dev@") }
+        #expect(try await paneInMode("wheel") == "0")
+        // SGR: колесо вверх в колонке 10, строке 5 — так его отдаёт SwiftTerm при `allowMouseReporting`
+        try type("\u{1b}[<64;10;5M", into: terminal)
+        try await waitUntil(timeout: .seconds(10)) { terminal.showsScrollChip }
+        #expect(terminal.showsScrollChip)
+        try await waitForExec { try await self.paneInMode("wheel") == "1" }
+        try type("x", into: terminal)
+        try await waitUntil(timeout: .seconds(10)) { !terminal.showsScrollChip }
+        #expect(!terminal.showsScrollChip)
+        try await waitForExec { try await self.paneInMode("wheel") == "0" }
+        await finish()
+    }
+
+    @Test func killFromOutsideEndsTerminal() async throws {
+        let terminal = try await openLive("doomed")
+        let killed = try await Bench.exec("tmux kill-session -t '=doomed'")
+        #expect(killed.exitCode == 0, "\(killed.stderrText)")
+        try await waitUntil(timeout: .seconds(15)) { terminal.state == .ended }
+        #expect(terminal.state == .ended)
+        await finish()
+    }
+
+    @Test func secondTakeByOtherDeviceWithinMinuteShowsBanner() async throws {
+        let terminal = try await openLive("shared")
+        // другое устройство: свой пул и свой `deviceID`
+        let otherDirectory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: otherDirectory) }
+        let other = try AppEnvironment.inMemory(directory: otherDirectory)
+        #expect(other.deviceID != env.deviceID)
+        let otherServer = try await Bench.preparedServer(in: other)
+        let otherKey = OpenSessionKey(serverID: otherServer.id, name: "shared")
+        other.openSessions.open(otherKey, take: true)
+        let taker = try #require(other.openSessions.terminals[otherKey])
+        try await waitUntil(timeout: .seconds(15)) { taker.state == .live }
+        // первое выбивание — молча: наш терминал подключается снова, рядом с чужим
+        try await waitForExec { try await self.clients("shared") == 2 }
+        try await waitUntil(timeout: .seconds(15)) { terminal.state == .live }
+        #expect(terminal.state == .live)
+        await taker.take()
+        try await waitUntil(timeout: .seconds(15)) { terminal.state == .disconnectedByOther }
+        #expect(terminal.state == .disconnectedByOther)
+        #expect(taker.state == .live)
+        other.openSessions.close(otherKey)
+        await other.pool.disconnectAll()
+        await finish()
+    }
+
+    private func paneInMode(_ name: String) async throws -> String {
+        let result = try await Bench.exec("tmux display -p -t '=\(name):' '#{pane_in_mode}'")
+        return result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Клиенты tmux, подключённые к сессии `name`.
+    private func clients(_ name: String) async throws -> Int {
+        let result = try await Bench.exec("tmux list-clients -t '=\(name)' -F '#{client_pid}'")
+        return result.stdoutText.split(separator: "\n").count
+    }
+
+    /// Опрос условия на стенде (каждый шаг — своё соединение `Bench.exec`).
+    private func waitForExec(timeout: Duration = .seconds(15), _ condition: () async throws -> Bool) async throws {
+        let deadline = ContinuousClock.now + timeout
+        while !(try await condition()) {
+            guard ContinuousClock.now < deadline else {
+                Issue.record("условие на стенде не выполнилось за \(timeout)")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+    }
+
     /// Пустое приглашение `dev@…$`: у первого в строке ещё команда запуска claude.
     private func promptReturned(_ terminal: OpenTerminal) -> Bool {
         lines(terminal).contains { $0.hasPrefix("dev@") && $0.hasSuffix("$") }

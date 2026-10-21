@@ -6,9 +6,23 @@ import UIKit
 final class TerminalContainerView: UIView {
     private(set) weak var current: TmuxTerminalView?
 
+    /// `false` при плашке: терминал отдаёт first responder и не получает его обратно.
+    var acceptsInput = true {
+        didSet {
+            if acceptsInput {
+                focus()
+            } else if let current, current.isFirstResponder {
+                _ = current.resignFirstResponder()
+            }
+        }
+    }
+
     func show(_ view: TmuxTerminalView?) {
         guard current !== view else {
             return
+        }
+        if let current, current.isFirstResponder {
+            _ = current.resignFirstResponder()
         }
         current?.removeFromSuperview()
         current = view
@@ -33,7 +47,7 @@ final class TerminalContainerView: UIView {
 
     /// Ввод — в текущий терминал; вне окна first responder не назначить.
     func focus() {
-        guard window != nil, let current, !current.isFirstResponder else {
+        guard acceptsInput, window != nil, let current, !current.isFirstResponder else {
             return
         }
         _ = current.becomeFirstResponder()

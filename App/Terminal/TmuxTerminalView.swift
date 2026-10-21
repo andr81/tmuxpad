@@ -56,7 +56,11 @@ final class TmuxTerminalView: TerminalView {
         fatalError("init(coder:) is not supported")
     }
 
+    /// Тот же размер не трогает `font`: его установка пересчитывает сетку.
     func setFontSize(_ size: Int) {
+        guard font.pointSize != CGFloat(size) else {
+            return
+        }
         font = TerminalSettings.font(size: size)
     }
 

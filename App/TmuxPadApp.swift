@@ -36,5 +36,15 @@ struct TmuxPadApp: App {
                 Color.clear
             }
         }
+        .commands {
+            SessionCommands(env: environment)
+        }
+    }
+
+    private var environment: AppEnvironment? {
+        if case let .ready(env) = startup {
+            return env
+        }
+        return nil
     }
 }

@@ -236,15 +236,16 @@ InputPump}.swift` (create), `AppTests/{EchoTests,SwiftTermSurfaceTests,InputPump
 `App/UI/Terminal/TerminalScreen.swift`, `App/TmuxPadApp.swift`,
 `AppTests/TerminalBenchTests.swift`, `AppTests/TerminalAppearanceTests.swift` (create).
 
-- [ ] Чип «Прокрутка ✕» по решению 8 и плашки по решению 9; блокировка ввода при плашке.
-- [ ] Меню `[⋯]` по решению 10; «Создать заново» — `OpenTerminal.recreate()`.
-- [ ] `TerminalAppearance` и pinch по решению 7; `TerminalAppearanceTests` — изменение размера
+- [x] Чип «Прокрутка ✕» по решению 8 и плашки по решению 9; блокировка ввода при плашке.
+- [x] Меню `[⋯]` по решению 10; «Создать заново» — `OpenTerminal.recreate()`.
+- [x] `TerminalAppearance` и pinch по решению 7; `TerminalAppearanceTests` — изменение размера
       доходит до всех открытых `TmuxTerminalView` и сохраняется в `UserDefaults` (тестовый
       `suiteName`).
-- [ ] Шорткаты по решению 11 (без автотеста: проверка — Post-Completion).
-- [ ] В `TerminalBenchTests` — колесо и чип, `kill` извне → `.ended`, двойной `take` чужим
+- [x] Шорткаты по решению 11 (без автотеста: проверка — Post-Completion; состояние мастеров и
+      сайдбара — в `AppNavigation`, листы мастеров — в `RootView`).
+- [x] В `TerminalBenchTests` — колесо и чип, `kill` извне → `.ended`, двойной `take` чужим
       UUID → `.disconnectedByOther`.
-- [ ] `scripts/ios-test.sh` проходит.
+- [x] `scripts/ios-test.sh` проходит.
 
 ### Task 4: документация, полный прогон, завершение
 

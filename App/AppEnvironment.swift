@@ -34,6 +34,8 @@ final class AppEnvironment {
     let openSessions: OpenSessionsModel
     let tree: TreeModel
     let actions: SessionActions
+    let appearance: TerminalAppearance
+    let navigation = AppNavigation()
 
     init(
         deviceID: UUID,
@@ -71,11 +73,13 @@ final class AppEnvironment {
             openSessions: openSessions,
             tree: tree
         )
+        appearance = TerminalAppearance(defaults: defaults)
         let dependencies = OpenTerminal.Dependencies(
             connection: { [unowned actions = self.actions] in try await actions.terminalConnection(serverID: $0) },
             snapshot: { [unowned tree = self.tree] in tree.states[$0]?.snapshot },
             log: log,
-            defaults: defaults
+            defaults: defaults,
+            appearance: appearance
         )
         openSessions.makeTerminal = { OpenTerminal(key: $0, dependencies: dependencies) }
     }
@@ -138,5 +142,7 @@ extension View {
             .environment(env.diagnostics)
             .environment(env.tree)
             .environment(env.openSessions)
+            .environment(env.appearance)
+            .environment(env.navigation)
     }
 }

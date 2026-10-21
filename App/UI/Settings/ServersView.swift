@@ -57,6 +57,7 @@ struct ServersView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Добавить сервер", systemImage: "plus", action: add)
+                    .accessibilityIdentifier("servers.add")
             }
             ToolbarItem(placement: .secondaryAction) {
                 EditButton()

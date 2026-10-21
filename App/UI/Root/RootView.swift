@@ -26,6 +26,7 @@ struct RootView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .keyboardShortcut(",", modifiers: .command)
+                    .accessibilityIdentifier("root.settings")
                     .padding()
                     .background(.bar)
                 }

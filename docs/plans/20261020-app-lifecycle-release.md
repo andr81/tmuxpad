@@ -239,11 +239,11 @@ ServerCheckView}.swift` (режим онбординга), `AppTests/OnboardingS
 `README.md` (create), `project.yml` (таргет `AppUITests`), `AppUITests/SmokeUITests.swift`
 (create), контролы с `accessibilityIdentifier` в `App/UI/**`.
 
-- [ ] Иконка по решению 7: `swift scripts/make-icon.swift App/Resources/Assets.xcassets/
+- [x] Иконка по решению 7: `swift scripts/make-icon.swift App/Resources/Assets.xcassets/
       AppIcon.appiconset/icon-1024.png`; `Contents.json` single-size; сборка без
       предупреждений актива.
-- [ ] `README.md` по решению 8.
-- [ ] `AppUITests` по решению 9; `scripts/ios-test.sh -only-testing:AppUITests` проходит.
+- [x] `README.md` по решению 8.
+- [x] `AppUITests` по решению 9; `scripts/ios-test.sh -only-testing:AppUITests` проходит.
 
 ### Task 6: документация, полный прогон, завершение
 

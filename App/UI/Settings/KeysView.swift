@@ -26,6 +26,7 @@ struct KeysView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .accessibilityIdentifier("keys.row")
                 }
                 if keys.keys.isEmpty {
                     ContentUnavailableView("Ключей нет", systemImage: "key", description: Text("Создайте ключ или импортируйте свой"))
@@ -42,10 +43,12 @@ struct KeysView: View {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button("Создать", systemImage: "plus") { sheet = .create }
+                        .accessibilityIdentifier("keys.create")
                     Button("Импортировать", systemImage: "square.and.arrow.down") { sheet = .importKey }
                 } label: {
                     Label("Добавить", systemImage: "plus")
                 }
+                .accessibilityIdentifier("keys.add")
             }
         }
         .sheet(item: $sheet) { sheet in

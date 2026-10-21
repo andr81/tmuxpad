@@ -31,6 +31,7 @@ struct KeyDetailView: View {
                 Text(key.publicKeyOpenSSH)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
+                    .accessibilityIdentifier("keyDetail.publicKey")
                 Button("Скопировать", systemImage: "doc.on.doc") {
                     UIPasteboard.general.string = key.publicKeyOpenSSH
                 }

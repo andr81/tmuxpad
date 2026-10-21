@@ -28,10 +28,10 @@ struct ServerEditView: View {
     var body: some View {
         Form {
             Section {
-                field("Название", text: $draft.label, issue: labelIssue)
-                field("Адрес", text: $draft.host, issue: coreIssue("host is empty"), prompt: "IP или DNS")
+                field("Название", text: $draft.label, issue: labelIssue, id: "serverEdit.label")
+                field("Адрес", text: $draft.host, issue: coreIssue("host is empty"), prompt: "IP или DNS", id: "serverEdit.host")
                 numberField("Порт", value: $draft.port, issue: coreIssue("port must be 1...65535"))
-                field("Пользователь", text: $draft.user, issue: coreIssue("user must be non-empty without spaces"))
+                field("Пользователь", text: $draft.user, issue: coreIssue("user must be non-empty without spaces"), id: "serverEdit.user")
             }
             Section {
                 Picker("Ключ", selection: $draft.keyID) {
@@ -84,6 +84,7 @@ struct ServerEditView: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Сохранить", action: save)
                     .disabled(!canSave)
+                    .accessibilityIdentifier("serverEdit.save")
             }
         }
         .confirmationDialog("Сбросить отпечаток?", isPresented: $confirmReset, titleVisibility: .visible) {
@@ -135,13 +136,15 @@ struct ServerEditView: View {
 
     // MARK: - Поля
 
-    private func field(_ title: String, text: Binding<String>, issue: String?, prompt: String? = nil) -> some View {
+    /// `id` — `accessibilityIdentifier` поля для `AppUITests`.
+    private func field(_ title: String, text: Binding<String>, issue: String?, prompt: String? = nil, id: String? = nil) -> some View {
         VStack(alignment: .leading) {
             LabeledContent(title) {
                 TextField(title, text: text, prompt: prompt.map { Text($0) })
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+                    .accessibilityIdentifier(id ?? title)
             }
             issueText(issue)
         }

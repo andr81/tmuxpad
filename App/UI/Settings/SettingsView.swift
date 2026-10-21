@@ -18,6 +18,7 @@ struct SettingsView: View {
                         Label("Серверы", systemImage: "server.rack")
                     }
                 }
+                .accessibilityIdentifier("settings.servers")
                 NavigationLink {
                     KeysView()
                 } label: {
@@ -27,6 +28,7 @@ struct SettingsView: View {
                         Label("Ключи", systemImage: "key")
                     }
                 }
+                .accessibilityIdentifier("settings.keys")
                 NavigationLink {
                     TerminalSettingsView()
                 } label: {

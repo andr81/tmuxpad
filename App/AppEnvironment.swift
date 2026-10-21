@@ -21,6 +21,7 @@ final class AppEnvironment {
     let bootstrap: HostBootstrap
     let servers: ServerStore
     let keys: KeyLibrary
+    let diagnostics: DiagnosticsModel
 
     init(
         deviceID: UUID,
@@ -37,6 +38,7 @@ final class AppEnvironment {
         self.defaults = defaults
         let log = DiagnosticsLog()
         self.log = log
+        diagnostics = DiagnosticsModel(log: log)
         pool = ConnectionPool(transport: CitadelTransport(log: log), hostKeys: hostKeys, deviceID: deviceID, log: log)
         bootstrap = try HostBootstrap()
         servers = try ServerStore(file: serversFile, pool: pool, hostKeys: hostKeys)
@@ -92,5 +94,6 @@ extension View {
         environment(\.appEnvironment, env)
             .environment(env.servers)
             .environment(env.keys)
+            .environment(env.diagnostics)
     }
 }

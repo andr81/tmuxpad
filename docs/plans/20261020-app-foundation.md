@@ -438,16 +438,20 @@ ServersView,ServerEditView,QRCodeView}.swift` (create), `App/UI/Root/RootView.sw
 **Файлы:** `App/State/DiagnosticsModel.swift`, `App/UI/Settings/DiagnosticsView.swift` (create),
 `App/UI/Settings/SettingsView.swift`, `AppTests/DiagnosticsModelTests.swift` (create).
 
-- [ ] `DiagnosticsModel` по решению 10: создаётся в `AppEnvironment`, одна подписка на
+- [x] `DiagnosticsModel` по решению 10: создаётся в `AppEnvironment`, одна подписка на
       `log.updates` на всё время жизни; не больше `DiagnosticsLog.defaultCapacity` событий в
       памяти модели.
-- [ ] `DiagnosticsView` по решению 11: строки новые сверху, время `HH:mm:ss`, значок по
+- [x] `DiagnosticsView` по решению 11: строки новые сверху, время `HH:mm:ss`, значок по
       `Kind`; фильтр по серверу (`Picker`, «Все»); `ShareLink(item: model.exportText())`;
       «Очистить» не делается (журнал кольцевой).
-- [ ] `DiagnosticsModelTests`: событие, записанное в журнал после создания модели,
+- [x] `DiagnosticsModelTests`: событие, записанное в журнал после создания модели,
       появляется в ней; после закрытия и повторного открытия экрана новые события по-прежнему
       приходят.
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `scripts/ios-test.sh --no-bench` проходит.
+- Заметки исполнения: модель не берёт снимок `log.events()`: `updates` буферизует события с
+  создания журнала (`bufferingNewest(capacity)`), и единственный потребитель получает их все;
+  снимок задвоил бы события, записанные до старта подписки. `exportText(server:)` и
+  «Поделиться» учитывают выбранный фильтр.
 
 ### Task 7: документация, полный прогон, завершение
 

@@ -28,8 +28,7 @@ struct SettingsView: View {
                     }
                 }
                 NavigationLink {
-                    ContentUnavailableView("Журнал пока пуст", systemImage: "list.bullet.rectangle")
-                        .navigationTitle("Диагностика")
+                    DiagnosticsView()
                 } label: {
                     Label("Диагностика", systemImage: "stethoscope")
                 }

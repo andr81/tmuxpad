@@ -174,6 +174,11 @@ final class ServerCheckBenchTests {
         try await env.servers.resetFingerprint(id: server.id)
         await again.check().value
         #expect(again.state == .trustPrompt(fingerprint: fingerprint))
+        #expect(try await env.hostKeys.fingerprint(for: server.host, port: server.port) == nil)
+
+        // ядро на живом соединении ключ не пересохраняет: это делает «Доверять»
+        await again.trust().value
+        #expect(try await env.hostKeys.fingerprint(for: server.host, port: server.port) == fingerprint)
         await finish()
     }
 }

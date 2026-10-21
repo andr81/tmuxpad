@@ -95,7 +95,7 @@ final class ServerCheckModel {
         }
         let next = pending
         return start(.checkingScript) { model in
-            guard model.store(fingerprint: fingerprint), let connection = model.connection else {
+            guard await model.store(fingerprint: fingerprint), let connection = model.connection else {
                 return
             }
             switch next {
@@ -213,20 +213,28 @@ final class ServerCheckModel {
         // копия сервера: этот ключ уже подтверждён для того же адреса, конфиг догоняет без
         // вопроса, иначе `TreeRefresher` не опрашивал бы копию
         if env.servers.isConfirmedElsewhere(fingerprint, for: config) {
-            return store(fingerprint: fingerprint) ? connection : nil
+            return await store(fingerprint: fingerprint) ? connection : nil
         }
         pending = next
         state = .trustPrompt(fingerprint: fingerprint)
         return nil
     }
 
-    private func store(fingerprint: String) -> Bool {
-        guard var config else {
+    /// Отпечаток пишется и в `HostKeyStore`: если «Сбросить отпечаток» прошёл при живом
+    /// соединении, ядро его не пересохранит, и при переподключении любой ключ сошёл бы за
+    /// первый увиденный.
+    private func store(fingerprint: String) async -> Bool {
+        guard let host = config?.host, let port = config?.port else {
             state = .failed("Сервер удалён")
             return false
         }
-        config.hostKeyFingerprint = fingerprint
         do {
+            try await env.hostKeys.save(fingerprint, for: host, port: port)
+            guard var config else {
+                state = .failed("Сервер удалён")
+                return false
+            }
+            config.hostKeyFingerprint = fingerprint
             try env.servers.update(config)
             return true
         } catch {

@@ -107,6 +107,19 @@ struct NewSessionFlowTests {
         #expect(flow.nameIssue(snapshot: snapshot(sessions: [])) == nil)
     }
 
+    @Test func serverChangeForgetsNewOutcomes() {
+        var flow = NewSessionFlow(servers: [first, second])
+        flow.selectServer(first.id)
+        flow.selectProject("api")
+        flow.apply(.conflict)
+        flow.apply(.invalid("bad project"))
+        flow.selectServer(second.id)
+        flow.selectProject("api")
+        #expect(flow.nameIssue(snapshot: snapshot(sessions: [])) == nil)
+        #expect(flow.serverIssue == nil)
+        #expect(flow.canCreate(snapshot: snapshot(sessions: [])))
+    }
+
     @Test func invalidOutcomeClearsOnEdit() {
         var flow = NewSessionFlow(servers: [first])
         flow.selectProject("api")

@@ -66,10 +66,12 @@ struct NewSessionFlow: Equatable {
         return steps[index + 1]
     }
 
-    /// Смена сервера сбрасывает проект: у другого сервера свои папки.
+    /// Смена сервера сбрасывает проект и ответы `new`: у другого сервера свои папки и сессии.
     mutating func selectServer(_ id: UUID) {
         if serverID != id {
             project = nil
+            takenNames = []
+            serverIssue = nil
         }
         serverID = id
     }

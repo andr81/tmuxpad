@@ -293,24 +293,24 @@ shellcheck -s bash scripts/ios-test.sh
 (create), `App/Resources/Assets.xcassets` (create: `AccentColor`, пустой `AppIcon`),
 `AppTests/SmokeTests.swift` (create), `scripts/ios-test.sh` (create), `.gitignore`, `CLAUDE.md`.
 
-- [ ] `project.yml` по решению 2. Проверка: `xcodegen generate` создаёт
+- [x] `project.yml` по решению 2. Проверка: `xcodegen generate` создаёт
       `TmuxPad.xcodeproj`, `xcodebuild build … -destination 'generic/platform=iOS Simulator'`
       проходит; `NIOSSH` разрешился в ту же версию, что в `TmuxPadCore/Package.resolved`
       (сверить `Package.resolved` внутри `TmuxPad.xcodeproj/project.xcworkspace/xcshareddata/
       swiftpm/`).
-- [ ] `App/TmuxPadApp.swift`: `@main struct TmuxPadApp: App` с одной `WindowGroup { RootView() }`;
+- [x] `App/TmuxPadApp.swift`: `@main struct TmuxPadApp: App` с одной `WindowGroup { RootView() }`;
       `App/UI/Root/RootView.swift`: `NavigationSplitView` с пустым сайдбаром «Серверы» и
       деталью «Выберите сессию».
-- [ ] `.gitignore`: `TmuxPad.xcodeproj/`, `App/Info.plist` (генерирует XcodeGen), `build/`,
+- [x] `.gitignore`: `TmuxPad.xcodeproj/`, `App/Info.plist` (генерирует XcodeGen), `build/`,
       `DerivedData/`, `*.xcresult`.
-- [ ] `scripts/ios-test.sh` по решению 14, `chmod +x`; `shellcheck -s bash` чист.
-- [ ] `AppTests/SmokeTests.swift`: `@Test func appEnvironmentBuilds()` — пока проверяет, что
+- [x] `scripts/ios-test.sh` по решению 14, `chmod +x`; `shellcheck -s bash` чист.
+- [x] `AppTests/SmokeTests.swift`: `@Test func appEnvironmentBuilds()` — пока проверяет, что
       `TmuxPadCore` импортируется и `HostScript.version >= 1` (ресурс пакета доступен из
       приложения).
-- [ ] `CLAUDE.md`, «Состояние репозитория»: появилось приложение; команды из Validation
+- [x] `CLAUDE.md`, «Состояние репозитория»: появилось приложение; команды из Validation
       Commands; требования Mac (Xcode 26, xcodegen, coreutils, Docker); правило «проект
       генерируется, `TmuxPad.xcodeproj` не коммитить».
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `scripts/ios-test.sh --no-bench` проходит.
 
 ### Task 2: Keychain, Secure Enclave, JSON-файлы, UUID устройства
 

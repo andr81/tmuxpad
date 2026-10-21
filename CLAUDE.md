@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Состояние репозитория
 
-Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2) вместе с логикой для State без view (план 3). Приложения и `project.yml` ещё нет (план 4 `app-foundation`, на Mac); когда появятся, добавь сюда реальные команды сборки. Не выдумывай их заранее.
+Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2) вместе с логикой для State без view (план 3). Приложение `TmuxPad` строится планом 4 `app-foundation` (только на Mac): `project.yml` (XcodeGen), `App/`, `AppTests/`, `scripts/ios-test.sh`.
 
 Раскладка `host/`:
 - `host/tmuxpad-host.sh` — сам скрипт; `host/README.md` — подкоманды, коды выхода, форматы, файлы состояния;
@@ -38,6 +38,19 @@ shellcheck -s bash host/tests/bench.sh TmuxPadCore/scripts/test.sh
 ```
 
 `host/tests/bench.sh` и `TmuxPadCore/scripts/test.sh` идут и под системным bash 3.2 macOS без GNU coreutils: без `mapfile`, `declare -A`, `${v,,}`, `readlink -f`, `stat -c`, `timeout` — только через `with_timeout`. `bash -n` из bash 5 этого не ловит, проверка — `docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n host/tests/bench.sh` (и то же для `test.sh`). `run.sh` и `lib.sh` — только Linux.
+
+Приложение собирается и тестируется только на Mac: Xcode 26, `brew install xcodegen coreutils`, Docker Desktop или OrbStack (для стенда), симулятор iPad с iOS 17+. `TmuxPad.xcodeproj` генерирует `xcodegen generate` из `project.yml` и не коммитится (он в `.gitignore`, как и `App/Info.plist`); правки проекта — только в `project.yml`. `scripts/ios-test.sh` сам вызывает `xcodegen generate`, выбирает симулятор (`TMUXPAD_SIM` — UDID или имя, иначе первый iPad), поднимает стенд, если не передан `--no-bench`, и передаёт лишние аргументы в `xcodebuild test`; результат — `build/TestResults.xcresult`. `AppTests` не зависит от `TmuxPadCore` напрямую (модуль виден через приложение-хост): прямая зависимость ломает линковку пакетных фреймворков.
+
+```
+xcodegen generate
+xcodebuild build -project TmuxPad.xcodeproj -scheme TmuxPad -destination 'generic/platform=iOS Simulator' -quiet
+scripts/ios-test.sh                                   # стенд + все AppTests в симуляторе
+scripts/ios-test.sh --no-bench                        # только юнит, без Docker
+scripts/ios-test.sh -only-testing:AppTests/ServerStoreTests
+shellcheck -s bash scripts/ios-test.sh
+```
+
+`scripts/ios-test.sh` тоже идёт под bash 3.2 macOS (те же ограничения, что у `bench.sh`). Предупреждения сборки в коде приложения — ошибка; предупреждения внутри зависимостей (`… is missing a dependency on …` у NIO) не считаются.
 
 Решения, которые меняют поведение, сначала вносятся в спеку, потом в код.
 

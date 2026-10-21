@@ -4,3 +4,8 @@
 TmuxPadCore/.build/
 TmuxPadCore/.swiftpm/
 host/tests/.bench/
+TmuxPad.xcodeproj/
+App/Info.plist
+build/
+DerivedData/
+*.xcresult

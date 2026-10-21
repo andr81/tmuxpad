@@ -161,6 +161,24 @@ struct LifecycleCoordinatorTests {
         #expect(targets.calls.count == 2)
     }
 
+    @Test func returnDuringQueuedCloseEndsTask() async throws {
+        // таймер не успевает: вторую задачу заканчивает только истечение
+        let coordinator = LifecycleCoordinator(targets: targets, log: log, backgroundTasks: tasks, closeDelay: .seconds(60))
+        let first = UIBackgroundTaskIdentifier(rawValue: 1)
+        coordinator.scenePhaseChanged(.background)
+        coordinator.networkChanged("wifi → cellular")
+        // `disconnectAll` ещё в очереди
+        coordinator.scenePhaseChanged(.active)
+        #expect(tasks.ended == [first])
+        coordinator.scenePhaseChanged(.background)
+        #expect(tasks.begun == 2)
+        try await waitUntil { targets.calls.contains(.disconnectAll) }
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(tasks.ended == [first])
+        tasks.expiration?()
+        #expect(tasks.ended == [first, UIBackgroundTaskIdentifier(rawValue: 2)])
+    }
+
     @Test func networkChangeIgnoredWhileClosed() async throws {
         coordinator.scenePhaseChanged(.background)
         try await waitUntil { coordinator.closed && targets.calls.count == 2 }

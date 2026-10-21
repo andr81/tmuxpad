@@ -173,7 +173,8 @@ final class LifecycleCoordinator {
         guard !closed, closeTimer == nil else {
             return
         }
-        // по истечении задачу нужно закончить сразу, не дожидаясь `disconnectAll`
+        // по истечении задачу нужно закончить сразу, не дожидаясь `disconnectAll`; живая задача
+        // всегда текущая: `becomeActive` заканчивает её, новая начинается только без неё
         backgroundTask = backgroundTasks.begin { [weak self] in
             self?.closeConnections()
             self?.endBackgroundTask(self?.backgroundTask ?? .invalid)
@@ -197,11 +198,11 @@ final class LifecycleCoordinator {
             launched = true
             onLaunch?()
         }
-        if let closeTimer {
-            closeTimer.cancel()
-            self.closeTimer = nil
-            endBackgroundTask(backgroundTask)
-        }
+        closeTimer?.cancel()
+        closeTimer = nil
+        // в `.active` фоновая задача не нужна, даже если `disconnectAll` ещё в очереди: иначе
+        // следующий уход в фон начал бы свою поверх незаконченной
+        endBackgroundTask(backgroundTask)
         inBackground = false
         let reconnect = closed || locked == true
         if closed {

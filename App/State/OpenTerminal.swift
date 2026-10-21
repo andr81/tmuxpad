@@ -16,9 +16,10 @@ final class OpenTerminal {
         /// Последний снимок сервера из дерева: проект сессии для «Создать заново».
         var snapshot: @MainActor (UUID) -> ServerSnapshot?
         var log: DiagnosticsLog?
-        var defaults: UserDefaults
-        /// Шрифт всех открытых терминалов и pinch.
+        /// Настройки всех открытых терминалов и pinch.
         var appearance: TerminalAppearance
+        /// Face ID перед «Повторить» (`LifecycleCoordinator.unlock`); отказ — терминал не трогаем.
+        var unlock: @MainActor () async -> Bool = { true }
     }
 
     let key: OpenSessionKey
@@ -49,7 +50,7 @@ final class OpenTerminal {
     init(key: OpenSessionKey, dependencies: Dependencies) {
         self.key = key
         self.dependencies = dependencies
-        view = TmuxTerminalView(frame: Self.initialFrame, defaults: dependencies.defaults)
+        view = TmuxTerminalView(frame: Self.initialFrame)
         dependencies.appearance.attach(view)
         project = dependencies.snapshot(key.serverID)?.sessions.first { $0.name == key.name }?.project
     }
@@ -113,7 +114,7 @@ final class OpenTerminal {
 
     /// «Повторить» в офлайне: немедленная попытка пула и новый `attach`.
     func retry() async {
-        guard let session = await ready() else {
+        guard await dependencies.unlock(), let session = await ready() else {
             return
         }
         await session.server.reconnectNow()

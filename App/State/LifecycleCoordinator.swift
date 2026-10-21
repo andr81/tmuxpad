@@ -33,19 +33,32 @@ struct SystemBackgroundTasks: BackgroundTasks {
     }
 }
 
+/// Face ID выключен или тесты без него: всегда открыто.
+struct NoKeyUnlock: KeyUnlocking {
+    func authenticate() async throws {}
+    func lock() async {}
+}
+
 /// Единственное место, которое реагирует на `scenePhase` и смену сети (§6). Уход в фон —
 /// соединения закрываются через `closeDelay`, возврат раньше ничего не рвёт; возврат после
-/// разрыва — `reconnectAll`, терминалы переоткрывают `attach` сами (ядро).
+/// разрыва — `reconnectAll`, терминалы переоткрывают `attach` сами (ядро). С Face ID (§8)
+/// запуск и возврат из фона сначала ждут `authenticate()`; отказ оставляет соединения и опрос
+/// дерева выключенными до `unlock()` («Повторить» у терминала).
 @MainActor
 final class LifecycleCoordinator {
     static let logServer = "app"
 
     private let targets: any LifecycleTargets
+    private let unlocker: any KeyUnlocking
     private let backgroundTasks: any BackgroundTasks
     private let log: DiagnosticsLog
     private let closeDelay: Duration
     /// Соединения закрыты уходом в фон; сбрасывается возвратом в `.active`.
     private(set) var closed = false
+    /// Face ID отклонён: отложенное действие возврата ждёт `unlock()`; `true` — с переподключением.
+    private(set) var locked: Bool?
+    /// До первого `.active` и после ухода в фон ключ снова закрыт.
+    private var needsUnlock = true
     /// Первый `.active` после запуска — восстановление открытых сессий; ставит `AppEnvironment.live()`.
     var onLaunch: (@MainActor () -> Void)?
     private var launched = false
@@ -58,11 +71,13 @@ final class LifecycleCoordinator {
     init(
         targets: any LifecycleTargets,
         log: DiagnosticsLog,
+        unlocker: any KeyUnlocking = NoKeyUnlock(),
         backgroundTasks: any BackgroundTasks = SystemBackgroundTasks(),
         closeDelay: Duration = .seconds(25)
     ) {
         self.targets = targets
         self.log = log
+        self.unlocker = unlocker
         self.backgroundTasks = backgroundTasks
         self.closeDelay = closeDelay
     }
@@ -87,7 +102,7 @@ final class LifecycleCoordinator {
     /// фоном, событие игнорируется — возврат и так переподключит.
     @discardableResult
     func networkChanged(_ description: String) -> Task<Void, Never>? {
-        guard !closed else {
+        guard !closed, locked == nil else {
             record("network changed: \(description), ignored in background")
             return nil
         }
@@ -98,7 +113,27 @@ final class LifecycleCoordinator {
         }
     }
 
+    /// Face ID и отложенное действие возврата, если его отклонили раньше. `false` — снова отказ.
+    func unlock() async -> Bool {
+        do {
+            try await unlocker.authenticate()
+        } catch {
+            record("key unlock denied")
+            return false
+        }
+        if let reconnect = locked {
+            locked = nil
+            await enqueue { targets in
+                await Self.resume(targets, reconnect: reconnect)
+            }.value
+        }
+        return true
+    }
+
     private func enterBackground() {
+        needsUnlock = true
+        let unlocker = unlocker
+        enqueue { _ in await unlocker.lock() }
         guard !closed, closeTimer == nil else {
             return
         }
@@ -131,16 +166,41 @@ final class LifecycleCoordinator {
             self.closeTimer = nil
             endBackgroundTask()
         }
-        guard closed else {
-            return enqueue { $0.startTree() }
+        let reconnect = closed || locked == true
+        if closed {
+            closed = false
+            record("foreground reconnect")
         }
-        closed = false
-        record("foreground reconnect")
-        return enqueue { targets in
-            await targets.reconnectAll(force: false)
+        let unlock = needsUnlock
+        needsUnlock = false
+        let unlocker = unlocker
+        return enqueue { [weak self] targets in
+            // отказ раньше: дерево без ключа спрашивало бы Face ID на каждом тике
+            guard let self, locked == nil || unlock else {
+                return
+            }
+            if unlock {
+                do {
+                    try await unlocker.authenticate()
+                } catch {
+                    locked = reconnect
+                    record("key unlock denied")
+                    return
+                }
+                locked = nil
+            }
+            await Self.resume(targets, reconnect: reconnect)
+        }
+    }
+
+    private static func resume(_ targets: any LifecycleTargets, reconnect: Bool) async {
+        guard reconnect else {
             targets.startTree()
-            await targets.refreshTree()
+            return
         }
+        await targets.reconnectAll(force: false)
+        targets.startTree()
+        await targets.refreshTree()
     }
 
     private func closeConnections() {

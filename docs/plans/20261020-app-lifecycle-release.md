@@ -212,15 +212,15 @@ shellcheck -s bash scripts/ios-test.sh
 `App/Terminal/TmuxTerminalView.swift`, `App/AppEnvironment.swift`, `App/TmuxPadApp.swift`,
 `project.yml`, `AppTests/{TerminalSettingsTests,KeyUnlockerTests}.swift` (create).
 
-- [ ] Раздел «Терминал» по решению 5; `TerminalAppearance` хранит и рассылает все параметры
+- [x] Раздел «Терминал» по решению 5; `TerminalAppearance` хранит и рассылает все параметры
       (шрифт, размер, тема, Option = Meta, звук); `TmuxTerminalView` применяет их без
       пересоздания.
-- [ ] Тема приложения — `preferredColorScheme` на корне по настройке.
-- [ ] Face ID по решению 6: настройка в разделе «Ключи»; `KeyUnlocker` за протоколом
+- [x] Тема приложения — `preferredColorScheme` на корне по настройке.
+- [x] Face ID по решению 6: настройка в разделе «Ключи»; `KeyUnlocker` за протоколом
       (`authenticate() async throws`), в тестах — фейк; `KeyUnlockerTests` — второе
       обращение не спрашивает, после `.background` спрашивает снова, отказ → ошибка.
-- [ ] `TerminalSettingsTests` — смена каждого параметра доходит до открытого терминала.
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `TerminalSettingsTests` — смена каждого параметра доходит до открытого терминала.
+- [x] `scripts/ios-test.sh --no-bench` проходит.
 
 ### Task 4: онбординг
 

@@ -36,6 +36,7 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: TmuxPad
+        NSFaceIDUsageDescription: Face ID защищает доступ к SSH-ключам, если это включено в настройках.
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UILaunchScreen: {}

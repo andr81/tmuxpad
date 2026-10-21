@@ -14,6 +14,8 @@ enum AppError: Error, Equatable {
     case projectNotFound(String)
     /// «Создать заново»: проект сессии неизвестен — её не было в снимке, когда её открыли.
     case projectUnknown
+    /// Face ID для ключа не пройден (§8).
+    case biometricsDenied
 }
 
 /// Composition root: неизменяемые зависимости и модели State. Создаётся один раз при запуске.
@@ -35,6 +37,8 @@ final class AppEnvironment {
     let tree: TreeModel
     let actions: SessionActions
     let appearance: TerminalAppearance
+    let security: SecurityPreferences
+    let unlocker: any KeyUnlocking
     let navigation = AppNavigation()
     let lifecycle: LifecycleCoordinator
     /// Запускается только в `live()`: тесты сеть не слушают.
@@ -48,7 +52,8 @@ final class AppEnvironment {
         hostKeys: any HostKeyStore,
         defaults: UserDefaults,
         serversFile: JSONFileStore<[ServerConfig]>,
-        treeInterval: Duration = .seconds(10)
+        treeInterval: Duration = .seconds(10),
+        biometricPrompt: any BiometricPrompt = DeviceOwnerPrompt()
     ) throws {
         self.deviceID = deviceID
         self.keyStore = keyStore
@@ -59,12 +64,26 @@ final class AppEnvironment {
         diagnostics = DiagnosticsModel(log: log)
         pool = ConnectionPool(transport: CitadelTransport(log: log), hostKeys: hostKeys, deviceID: deviceID, log: log)
         bootstrap = try HostBootstrap()
+        security = SecurityPreferences(defaults: defaults)
+        let cache = KeyCache()
+        // `UserDefaults` потокобезопасен, но не помечен `Sendable`
+        nonisolated(unsafe) let settings = defaults
+        let unlocker = KeyUnlocker(
+            prompt: biometricPrompt,
+            isRequired: { settings.bool(forKey: SecuritySettings.requireBiometricsKey) },
+            onLock: { await cache.clear() }
+        )
+        self.unlocker = unlocker
+        let auth: @Sendable (ServerConfig) async throws -> SSHAuth = { config in
+            try await Self.auth(for: config, keyStore: keyStore, cache: cache, unlocker: unlocker)
+        }
+        authorize = auth
         servers = try ServerStore(file: serversFile, pool: pool, hostKeys: hostKeys)
         keys = KeyLibrary(store: keyStore, keys: initialKeys, servers: servers, secureEnclaveAvailable: secureEnclaveAvailable)
         refresher = TreeRefresher(
             pool: pool,
             bootstrap: bootstrap,
-            auth: { config in try await Self.auth(for: config, keyStore: keyStore) },
+            auth: auth,
             interval: treeInterval
         )
         openSessions = OpenSessionsModel()
@@ -72,12 +91,12 @@ final class AppEnvironment {
         actions = SessionActions(
             servers: servers,
             pool: pool,
-            auth: { config in try await Self.auth(for: config, keyStore: keyStore) },
+            auth: auth,
             openSessions: openSessions,
             tree: tree
         )
         appearance = TerminalAppearance(defaults: defaults)
-        lifecycle = LifecycleCoordinator(targets: AppLifecycleTargets(pool: pool, tree: tree), log: log)
+        lifecycle = LifecycleCoordinator(targets: AppLifecycleTargets(pool: pool, tree: tree), log: log, unlocker: unlocker)
         // слабые: задача `start` терминала может пережить окружение (так бывает в `AppTests`)
         let dependencies = OpenTerminal.Dependencies(
             connection: { [weak actions = self.actions] in
@@ -88,8 +107,8 @@ final class AppEnvironment {
             },
             snapshot: { [weak tree = self.tree] in tree?.states[$0]?.snapshot },
             log: log,
-            defaults: defaults,
-            appearance: appearance
+            appearance: appearance,
+            unlock: { [weak lifecycle = self.lifecycle] in await lifecycle?.unlock() ?? false }
         )
         openSessions.makeTerminal = { OpenTerminal(key: $0, dependencies: dependencies) }
         network.onChange = { [weak lifecycle] old, new in
@@ -141,16 +160,29 @@ final class AppEnvironment {
         )
     }
 
-    /// Ключ сервера из хранилища; нет ключа — `AppError.keyMissing`.
+    /// Ключ сервера: сначала Face ID, если он включён (решение 6 плана 7), потом кеш или
+    /// хранилище; нет ключа — `AppError.keyMissing`.
+    private let authorize: @Sendable (ServerConfig) async throws -> SSHAuth
+
     func auth(for config: ServerConfig) async throws -> SSHAuth {
-        try await Self.auth(for: config, keyStore: keyStore)
+        try await authorize(config)
     }
 
     /// Без `self`: `TreeRefresher` создаётся в `init`, до готовности окружения.
-    private nonisolated static func auth(for config: ServerConfig, keyStore: any AppKeyStore) async throws -> SSHAuth {
+    private nonisolated static func auth(
+        for config: ServerConfig,
+        keyStore: any AppKeyStore,
+        cache: KeyCache,
+        unlocker: any KeyUnlocking
+    ) async throws -> SSHAuth {
+        try await unlocker.authenticate()
+        if let key = await cache.key(config.keyID) {
+            return .privateKey(key, user: config.user)
+        }
         guard let key = try await keyStore.privateKey(for: config.keyID) else {
             throw AppError.keyMissing(config.keyID)
         }
+        await cache.store(key, for: config.keyID)
         return .privateKey(key, user: config.user)
     }
 }
@@ -169,6 +201,7 @@ extension View {
             .environment(env.tree)
             .environment(env.openSessions)
             .environment(env.appearance)
+            .environment(env.security)
             .environment(env.navigation)
     }
 }

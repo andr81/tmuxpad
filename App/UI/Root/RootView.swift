@@ -5,6 +5,7 @@ struct RootView: View {
     @Environment(TreeModel.self) private var tree
     @Environment(OpenSessionsModel.self) private var openSessions
     @Environment(AppNavigation.self) private var navigation
+    @Environment(TerminalAppearance.self) private var appearance
     @Environment(\.appEnvironment) private var env
     @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
@@ -46,6 +47,7 @@ struct RootView: View {
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
+                .preferredColorScheme(appearance.theme.colorScheme)
         }
         // мастера — здесь, а не в сайдбаре: `⌘N` и `⌘O` открывают их и при скрытом сайдбаре
         .sheet(item: $navigation.newSessionTarget) { target in
@@ -62,6 +64,7 @@ struct RootView: View {
         .onChange(of: servers.servers, initial: true) { _, list in
             tree.setServers(list)
         }
+        .preferredColorScheme(appearance.theme.colorScheme)
         // фон и возврат: опрос дерева и соединения ведёт координатор
         .onChange(of: scenePhase, initial: true) { _, phase in
             env?.lifecycle.scenePhaseChanged(phase)

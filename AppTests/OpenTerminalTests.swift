@@ -31,7 +31,6 @@ struct OpenTerminalTests {
             },
             snapshot: snapshot,
             log: nil,
-            defaults: defaults,
             appearance: TerminalAppearance(defaults: defaults)
         ))
     }
@@ -134,28 +133,6 @@ struct TerminalDelegateTests {
     @Test(arguments: ["tel:123", "file:///etc/passwd", "javascript:alert(1)", "tmuxpad://x", "example.com", ""])
     func otherLinksDoNotOpen(_ link: String) {
         #expect(TerminalDelegate.openableURL(link) == nil)
-    }
-}
-
-@MainActor
-struct TerminalSettingsTests {
-    let defaults = UserDefaults(suiteName: "dev.tmuxpad.test.\(UUID().uuidString)")!
-
-    @Test func defaultsWhenUnset() {
-        #expect(TerminalSettings.fontSize(defaults) == TerminalSettings.defaultFontSize)
-        #expect(TerminalSettings.optionAsMeta(defaults))
-        #expect(TerminalSettings.bellEnabled(defaults))
-    }
-
-    @Test(arguments: [(100, 32), (1, 9), (20, 20)])
-    func storedFontSizeIsClamped(_ stored: Int, _ expected: Int) {
-        defaults.set(stored, forKey: TerminalSettings.fontSizeKey)
-        #expect(TerminalSettings.fontSize(defaults) == expected)
-    }
-
-    @Test func bellOff() {
-        defaults.set("off", forKey: TerminalSettings.bellKey)
-        #expect(!TerminalSettings.bellEnabled(defaults))
     }
 }
 

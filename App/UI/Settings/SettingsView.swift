@@ -28,6 +28,11 @@ struct SettingsView: View {
                     }
                 }
                 NavigationLink {
+                    TerminalSettingsView()
+                } label: {
+                    Label("Терминал", systemImage: "terminal")
+                }
+                NavigationLink {
                     DiagnosticsView()
                 } label: {
                     Label("Диагностика", systemImage: "stethoscope")

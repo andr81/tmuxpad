@@ -3,6 +3,7 @@ import TmuxPadCore
 
 struct KeysView: View {
     @Environment(KeyLibrary.self) private var keys
+    @Environment(SecurityPreferences.self) private var security
     @State private var sheet: Sheet?
 
     private enum Sheet: String, Identifiable {
@@ -11,21 +12,29 @@ struct KeysView: View {
     }
 
     var body: some View {
-        List(keys.keys) { key in
-            NavigationLink {
-                KeyDetailView(keyID: key.id)
-            } label: {
-                VStack(alignment: .leading) {
-                    Text(key.name)
-                    Text(key.kind.title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        @Bindable var security = security
+        List {
+            Section {
+                ForEach(keys.keys) { key in
+                    NavigationLink {
+                        KeyDetailView(keyID: key.id)
+                    } label: {
+                        VStack(alignment: .leading) {
+                            Text(key.name)
+                            Text(key.kind.title)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                if keys.keys.isEmpty {
+                    ContentUnavailableView("Ключей нет", systemImage: "key", description: Text("Создайте ключ или импортируйте свой"))
                 }
             }
-        }
-        .overlay {
-            if keys.keys.isEmpty {
-                ContentUnavailableView("Ключей нет", systemImage: "key", description: Text("Создайте ключ или импортируйте свой"))
+            Section {
+                Toggle("Требовать Face ID для ключей", isOn: $security.requireBiometrics)
+            } footer: {
+                Text("Face ID или код-пароль перед первым подключением после запуска и после возврата из фона.")
             }
         }
         .navigationTitle("Ключи")

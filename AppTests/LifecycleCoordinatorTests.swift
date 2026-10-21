@@ -13,6 +13,8 @@ final class RecordingTargets: LifecycleTargets {
         case startTree
         case stopTree
         case refreshTree
+        case authenticate
+        case lock
     }
 
     var calls: [Call] = []
@@ -22,6 +24,28 @@ final class RecordingTargets: LifecycleTargets {
     func startTree() { calls.append(.startTree) }
     func stopTree() { calls.append(.stopTree) }
     func refreshTree() async { calls.append(.refreshTree) }
+}
+
+/// Face ID для координатора: вызовы пишутся в общий журнал целей.
+@MainActor
+final class FakeUnlocker: KeyUnlocking {
+    let targets: RecordingTargets
+    var granted = true
+
+    init(targets: RecordingTargets) {
+        self.targets = targets
+    }
+
+    func authenticate() async throws {
+        targets.calls.append(.authenticate)
+        guard granted else {
+            throw AppError.biometricsDenied
+        }
+    }
+
+    func lock() async {
+        targets.calls.append(.lock)
+    }
 }
 
 @MainActor
@@ -132,5 +156,90 @@ struct LifecycleCoordinatorTests {
         #expect(coordinator.networkChanged("wifi → cellular") == nil)
         try await Task.sleep(for: .milliseconds(20))
         #expect(targets.calls == [.stopTree, .disconnectAll])
+    }
+}
+
+/// Face ID в координаторе (решение 6): перед переподключением, отказ ничего не поднимает.
+@MainActor
+struct LifecycleUnlockTests {
+    let targets = RecordingTargets()
+    let unlocker: FakeUnlocker
+    let tasks = FakeBackgroundTasks()
+    let coordinator: LifecycleCoordinator
+
+    init() {
+        unlocker = FakeUnlocker(targets: targets)
+        coordinator = LifecycleCoordinator(
+            targets: targets,
+            log: DiagnosticsLog(),
+            unlocker: unlocker,
+            backgroundTasks: tasks,
+            closeDelay: .milliseconds(50)
+        )
+    }
+
+    @Test func launchAsksBeforeTree() async {
+        await coordinator.scenePhaseChanged(.active)?.value
+        #expect(targets.calls == [.authenticate, .startTree])
+        // шторка и сам запрос Face ID: `.inactive` → `.active` не спрашивает снова
+        coordinator.scenePhaseChanged(.inactive)
+        await coordinator.scenePhaseChanged(.active)?.value
+        #expect(targets.calls == [.authenticate, .startTree, .startTree])
+    }
+
+    @Test func returnAfterCloseAsksBeforeReconnect() async throws {
+        await coordinator.scenePhaseChanged(.active)?.value
+        coordinator.scenePhaseChanged(.background)
+        try await waitUntil { coordinator.closed && tasks.ended.count == 1 }
+        targets.calls = []
+        await coordinator.scenePhaseChanged(.active)?.value
+        #expect(targets.calls == [.authenticate, .reconnectAll(force: false), .startTree, .refreshTree])
+    }
+
+    @Test func backgroundLocksKeys() async throws {
+        await coordinator.scenePhaseChanged(.active)?.value
+        targets.calls = []
+        coordinator.scenePhaseChanged(.background)
+        try await waitUntil { targets.calls.count == 3 }
+        #expect(targets.calls == [.lock, .stopTree, .disconnectAll])
+    }
+
+    @Test func returnBeforeCloseAsksToo() async throws {
+        await coordinator.scenePhaseChanged(.active)?.value
+        coordinator.scenePhaseChanged(.background)
+        targets.calls = []
+        await coordinator.scenePhaseChanged(.active)?.value
+        #expect(targets.calls == [.lock, .authenticate, .startTree])
+    }
+
+    @Test func denialKeepsEverythingDownUntilUnlock() async throws {
+        coordinator.scenePhaseChanged(.background)
+        try await waitUntil { coordinator.closed && tasks.ended.count == 1 }
+        targets.calls = []
+        unlocker.granted = false
+        await coordinator.scenePhaseChanged(.active)?.value
+        #expect(targets.calls == [.authenticate])
+        #expect(coordinator.locked == true)
+        // без ключа ни дерево, ни смена сети ничего не поднимают
+        coordinator.scenePhaseChanged(.inactive)
+        await coordinator.scenePhaseChanged(.active)?.value
+        #expect(coordinator.networkChanged("wifi → cellular") == nil)
+        #expect(targets.calls == [.authenticate])
+        // «Повторить» у терминала: снова отказ, потом успех
+        #expect(await coordinator.unlock() == false)
+        unlocker.granted = true
+        #expect(await coordinator.unlock())
+        #expect(coordinator.locked == nil)
+        #expect(targets.calls == [
+            .authenticate, .authenticate, .authenticate,
+            .reconnectAll(force: false), .startTree, .refreshTree,
+        ])
+    }
+
+    @Test func unlockWithoutDenialOnlyAsks() async {
+        await coordinator.scenePhaseChanged(.active)?.value
+        targets.calls = []
+        #expect(await coordinator.unlock())
+        #expect(targets.calls == [.authenticate])
     }
 }

@@ -69,6 +69,21 @@ final class SessionActions {
         openSessions.open(key)
     }
 
+    /// «Создать заново» над терминалом: `new` с тем же именем и проектом (сессию уже создали
+    /// заново — не ошибка), перечитывание дерева и новый `attach`.
+    func recreate(_ terminal: OpenTerminal) async throws {
+        let project = try terminal.recreateProject()
+        guard let config = servers.server(id: terminal.key.serverID) else {
+            throw AppError.serverMissing
+        }
+        do {
+            try await api(for: config).new(session: terminal.key.name, project: project)
+        } catch HostError.sessionExists {
+        }
+        await tree.refreshAfterAction(serverID: terminal.key.serverID)
+        await terminal.reconnect()
+    }
+
     private func api(for config: ServerConfig) async throws -> HostAPI {
         try await connection(for: config, ignoringConnectFailure: false).api
     }

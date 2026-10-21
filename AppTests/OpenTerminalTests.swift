@@ -81,34 +81,30 @@ struct OpenTerminalTests {
         #expect(terminal.session == nil)
     }
 
-    @Test func recreateWithoutKnownProjectThrows() async {
+    @Test func recreateWithoutKnownProjectThrows() {
         let terminal = terminal()
         #expect(terminal.project == nil)
-        await #expect(throws: AppError.projectUnknown) {
-            try await terminal.recreate()
+        #expect(throws: AppError.projectUnknown) {
+            try terminal.recreateProject()
         }
     }
 
-    @Test func recreateWhenProjectIsGoneThrows() async {
+    @Test func recreateWhenProjectIsGoneThrows() {
         let current = Snapshot()
         current.value = snapshot(projects: ["api"], sessions: [("api", "api")])
         let terminal = terminal(snapshot: { _ in current.value })
         #expect(terminal.project == "api")
         current.value = snapshot(projects: ["web"], sessions: [])
-        await #expect(throws: AppError.projectNotFound("api")) {
-            try await terminal.recreate()
+        #expect(throws: AppError.projectNotFound("api")) {
+            try terminal.recreateProject()
         }
     }
 
-    @Test func recreateWithProjectTriesConnection() async {
-        let calls = Calls()
+    @Test func recreateProjectFromOpeningSnapshot() throws {
         let current = Snapshot()
         current.value = snapshot(projects: ["api"], sessions: [("api", "api")])
-        let terminal = terminal(calls: calls, snapshot: { _ in current.value })
-        await #expect(throws: AppError.serverMissing) {
-            try await terminal.recreate()
-        }
-        #expect(calls.count == 1)
+        let terminal = terminal(snapshot: { _ in current.value })
+        #expect(try terminal.recreateProject() == "api")
     }
 }
 

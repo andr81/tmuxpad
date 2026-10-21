@@ -121,38 +121,29 @@ final class OpenTerminal {
         await session?.cancelCopyMode()
     }
 
-    /// «Создать заново»: `new` с тем же именем и проектом, затем новый `attach`. Проекта нет в
-    /// снимке — `AppError.projectNotFound`; сессию уже создали заново — не ошибка.
-    func recreate() async throws {
+    /// Проект для «Создать заново» (`SessionActions.recreate`). Проекта нет в снимке —
+    /// `AppError.projectNotFound`.
+    func recreateProject() throws -> String {
         guard let project else {
             throw AppError.projectUnknown
         }
         if let snapshot = dependencies.snapshot(key.serverID), !snapshot.projects.contains(where: { $0.name == project }) {
             throw AppError.projectNotFound(project)
         }
-        let connection: ServerConnection
-        if let session {
-            connection = session.server
-        } else {
-            connection = try await dependencies.connection(key.serverID)
-        }
-        do {
-            try await connection.api.new(session: key.name, project: project)
-        } catch HostError.sessionExists {
-        }
-        await reconnect()
+        return project
     }
 
     // MARK: - Сессия
 
-    /// Сессия есть — она; нет — новая попытка, одна на все одновременные вызовы (двойной тап
-    /// «Повторить» не создаёт две сессии на один view). Неудачная попытка сама очищает `setup`.
-    /// Закрыли за время ожидания — `nil`.
+    /// Сессия есть и её соединение всё ещё в пуле — она; нет — новая попытка, одна на все
+    /// одновременные вызовы (двойной тап «Повторить» не создаёт две сессии на один view).
+    /// Неудачная попытка сама очищает `setup`. Закрыли за время ожидания — `nil`.
     private func ready() async -> TerminalSession? {
         guard !isClosed else {
             return nil
         }
-        if setup == nil {
+        let fresh = setup == nil
+        if fresh {
             setup = Task { [weak self] in
                 guard let self else {
                     return nil
@@ -164,8 +155,48 @@ final class OpenTerminal {
                 return session
             }
         }
-        let session = await setup?.value
-        return isClosed ? nil : session
+        guard let existing = await setup?.value, !isClosed else {
+            return nil
+        }
+        if fresh {
+            return existing
+        }
+        // пул сменил соединение (адрес, ключ) или отпечаток сбросили: старое не переподключать
+        let connection: ServerConnection
+        do {
+            connection = try await dependencies.connection(key.serverID)
+        } catch {
+            if !isClosed {
+                state = .offline(userText(error))
+            }
+            return nil
+        }
+        guard !isClosed else {
+            return nil
+        }
+        if connection === existing.server {
+            return existing
+        }
+        if session === existing {
+            drop(existing)
+        }
+        return await ready()
+    }
+
+    /// Сессия на соединении, которого больше нет в пуле: её состояние на экран уже не идёт.
+    private func drop(_ old: TerminalSession) {
+        events?.cancel()
+        events = nil
+        pump?.finish()
+        pump = nil
+        delegate = nil
+        view.terminalDelegate = nil
+        session = nil
+        setup = nil
+        showsScrollChip = false
+        Task {
+            await old.detach()
+        }
     }
 
     private func makeSession() async -> TerminalSession? {

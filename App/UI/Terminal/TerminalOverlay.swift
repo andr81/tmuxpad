@@ -84,8 +84,7 @@ struct TerminalOverlay: View {
     private func recreate() {
         Task {
             do {
-                try await terminal.recreate()
-                await env?.tree.refreshAfterAction(serverID: terminal.key.serverID)
+                try await env?.actions.recreate(terminal)
             } catch {
                 fail(userText(error))
             }

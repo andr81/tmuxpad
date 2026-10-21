@@ -16,6 +16,9 @@ struct SidebarView: View {
     @State private var errorMessage: String?
     /// Мастер «Новая сессия»: `[+]` — пустой, «Новая сессия здесь» — с сервером и проектом.
     @State private var newSessionTarget: NewSessionTarget?
+    @State private var showAttach = false
+    /// «Создать» из пустого мастера «Подключиться»: «Новая сессия» откроется, когда тот закроется.
+    @State private var createAfterAttach: UUID?
 
     var body: some View {
         @Bindable var tree = tree
@@ -49,6 +52,13 @@ struct SidebarView: View {
                 .disabled(servers.servers.isEmpty)
             }
             ToolbarItem(placement: .topBarTrailing) {
+                Button("Подключиться", systemImage: "arrow.left.arrow.right") {
+                    showAttach = true
+                }
+                .keyboardShortcut("o", modifiers: .command)
+                .disabled(servers.servers.isEmpty)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu("Ещё", systemImage: "ellipsis.circle") {
                     Toggle("Показывать все проекты", isOn: $tree.showEmptyProjects)
                 }
@@ -56,6 +66,14 @@ struct SidebarView: View {
         }
         .sheet(item: $newSessionTarget) { target in
             NewSessionWizard(target: target, servers: servers.servers)
+        }
+        .sheet(isPresented: $showAttach, onDismiss: {
+            if let serverID = createAfterAttach {
+                createAfterAttach = nil
+                newSessionTarget = NewSessionTarget(serverID: serverID)
+            }
+        }) {
+            AttachWizard(servers: servers.servers) { createAfterAttach = $0 }
         }
         .sheet(item: $checkTarget, onDismiss: nil) { target in
             NavigationStack {

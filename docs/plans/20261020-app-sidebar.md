@@ -212,12 +212,12 @@ ServerPickStep,ProjectPickStep,NameStep}.swift` (create), `App/UI/Sidebar/Sideba
 **Файлы:** `App/State/AttachFlow.swift` (create), `App/UI/Wizards/AttachWizard.swift` (create),
 `App/UI/Sidebar/SidebarView.swift`, `AppTests/AttachFlowTests.swift` (create).
 
-- [ ] `AttachFlow` по решению 5; шаг сервера пропускается при одном сервере.
-- [ ] `AttachWizard`: секции по проектам в порядке `byActivity`, строка — имя, `attached`,
+- [x] `AttachFlow` по решению 5; шаг сервера пропускается при одном сервере.
+- [x] `AttachWizard`: секции по проектам в порядке `byActivity`, строка — имя, `attached`,
       «N мин назад»; тап → `openSessions.open(key)` и закрытие sheet. Пусто — «На сервере нет
       сессий» с кнопкой «Создать» (переход в мастер «Новая сессия» с выбранным сервером).
-- [ ] Вызовы: `[⇄]` и `⌘O`.
-- [ ] `AttachFlowTests`; `scripts/ios-test.sh` проходит.
+- [x] Вызовы: `[⇄]` и `⌘O`.
+- [x] `AttachFlowTests`; `scripts/ios-test.sh` проходит.
 
 ### Task 5: документация, полный прогон, завершение
 

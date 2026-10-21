@@ -105,4 +105,43 @@ final class SidebarBenchTests {
         try await env.actions.kill(key)
         await finish()
     }
+
+    @Test func createdSessionVisibleInTree() async throws {
+        let server = try await preparedServer()
+        env.tree.setServers(env.servers.servers)
+        await env.tree.refresh(serverID: server.id)
+        var flow = NewSessionFlow(servers: env.servers.servers)
+        flow.selectProject("my.app")
+        flow.editName("fresh")
+        #expect(flow.canCreate(snapshot: env.tree.states[server.id]?.snapshot))
+
+        let key = OpenSessionKey(serverID: server.id, name: "fresh")
+        #expect(await flow.create(using: env.actions) == .created(key))
+        let sessions = env.tree.nodes(for: server.id).flatMap(\.sessions)
+        #expect(sessions.map(\.session.name) == ["fresh"])
+        #expect(sessions.first?.session.project == "my.app")
+        #expect(sessions.first?.isOpen == true)
+        #expect(env.openSessions.selection == key)
+        await finish()
+    }
+
+    /// Снимок устарел: имя занято на сервере, но дерево его ещё не знает.
+    @Test func repeatedNameConflicts() async throws {
+        let server = try await preparedServer()
+        env.tree.setServers(env.servers.servers)
+        await env.tree.refresh(serverID: server.id)
+        let created = try await Bench.exec("~/.local/bin/tmuxpad-host.sh new taken api")
+        #expect(created.exitCode == 0, "\(created.stderrText)")
+        var flow = NewSessionFlow(servers: env.servers.servers, serverID: server.id, project: "api")
+        flow.editName("taken")
+        let snapshot = env.tree.states[server.id]?.snapshot
+        #expect(flow.nameIssue(snapshot: snapshot) == nil)
+
+        let outcome = await flow.create(using: env.actions)
+        #expect(outcome == .conflict)
+        flow.apply(outcome)
+        #expect(flow.nameIssue(snapshot: snapshot) == .exists)
+        #expect(env.openSessions.selection == nil)
+        await finish()
+    }
 }

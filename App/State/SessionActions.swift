@@ -45,18 +45,33 @@ final class SessionActions {
     /// дерева. Сервер удалили — только закрытие.
     func kill(_ key: OpenSessionKey) async throws {
         if let config = servers.server(id: key.serverID) {
-            let connection = await pool.connection(for: config, auth: try await auth(config))
-            // `connect()` не из `.disconnected` начал бы новую эпоху, как в `TreeRefresher`
-            if await connection.state == .disconnected {
-                try await connection.connect()
-            }
             do {
-                try await connection.api.kill(session: key.name)
+                try await api(for: config).kill(session: key.name)
             } catch HostError.noSession {
             }
         }
         openSessions.close(key)
         await tree.refresh(serverID: key.serverID)
+    }
+
+    /// `new` на сервере, затем перечитывание дерева и открытие (§3.3). Имя занято —
+    /// `HostError.sessionExists`; сервер удалили — `AppError.serverMissing`.
+    func create(_ key: OpenSessionKey, project: String) async throws {
+        guard let config = servers.server(id: key.serverID) else {
+            throw AppError.serverMissing
+        }
+        try await api(for: config).new(session: key.name, project: project)
+        await tree.refresh(serverID: key.serverID)
+        openSessions.open(key)
+    }
+
+    private func api(for config: ServerConfig) async throws -> HostAPI {
+        let connection = await pool.connection(for: config, auth: try await auth(config))
+        // `connect()` не из `.disconnected` начал бы новую эпоху, как в `TreeRefresher`
+        if await connection.state == .disconnected {
+            try await connection.connect()
+        }
+        return await connection.api
     }
 
     /// Для ручного входа с Mac; без `-d`, чтобы не выкинуть iPad. Имя прошло валидацию,

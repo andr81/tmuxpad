@@ -6,6 +6,8 @@ import TmuxPadCore
 enum AppError: Error, Equatable {
     /// У сервера `keyID`, которого нет в хранилище ключей.
     case keyMissing(UUID)
+    /// Сервер удалили, пока шло действие.
+    case serverMissing
 }
 
 /// Composition root: неизменяемые зависимости и модели State. Создаётся один раз при запуске.

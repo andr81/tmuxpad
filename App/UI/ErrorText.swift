@@ -42,6 +42,7 @@ func userText(_ error: Error) -> String {
     case let error as AppError:
         switch error {
         case .keyMissing: "Ключа сервера нет на устройстве — выберите другой в настройках сервера"
+        case .serverMissing: "Сервер удалён"
         }
     case let error as KeychainError:
         switch error {

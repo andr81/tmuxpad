@@ -14,7 +14,7 @@ struct SidebarView: View {
     @State private var checkTarget: ServerTarget?
     @State private var pending: Pending?
     @State private var errorMessage: String?
-    /// «Новая сессия здесь»; мастер появится в задаче 3 этого плана.
+    /// Мастер «Новая сессия»: `[+]` — пустой, «Новая сессия здесь» — с сервером и проектом.
     @State private var newSessionTarget: NewSessionTarget?
 
     var body: some View {
@@ -42,10 +42,20 @@ struct SidebarView: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Button("Новая сессия", systemImage: "plus") {
+                    newSessionTarget = NewSessionTarget()
+                }
+                .keyboardShortcut("n", modifiers: .command)
+                .disabled(servers.servers.isEmpty)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu("Ещё", systemImage: "ellipsis.circle") {
                     Toggle("Показывать все проекты", isOn: $tree.showEmptyProjects)
                 }
             }
+        }
+        .sheet(item: $newSessionTarget) { target in
+            NewSessionWizard(target: target, servers: servers.servers)
         }
         .sheet(item: $checkTarget, onDismiss: nil) { target in
             NavigationStack {
@@ -155,7 +165,8 @@ struct ServerTarget: Identifiable {
     let id: UUID
 }
 
-struct NewSessionTarget: Equatable {
+struct NewSessionTarget: Identifiable {
+    let id = UUID()
     var serverID: UUID?
     var project: String?
 }

@@ -70,6 +70,13 @@ final class TreeModel {
     func refresh(serverID: UUID? = nil, force: Bool = false) async {
         await queue?.value
         await refresher.refresh(serverID, force: force)
+        // поток обновлений может не успеть донести результат к возврату: после `refresh`
+        // вызывающий читает `nodes` сразу (создание, kill)
+        for id in serverID.map({ [$0] }) ?? Array(serverIDs) {
+            if let state = await refresher.state(for: id) {
+                receive(id, state)
+            }
+        }
     }
 
     /// После «Подготовить» в проверке сервера: перечитать версию скрипта и список.

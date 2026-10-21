@@ -194,18 +194,18 @@ swift test --package-path TmuxPadCore --skip IntegrationTests
 ServerPickStep,ProjectPickStep,NameStep}.swift` (create), `App/UI/Sidebar/SidebarView.swift`,
 `AppTests/NewSessionFlowTests.swift` (create), `AppTests/SidebarBenchTests.swift`.
 
-- [ ] `NewSessionFlow` по решению 5; создание и обработка ошибок — по решению 6 (метод
+- [x] `NewSessionFlow` по решению 5; создание и обработка ошибок — по решению 6 (метод
       `create(using:) async -> CreateOutcome` с `.created(OpenSessionKey)`, `.conflict`,
       `.invalid(String)`, `.failed(String)`).
-- [ ] Шаги мастера: сервер (список с состоянием доступности, недоступные — неактивны с
+- [x] Шаги мастера: сервер (список с состоянием доступности, недоступные — неактивны с
       причиной), проект (`.searchable`, пустое состояние по решению 7), имя (`TextField` с
       автофокусом, без автокоррекции и автозаглавных, подсказка «Допустимы латинские буквы,
       цифры, `_` и `-`, до 64 символов» под полем при `invalid`, экран конфликта по решению 6).
-- [ ] Вызовы: `[+]` и `⌘N` в тулбаре сайдбара; «Новая сессия здесь» — с предзаполненными
+- [x] Вызовы: `[+]` и `⌘N` в тулбаре сайдбара; «Новая сессия здесь» — с предзаполненными
       сервером и проектом (шаги пропускаются).
-- [ ] `NewSessionFlowTests`; в `SidebarBenchTests` — «создание видно в дереве» и «повторное
+- [x] `NewSessionFlowTests`; в `SidebarBenchTests` — «создание видно в дереве» и «повторное
       имя — конфликт».
-- [ ] `scripts/ios-test.sh` проходит.
+- [x] `scripts/ios-test.sh` проходит.
 
 ### Task 4: мастер «Подключиться»
 

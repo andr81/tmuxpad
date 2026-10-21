@@ -14,7 +14,7 @@ struct ErrorTextTests {
         HostError.badOutput("V 9"),
         KeyError.invalidKey("x"),
         KeyStoreError.secureEnclaveUnavailable, KeyStoreError.unsupportedKind, KeyStoreError.notFound,
-        KeyLibraryError.inUse(["prod"]), AppError.keyMissing(UUID()),
+        KeyLibraryError.inUse(["prod"]), AppError.keyMissing(UUID()), AppError.serverMissing,
         KeychainError.status(-25308), KeychainError.unexpectedData,
     ]
 

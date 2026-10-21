@@ -7,12 +7,18 @@ import TmuxPadCore
 @MainActor
 @Observable
 final class OpenSessionsModel {
-    private(set) var roster: OpenSessionsRoster
+    private(set) var roster: OpenSessionsRoster {
+        didSet { rosterChanged() }
+    }
     /// Сессия в детали.
-    private(set) var selection: OpenSessionKey?
+    private(set) var selection: OpenSessionKey? {
+        didSet { rosterChanged() }
+    }
     private(set) var terminals: [OpenSessionKey: OpenTerminal] = [:]
     /// Терминал новой открытой сессии; ставит `AppEnvironment`. Без фабрики — только ростер.
     @ObservationIgnored var makeTerminal: ((OpenSessionKey) -> OpenTerminal)?
+    /// Ростер или выделение изменились; ставит `AppEnvironment` (`OpenSessionsPersistence`).
+    @ObservationIgnored var onRosterChange: ((OpenSessionsRoster, OpenSessionKey?) -> Void)?
     /// `detach` закрытых терминалов, ещё не дошедший до сервера, по серверам: PTY-слот
     /// освобождается после ответа, и новый терминал того же сервера ждёт их (лимит пула).
     @ObservationIgnored private var closing: [UUID: [UUID: Task<Void, Never>]] = [:]
@@ -90,6 +96,11 @@ final class OpenSessionsModel {
 
     var selectedTerminal: OpenTerminal? {
         selection.flatMap { terminals[$0] }
+    }
+
+    /// Единственная точка, из которой уходит `onRosterChange`.
+    private func rosterChanged() {
+        onRosterChange?(roster, selection)
     }
 
     /// `detach` и учёт его до ответа сервера.

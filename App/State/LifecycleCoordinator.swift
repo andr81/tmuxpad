@@ -46,6 +46,9 @@ final class LifecycleCoordinator {
     private let closeDelay: Duration
     /// Соединения закрыты уходом в фон; сбрасывается возвратом в `.active`.
     private(set) var closed = false
+    /// Первый `.active` после запуска — восстановление открытых сессий; ставит `AppEnvironment.live()`.
+    var onLaunch: (@MainActor () -> Void)?
+    private var launched = false
     private var closeTimer: Task<Void, Never>?
     private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
     /// Действия над пулом и деревом идут по порядку вызова: закрытие и переподключение,
@@ -119,6 +122,10 @@ final class LifecycleCoordinator {
     }
 
     private func becomeActive() -> Task<Void, Never> {
+        if !launched {
+            launched = true
+            onLaunch?()
+        }
         if let closeTimer {
             closeTimer.cancel()
             self.closeTimer = nil

@@ -62,6 +62,19 @@ struct LifecycleCoordinatorTests {
         #expect(targets.calls == [.startTree])
     }
 
+    @Test func launchRunsOnceOnFirstActive() async throws {
+        var launches = 0
+        coordinator.onLaunch = { launches += 1 }
+        coordinator.scenePhaseChanged(.inactive)
+        #expect(launches == 0)
+        await coordinator.scenePhaseChanged(.active)?.value
+        #expect(launches == 1)
+        coordinator.scenePhaseChanged(.background)
+        try await waitUntil { coordinator.closed }
+        await coordinator.scenePhaseChanged(.active)?.value
+        #expect(launches == 1)
+    }
+
     @Test func backgroundClosesAfterDelay() async throws {
         await coordinator.scenePhaseChanged(.active)?.value
         coordinator.scenePhaseChanged(.background)

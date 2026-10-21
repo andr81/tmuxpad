@@ -200,10 +200,10 @@ shellcheck -s bash scripts/ios-test.sh
 **Файлы:** `App/State/OpenSessionsPersistence.swift` (create), `App/State/OpenSessionsModel.swift`,
 `App/State/LifecycleCoordinator.swift`, `AppTests/OpenSessionsPersistenceTests.swift` (create).
 
-- [ ] Сохранение и восстановление по решению 3; `OpenSessionsModel` сообщает об изменении
+- [x] Сохранение и восстановление по решению 3; `OpenSessionsModel` сообщает об изменении
       ростера одной точкой (`onRosterChange`).
-- [ ] `OpenSessionsPersistenceTests` (тестовый `UserDefaults(suiteName:)`).
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `OpenSessionsPersistenceTests` (тестовый `UserDefaults(suiteName:)`).
+- [x] `scripts/ios-test.sh --no-bench` проходит.
 
 ### Task 3: настройки терминала, тема, Face ID
 

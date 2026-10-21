@@ -110,6 +110,17 @@ final class AppEnvironment {
             serversFile: JSONFileStore(fileName: "servers.json")
         )
         env.network.start()
+        let persistence = OpenSessionsPersistence(defaults: env.defaults)
+        env.lifecycle.onLaunch = { [weak env] in
+            guard let env else {
+                return
+            }
+            persistence.restore(into: env.openSessions, knownServers: Set(env.servers.servers.map(\.id)))
+            // до восстановления пустой ростер не затирает сохранённый; сохранение сразу
+            // отбрасывает сессии удалённых серверов
+            env.openSessions.onRosterChange = { persistence.save(roster: $0, selection: $1) }
+            persistence.save(roster: env.openSessions.roster, selection: env.openSessions.selection)
+        }
         return env
     }
 

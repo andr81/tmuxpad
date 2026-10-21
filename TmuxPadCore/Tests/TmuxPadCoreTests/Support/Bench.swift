@@ -105,6 +105,11 @@ extension Bench {
             "-i", environment["TMUXPAD_BENCH_KEY"] ?? "", "-p", String(endpoint.port),
             "\(user)@127.0.0.1", remoteCommand,
         ]
+        // ssh передаёт TERM на сервер: terminfo вроде xterm-ghostty в стенде нет, и tmux attach
+        // сразу бы вышел
+        var processEnvironment = environment
+        processEnvironment["TERM"] = "xterm-256color"
+        process.environment = processEnvironment
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice

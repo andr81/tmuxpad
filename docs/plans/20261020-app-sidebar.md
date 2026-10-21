@@ -173,20 +173,20 @@ swift test --package-path TmuxPadCore --skip IntegrationTests
 `App/UI/Root/SessionPlaceholderView.swift` (create), `AppTests/SessionActionsTests.swift`
 (create).
 
-- [ ] `SidebarView` по решению 3: секции серверов в порядке `ServerStore`, `.refreshable` →
+- [x] `SidebarView` по решению 3: секции серверов в порядке `ServerStore`, `.refreshable` →
       `tree.refresh(force: true)` всех; меню сайдбара (кнопка `…` в тулбаре) с `Toggle` «Показывать все
       проекты»; пустое состояние по решению 7.
-- [ ] `ServerRow`, `ProjectRow`, `SessionRow` по решению 3; контекст-меню проекта — «Новая
+- [x] `ServerRow`, `ProjectRow`, `SessionRow` по решению 3; контекст-меню проекта — «Новая
       сессия здесь»; контекст-меню сессии — по §3.2 через `SessionActions` (решение 4);
       `.swipeActions` — «Завершить» с `role: .destructive`; подтверждения — `
       .confirmationDialog` с именем сессии («Завершить сессию `X`? Процессы в ней будут
       убиты.», «Забрать сессию `X`? Другие клиенты будут отключены.»).
-- [ ] `SessionActions` по решению 4; «Скопировать `tmux attach`» кладёт строку в
+- [x] `SessionActions` по решению 4; «Скопировать `tmux attach`» кладёт строку в
       `UIPasteboard`.
-- [ ] `RootView`: деталь — `SessionPlaceholderView` для `openSessions.selection` (решение 9),
+- [x] `RootView`: деталь — `SessionPlaceholderView` для `openSessions.selection` (решение 9),
       иначе «Выберите сессию»; кнопка `⌘0` по решению 8.
-- [ ] `SessionActionsTests`; тест `kill` в `SidebarBenchTests`.
-- [ ] `scripts/ios-test.sh` проходит.
+- [x] `SessionActionsTests`; тест `kill` в `SidebarBenchTests`.
+- [x] `scripts/ios-test.sh` проходит.
 
 ### Task 3: мастер «Новая сессия»
 

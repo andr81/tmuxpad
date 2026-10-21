@@ -3,39 +3,42 @@ import SwiftUI
 struct RootView: View {
     @Environment(ServerStore.self) private var servers
     @Environment(TreeModel.self) private var tree
+    @Environment(OpenSessionsModel.self) private var openSessions
     @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
-        NavigationSplitView {
-            List(servers.servers) { server in
-                VStack(alignment: .leading) {
-                    Text(server.label)
-                    Text(verbatim: "\(server.user)@\(server.host)")
-                        .font(.caption)
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            SidebarView(openSettings: { showSettings = true })
+                .safeAreaInset(edge: .bottom) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Label("Настройки", systemImage: "gearshape")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .keyboardShortcut(",", modifiers: .command)
+                    .padding()
+                    .background(.bar)
+                }
+        } detail: {
+            Group {
+                if let key = openSessions.selection {
+                    SessionPlaceholderView(key: key)
+                } else {
+                    Text("Выберите сессию")
                         .foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle("Серверы")
-            .overlay {
-                if servers.servers.isEmpty {
-                    ContentUnavailableView("Серверов нет", systemImage: "server.rack", description: Text("Добавьте сервер в настройках"))
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Сайдбар", systemImage: "sidebar.left") {
+                        columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                    }
+                    .keyboardShortcut("0", modifiers: .command)
                 }
             }
-            .safeAreaInset(edge: .bottom) {
-                Button {
-                    showSettings = true
-                } label: {
-                    Label("Настройки", systemImage: "gearshape")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .keyboardShortcut(",", modifiers: .command)
-                .padding()
-                .background(.bar)
-            }
-        } detail: {
-            Text("Выберите сессию")
-                .foregroundStyle(.secondary)
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()

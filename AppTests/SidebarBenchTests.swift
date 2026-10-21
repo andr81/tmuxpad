@@ -87,4 +87,22 @@ final class SidebarBenchTests {
         #expect(env.openSessions.roster.tabs.isEmpty)
         await finish()
     }
+
+    @Test func killRemovesSession() async throws {
+        let server = try await preparedServer()
+        let created = try await Bench.exec("~/.local/bin/tmuxpad-host.sh new doomed api")
+        #expect(created.exitCode == 0, "\(created.stderrText)")
+        env.tree.setServers(env.servers.servers)
+        await env.tree.refresh(serverID: server.id)
+        let key = OpenSessionKey(serverID: server.id, name: "doomed")
+        #expect(env.tree.nodes(for: server.id).flatMap(\.sessions).map(\.session.name) == ["doomed"])
+        env.actions.open(key)
+
+        try await env.actions.kill(key)
+        #expect(env.tree.nodes(for: server.id).isEmpty)
+        #expect(!env.openSessions.isOpen(key))
+        // второй раз сессии уже нет — не ошибка
+        try await env.actions.kill(key)
+        await finish()
+    }
 }

@@ -25,6 +25,7 @@ final class AppEnvironment {
     let refresher: TreeRefresher
     let openSessions: OpenSessionsModel
     let tree: TreeModel
+    let actions: SessionActions
 
     init(
         deviceID: UUID,
@@ -55,6 +56,13 @@ final class AppEnvironment {
         )
         openSessions = OpenSessionsModel()
         tree = TreeModel(refresher: refresher, openSessions: openSessions, defaults: defaults)
+        actions = SessionActions(
+            servers: servers,
+            pool: pool,
+            auth: { config in try await Self.auth(for: config, keyStore: keyStore) },
+            openSessions: openSessions,
+            tree: tree
+        )
     }
 
     /// Keychain, Secure Enclave и JSON в Application Support. Ошибка — экран `StartupErrorView`.

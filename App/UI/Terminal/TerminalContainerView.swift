@@ -50,9 +50,11 @@ final class TerminalContainerView: UIView {
         focus()
     }
 
-    /// Ввод — в текущий терминал; вне окна first responder не назначить.
+    /// Ввод — в текущий терминал; вне окна first responder не назначить. Поверх открыт лист или
+    /// диалог — не фокусируем: иначе нажатия из его поля ушли бы в PTY.
     func focus() {
-        guard acceptsInput, window != nil, let current, !current.isFirstResponder else {
+        guard acceptsInput, let window, let current, !current.isFirstResponder,
+              window.rootViewController?.presentedViewController == nil else {
             return
         }
         _ = current.becomeFirstResponder()

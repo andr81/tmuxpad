@@ -21,7 +21,8 @@ struct OpenTerminalTests {
 
     private func terminal(
         calls: Calls = Calls(),
-        snapshot: @escaping @MainActor (UUID) -> ServerSnapshot? = { _ in nil }
+        snapshot: @escaping @MainActor (UUID) -> ServerSnapshot? = { _ in nil },
+        unlock: @escaping @MainActor () async -> Bool = { true }
     ) -> OpenTerminal {
         OpenTerminal(key: key, dependencies: OpenTerminal.Dependencies(
             connection: { _ in
@@ -31,7 +32,8 @@ struct OpenTerminalTests {
             },
             snapshot: snapshot,
             log: nil,
-            appearance: TerminalAppearance(defaults: defaults)
+            appearance: TerminalAppearance(defaults: defaults),
+            unlock: unlock
         ))
     }
 
@@ -85,6 +87,17 @@ struct OpenTerminalTests {
         #expect(calls.count == 1)
     }
 
+    @Test func retryWithDeniedUnlockTouchesNothing() async throws {
+        let calls = Calls()
+        let terminal = terminal(calls: calls, unlock: { false })
+        terminal.start()
+        try await waitUntil { terminal.state != .connecting }
+        let state = terminal.state
+        await terminal.retry()
+        #expect(calls.count == 1)
+        #expect(terminal.state == state)
+    }
+
     @Test func closedTerminalDoesNotConnect() async {
         let calls = Calls()
         let terminal = terminal(calls: calls)
@@ -113,6 +126,15 @@ struct OpenTerminalTests {
         #expect(throws: AppError.projectNotFound("api")) {
             try terminal.recreateProject()
         }
+    }
+
+    @Test func restoredTerminalTakesProjectFromLaterSnapshot() throws {
+        // восстановлен после перезапуска: дерево ещё не опрошено
+        let current = Snapshot()
+        let terminal = terminal(snapshot: { _ in current.value })
+        #expect(terminal.project == nil)
+        current.value = snapshot(projects: ["api"], sessions: [("api", "api")])
+        #expect(try terminal.recreateProject() == "api")
     }
 
     @Test func recreateProjectFromOpeningSnapshot() throws {

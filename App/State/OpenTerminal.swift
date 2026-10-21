@@ -24,7 +24,8 @@ final class OpenTerminal {
 
     let key: OpenSessionKey
     let view: TmuxTerminalView
-    /// Проект сессии из снимка на момент открытия.
+    /// Проект сессии из снимка на момент открытия; восстановленной после перезапуска — из
+    /// первого снимка, где она есть (при открытии дерево ещё не опрошено).
     private(set) var project: String?
     private(set) var session: TerminalSession?
     private(set) var state: TerminalState = .connecting
@@ -52,7 +53,11 @@ final class OpenTerminal {
         self.dependencies = dependencies
         view = TmuxTerminalView(frame: Self.initialFrame)
         dependencies.appearance.attach(view)
-        project = dependencies.snapshot(key.serverID)?.sessions.first { $0.name == key.name }?.project
+        project = snapshotProject()
+    }
+
+    private func snapshotProject() -> String? {
+        dependencies.snapshot(key.serverID)?.sessions.first { $0.name == key.name }?.project
     }
 
     /// Сессия, а с `take` — «Забрать» (§6.1). `after` — `detach` вытесненных: их PTY-слоты
@@ -141,7 +146,7 @@ final class OpenTerminal {
     /// Проект для «Создать заново» (`SessionActions.recreate`). Проекта нет в снимке —
     /// `AppError.projectNotFound`.
     func recreateProject() throws -> String {
-        guard let project else {
+        guard let project = project ?? snapshotProject() else {
             throw AppError.projectUnknown
         }
         if let snapshot = dependencies.snapshot(key.serverID), !snapshot.projects.contains(where: { $0.name == project }) {
@@ -267,6 +272,9 @@ final class OpenTerminal {
     }
 
     private func apply(_ event: Event) async {
+        if project == nil {
+            project = snapshotProject()
+        }
         switch event {
         case .state(.live):
             state = .live

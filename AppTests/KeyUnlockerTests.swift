@@ -103,9 +103,10 @@ struct KeyUnlockerTests {
 
     @Test func promptStartedBeforeBackgroundDoesNotUnlockAfterIt() async throws {
         let unlocker = unlocker()
-        prompt.delay = .milliseconds(50)
+        prompt.delay = .milliseconds(500)
         let first = Task { try await unlocker.authenticate() }
-        try await Task.sleep(for: .milliseconds(10))
+        // запрос уже открыт, а не ещё не начат
+        try await waitUntil { prompt.calls == 1 }
         await unlocker.lock()
         try await first.value
         prompt.delay = .zero

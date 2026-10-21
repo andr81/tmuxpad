@@ -74,6 +74,22 @@ struct OpenSessionsPersistenceTests {
         #expect(restored.selection == key("web"))
     }
 
+    @Test func restoreKeepsRecency() {
+        let saved = savingModel()
+        saved.open(key("api"))
+        saved.open(key("web"))
+        saved.open(key("db"))
+        saved.select(index: 1)
+        saved.select(index: 2)
+
+        let restored = OpenSessionsModel()
+        persistence.restore(into: restored, knownServers: [server])
+        #expect(restored.roster == saved.roster)
+        // закрытие выделенной отдаёт выделение последней активированной до неё, а не последней вкладке
+        restored.close(key("web"))
+        #expect(restored.selection == key("api"))
+    }
+
     @Test func restoreWithoutSelectionKeepsLastOpened() {
         let saved = savingModel()
         saved.open(key("api"))

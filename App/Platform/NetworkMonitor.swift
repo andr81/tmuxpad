@@ -100,8 +100,8 @@ final class NetworkMonitor {
 
     private func settle(_ snapshot: PathSnapshot) {
         pending = nil
+        // `stop()` сбрасывает `settled` вместе с отменой `pending`
         guard let old = settled else {
-            settled = snapshot
             return
         }
         settled = snapshot

@@ -43,7 +43,8 @@ struct NoKeyUnlock: KeyUnlocking {
 /// соединения закрываются через `closeDelay`, возврат раньше ничего не рвёт; возврат после
 /// разрыва — `reconnectAll`, терминалы переоткрывают `attach` сами (ядро). С Face ID (§8)
 /// запуск и возврат из фона сначала ждут `authenticate()`; отказ оставляет соединения и опрос
-/// дерева выключенными до `unlock()` («Повторить» у терминала).
+/// дерева выключенными до `unlock()` («Повторить» у терминала). Опрос дерева в фоне
+/// останавливается сразу: его тик после `lock()` спрашивал бы Face ID.
 @MainActor
 final class LifecycleCoordinator {
     static let logServer = "app"
@@ -55,6 +56,8 @@ final class LifecycleCoordinator {
     private let closeDelay: Duration
     /// Соединения закрыты уходом в фон; сбрасывается возвратом в `.active`.
     private(set) var closed = false
+    /// Между `.background` и следующим `.active`.
+    private var inBackground = false
     /// Face ID отклонён: отложенное действие возврата ждёт `unlock()`; `true` — с переподключением.
     private(set) var locked: Bool?
     /// До первого `.active` и после ухода в фон ключ снова закрыт.
@@ -98,12 +101,18 @@ final class LifecycleCoordinator {
         }
     }
 
-    /// Сеть сменилась (`NetworkMonitor`): рвутся и живые соединения. Пока соединения закрыты
-    /// фоном, событие игнорируется — возврат и так переподключит.
+    /// Сеть сменилась (`NetworkMonitor`): рвутся и живые соединения. В фоне соединения
+    /// закрываются сразу, не дожидаясь `closeDelay`, — возврат переподключит; после отказа
+    /// Face ID событие игнорируется — переподключит `unlock()`.
     @discardableResult
     func networkChanged(_ description: String) -> Task<Void, Never>? {
-        guard !closed, locked == nil else {
-            record("network changed: \(description), ignored in background")
+        if inBackground {
+            record("network changed: \(description), in background")
+            closeConnections()
+            return nil
+        }
+        guard locked == nil else {
+            record("network changed: \(description), ignored until key unlock")
             return nil
         }
         record("network changed: \(description)")
@@ -121,26 +130,33 @@ final class LifecycleCoordinator {
             record("key unlock denied")
             return false
         }
-        if let reconnect = locked {
+        // `locked` читается в очереди: шаг `becomeActive`, ждавший тот же запрос, мог уже
+        // всё поднять — второй `resume` переподключил бы дважды
+        await enqueue { [weak self] targets in
+            guard let self, let reconnect = locked else {
+                return
+            }
             locked = nil
-            await enqueue { targets in
-                await Self.resume(targets, reconnect: reconnect)
-            }.value
-        }
+            await Self.resume(targets, reconnect: reconnect)
+        }.value
         return true
     }
 
     private func enterBackground() {
         needsUnlock = true
+        inBackground = true
         let unlocker = unlocker
-        enqueue { _ in await unlocker.lock() }
+        enqueue { targets in
+            targets.stopTree()
+            await unlocker.lock()
+        }
         guard !closed, closeTimer == nil else {
             return
         }
         // по истечении задачу нужно закончить сразу, не дожидаясь `disconnectAll`
         backgroundTask = backgroundTasks.begin { [weak self] in
             self?.closeConnections()
-            self?.endBackgroundTask()
+            self?.endBackgroundTask(self?.backgroundTask ?? .invalid)
         }
         let delay = closeDelay
         closeTimer = Task { [weak self] in
@@ -164,8 +180,9 @@ final class LifecycleCoordinator {
         if let closeTimer {
             closeTimer.cancel()
             self.closeTimer = nil
-            endBackgroundTask()
+            endBackgroundTask(backgroundTask)
         }
+        inBackground = false
         let reconnect = closed || locked == true
         if closed {
             closed = false
@@ -211,18 +228,21 @@ final class LifecycleCoordinator {
         }
         closed = true
         record("background close")
+        // новый уход в фон до конца `disconnectAll` начинает свою задачу: её не заканчиваем
+        let task = backgroundTask
+        // опрос дерева уже остановил `enterBackground`
         enqueue { [weak self] targets in
-            targets.stopTree()
             await targets.disconnectAll()
-            self?.endBackgroundTask()
+            self?.endBackgroundTask(task)
         }
     }
 
-    private func endBackgroundTask() {
-        guard backgroundTask != .invalid else {
+    /// Заканчивает `id`, только если это всё ещё текущая задача.
+    private func endBackgroundTask(_ id: UIBackgroundTaskIdentifier) {
+        guard id != .invalid, id == backgroundTask else {
             return
         }
-        backgroundTasks.end(backgroundTask)
+        backgroundTasks.end(id)
         backgroundTask = .invalid
     }
 

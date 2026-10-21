@@ -115,7 +115,7 @@ struct LifecycleCoordinatorTests {
         coordinator.scenePhaseChanged(.inactive)
         await coordinator.scenePhaseChanged(.active)?.value
         try await Task.sleep(for: .milliseconds(150))
-        #expect(targets.calls == [.startTree])
+        #expect(targets.calls == [.stopTree, .startTree])
         #expect(tasks.ended.count == 1)
         #expect(!coordinator.closed)
         #expect(try await messages().isEmpty)
@@ -148,6 +148,17 @@ struct LifecycleCoordinatorTests {
         await coordinator.networkChanged("wifi → cellular")?.value
         #expect(targets.calls == [.reconnectAll(force: true), .refreshTree])
         #expect(try await messages() == ["network changed: wifi → cellular"])
+    }
+
+    @Test func networkChangeInBackgroundClosesAtOnce() async throws {
+        coordinator.scenePhaseChanged(.background)
+        #expect(coordinator.networkChanged("wifi → cellular") == nil)
+        #expect(coordinator.closed)
+        try await waitUntil { targets.calls.count == 2 && tasks.ended.count == 1 }
+        #expect(targets.calls == [.stopTree, .disconnectAll])
+        // таймер отменён: второго закрытия нет
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(targets.calls.count == 2)
     }
 
     @Test func networkChangeIgnoredWhileClosed() async throws {
@@ -201,7 +212,7 @@ struct LifecycleUnlockTests {
         targets.calls = []
         coordinator.scenePhaseChanged(.background)
         try await waitUntil { targets.calls.count == 3 }
-        #expect(targets.calls == [.lock, .stopTree, .disconnectAll])
+        #expect(targets.calls == [.stopTree, .lock, .disconnectAll])
     }
 
     @Test func returnBeforeCloseAsksToo() async throws {
@@ -209,7 +220,21 @@ struct LifecycleUnlockTests {
         coordinator.scenePhaseChanged(.background)
         targets.calls = []
         await coordinator.scenePhaseChanged(.active)?.value
-        #expect(targets.calls == [.lock, .authenticate, .startTree])
+        #expect(targets.calls == [.stopTree, .lock, .authenticate, .startTree])
+    }
+
+    @Test func denialOnQuickReturnKeepsTreeStopped() async throws {
+        await coordinator.scenePhaseChanged(.active)?.value
+        coordinator.scenePhaseChanged(.background)
+        targets.calls = []
+        unlocker.granted = false
+        await coordinator.scenePhaseChanged(.active)?.value
+        // опрос дерева остановлен уходом в фон и без ключа не запускается
+        #expect(targets.calls == [.stopTree, .lock, .authenticate])
+        #expect(coordinator.locked == false)
+        unlocker.granted = true
+        #expect(await coordinator.unlock())
+        #expect(targets.calls == [.stopTree, .lock, .authenticate, .authenticate, .startTree])
     }
 
     @Test func denialKeepsEverythingDownUntilUnlock() async throws {

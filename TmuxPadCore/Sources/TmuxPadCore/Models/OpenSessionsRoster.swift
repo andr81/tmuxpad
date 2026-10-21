@@ -101,7 +101,7 @@ public struct OpenSessionsRoster: Codable, Sendable, Equatable {
     }
 
     /// От давно неактивного к последнему активированному.
-    private var recencyOrder: [OpenSessionKey] {
+    public var recencyOrder: [OpenSessionKey] {
         recency.sorted { $0.value < $1.value }.map(\.key)
     }
 

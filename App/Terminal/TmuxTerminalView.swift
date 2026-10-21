@@ -15,7 +15,7 @@ enum TerminalSettings {
     static let fontSizeRange = 9...32
 
     static func fontName(_ defaults: UserDefaults) -> TerminalFont {
-        defaults.string(forKey: fontNameKey).flatMap(TerminalFont.init(rawValue:)) ?? .system
+        defaults.string(forKey: fontNameKey).flatMap(TerminalFont.init(rawValue:)) ?? TerminalStyle.standard.font
     }
 
     static func fontSize(_ defaults: UserDefaults) -> Int {
@@ -26,16 +26,16 @@ enum TerminalSettings {
     }
 
     static func theme(_ defaults: UserDefaults) -> AppTheme {
-        defaults.string(forKey: themeKey).flatMap(AppTheme.init(rawValue:)) ?? .system
+        defaults.string(forKey: themeKey).flatMap(AppTheme.init(rawValue:)) ?? TerminalStyle.standard.theme
     }
 
     static func optionAsMeta(_ defaults: UserDefaults) -> Bool {
-        defaults.object(forKey: optionAsMetaKey) as? Bool ?? true
+        defaults.object(forKey: optionAsMetaKey) as? Bool ?? TerminalStyle.standard.optionAsMeta
     }
 
     /// `sound` (по умолчанию) или `off`.
     static func bellEnabled(_ defaults: UserDefaults) -> Bool {
-        defaults.string(forKey: bellKey) != "off"
+        defaults.string(forKey: bellKey).map { $0 != "off" } ?? TerminalStyle.standard.bell
     }
 
     static func style(_ defaults: UserDefaults) -> TerminalStyle {

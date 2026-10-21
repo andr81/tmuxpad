@@ -26,11 +26,12 @@ struct SessionRow: View {
         }
     }
 
-    /// «5 мин назад».
+    /// «5 мин. назад», «сейчас». `.abbreviated` в русской локали даёт «-5 мин».
     static func activityText(_ date: Date, now: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = Locale(identifier: "ru_RU")
-        formatter.unitsStyle = .abbreviated
+        formatter.unitsStyle = .short
+        formatter.dateTimeStyle = .named
         return formatter.localizedString(for: min(date, now), relativeTo: now)
     }
 }

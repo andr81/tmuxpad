@@ -39,7 +39,7 @@ struct NewSessionWizard: View {
                     projects: snapshot?.projects ?? [],
                     projectsRoot: server?.projectsRoot ?? "",
                     selected: flow.project,
-                    unavailable: server.flatMap { ServerPickStep.unavailableReason(server: $0, state: tree.states[$0.id]) }
+                    unavailable: unavailable
                 ) { name in
                     flow.selectProject(name)
                     advance(from: .project)
@@ -48,17 +48,20 @@ struct NewSessionWizard: View {
                 NameStep(
                     flow: flow,
                     issue: flow.nameIssue(snapshot: snapshot),
+                    unavailable: unavailable,
                     name: Binding(get: { flow.name }, set: { flow.editName($0) }),
                     attach: attachExisting,
                     submit: create
                 )
+                // ответ `new` относится к отправленному имени, правка во время запроса его спутала бы
+                .disabled(creating)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         if creating {
                             ProgressView()
                         } else {
                             Button("Создать", action: create)
-                                .disabled(!flow.canCreate(snapshot: snapshot))
+                                .disabled(!canCreate)
                         }
                     }
                 }
@@ -82,6 +85,15 @@ struct NewSessionWizard: View {
         flow.serverID.flatMap { tree.states[$0]?.snapshot }
     }
 
+    /// При «Новая сессия здесь» шаги сервера и проекта пропущены, поэтому причина нужна и на шаге имени.
+    private var unavailable: String? {
+        server.flatMap { ServerPickStep.unavailableReason(server: $0, state: tree.states[$0.id]) }
+    }
+
+    private var canCreate: Bool {
+        unavailable == nil && flow.canCreate(snapshot: snapshot)
+    }
+
     private func advance(from step: NewSessionFlow.Step) {
         if let next = flow.step(after: step) {
             path.append(next)
@@ -97,7 +109,7 @@ struct NewSessionWizard: View {
     }
 
     private func create() {
-        guard !creating, flow.canCreate(snapshot: snapshot), let actions = env?.actions else {
+        guard !creating, canCreate, let actions = env?.actions else {
             return
         }
         creating = true

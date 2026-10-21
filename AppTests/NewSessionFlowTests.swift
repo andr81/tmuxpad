@@ -33,8 +33,20 @@ struct NewSessionFlowTests {
         // другой сервер — другие папки
         flow.selectServer(first.id)
         #expect(flow.project == nil)
+        // тот же сервер ещё раз — проект остаётся
+        flow.selectProject("web")
         flow.selectServer(first.id)
         #expect(flow.serverID == first.id)
+        #expect(flow.project == "web")
+    }
+
+    /// «Создать» из пустого мастера «Подключиться»: сервер известен, проект — нет.
+    @Test func serverOnlyPrefillAsksProject() {
+        let flow = NewSessionFlow(servers: [first, second], serverID: second.id)
+        #expect(flow.steps == [.project, .name])
+        #expect(flow.serverID == second.id)
+        #expect(flow.project == nil)
+        #expect(flow.name.isEmpty)
     }
 
     @Test func contextMenuPrefillSkipsSteps() {

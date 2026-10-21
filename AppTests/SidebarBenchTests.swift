@@ -17,6 +17,12 @@ final class SidebarBenchTests {
 
     deinit {
         try? FileManager.default.removeItem(at: directory)
+        // тест упал до `finish()`: опрос не должен пережить его и мешать `Bench.reset()` следующего
+        let env = env
+        Task { @MainActor in
+            await env.tree.stop().value
+            await env.pool.disconnectAll()
+        }
     }
 
     private func finish() async {

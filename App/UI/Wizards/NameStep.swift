@@ -5,6 +5,8 @@ import TmuxPadCore
 struct NameStep: View {
     let flow: NewSessionFlow
     let issue: NewSessionFlow.NameIssue?
+    /// Сервер недоступен: причина вместо подсказок, «Создать» неактивна.
+    let unavailable: String?
     /// Запись идёт через `NewSessionFlow.editName`.
     @Binding var name: String
     let attach: () -> Void
@@ -27,7 +29,7 @@ struct NameStep: View {
                     Text("Проект \(project)")
                 }
             } footer: {
-                if let text = Self.footer(issue: issue, serverIssue: flow.serverIssue) {
+                if let text = unavailable ?? Self.footer(issue: issue, serverIssue: flow.serverIssue) {
                     Text(text)
                         .foregroundStyle(.red)
                 }

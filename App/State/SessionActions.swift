@@ -66,6 +66,10 @@ final class SessionActions {
     }
 
     private func api(for config: ServerConfig) async throws -> HostAPI {
+        // как в `TreeRefresher`: без подтверждённого отпечатка ядро сохранило бы ключ молча (§8)
+        guard config.hostKeyFingerprint != nil else {
+            throw AppError.hostKeyUnconfirmed
+        }
         let connection = await pool.connection(for: config, auth: try await auth(config))
         // `connect()` не из `.disconnected` начал бы новую эпоху, как в `TreeRefresher`
         if await connection.state == .disconnected {
@@ -74,10 +78,10 @@ final class SessionActions {
         return await connection.api
     }
 
-    /// Для ручного входа с Mac; без `-d`, чтобы не выкинуть iPad. Имя прошло валидацию,
-    /// одинарные кавычки его не ломают.
+    /// Для ручного входа с Mac; без `-d`, чтобы не выкинуть iPad. Имя пришло из `list`
+    /// сервера, поэтому `'` внутри экранируется: команду вставят в шелл.
     func attachCommand(_ key: OpenSessionKey) -> String {
-        "tmux attach -t '=\(key.name)'"
+        "tmux attach -t '=\(key.name.replacingOccurrences(of: "'", with: #"'\''"#))'"
     }
 
     func copyAttachCommand(_ key: OpenSessionKey) {

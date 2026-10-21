@@ -8,6 +8,8 @@ enum AppError: Error, Equatable {
     case keyMissing(UUID)
     /// Сервер удалили, пока шло действие.
     case serverMissing
+    /// Отпечаток хост-ключа не подтверждён: подключение сохранило бы его без «Доверять» (§8).
+    case hostKeyUnconfirmed
 }
 
 /// Composition root: неизменяемые зависимости и модели State. Создаётся один раз при запуске.

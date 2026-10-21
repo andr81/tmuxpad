@@ -15,7 +15,7 @@ enum KeyStoreError: Error, Equatable {
 /// Ключи пользователя: метаданные в `keys.json`, приватная часть в Keychain (account — `id`).
 /// Ed25519 хранится OpenSSH-текстом без шифра, Secure Enclave — `dataRepresentation`,
 /// годным только на этом устройстве.
-actor KeychainKeyStore: KeyStore {
+actor KeychainKeyStore: AppKeyStore {
     private let keychain: Keychain
     private let metadata: JSONFileStore<[SSHKeyInfo]>
 
@@ -24,7 +24,9 @@ actor KeychainKeyStore: KeyStore {
         self.metadata = metadata
     }
 
-    func list() throws -> [SSHKeyInfo] {
+    /// Без изоляции: читает только `keys.json`, запись в него атомарная. `AppEnvironment.live()`
+    /// берёт отсюда начальный список синхронно.
+    nonisolated func list() throws -> [SSHKeyInfo] {
         (try metadata.load() ?? []).sorted { $0.createdAt < $1.createdAt }
     }
 
@@ -59,9 +61,8 @@ actor KeychainKeyStore: KeyStore {
     }
 
     func createEd25519(name: String) throws -> SSHKeyInfo {
-        let key = SSHKeys.generateEd25519(comment: Self.comment(for: name))
-        let info = SSHKeyInfo(name: name, kind: .ed25519, publicKeyOpenSSH: key.publicKeyOpenSSH)
-        try store(info, secret: Data(key.privateKeyOpenSSH.utf8))
+        let (info, text) = Self.newEd25519(name: name)
+        try store(info, secret: Data(text.utf8))
         return info
     }
 
@@ -89,7 +90,20 @@ actor KeychainKeyStore: KeyStore {
 
     /// OpenSSH Ed25519, с паролем или без; хранится без шифра — его защищает Keychain.
     func importEd25519(name: String, text: String, passphrase: String?) throws -> SSHKeyInfo {
-        let comment = Self.comment(for: name)
+        let (info, plain) = try Self.decryptEd25519(name: name, text: text, passphrase: passphrase)
+        try store(info, secret: Data(plain.utf8))
+        return info
+    }
+
+    /// Новый Ed25519: метаданные и OpenSSH-текст без шифра.
+    static func newEd25519(name: String) -> (SSHKeyInfo, String) {
+        let key = SSHKeys.generateEd25519(comment: comment(for: name))
+        return (SSHKeyInfo(name: name, kind: .ed25519, publicKeyOpenSSH: key.publicKeyOpenSSH), key.privateKeyOpenSSH)
+    }
+
+    /// Импортируемый OpenSSH Ed25519 → метаданные и тот же ключ текстом без шифра.
+    static func decryptEd25519(name: String, text: String, passphrase: String?) throws -> (SSHKeyInfo, String) {
+        let comment = comment(for: name)
         let raw: Curve25519.Signing.PrivateKey
         do {
             raw = try Curve25519.Signing.PrivateKey(
@@ -104,8 +118,7 @@ actor KeychainKeyStore: KeyStore {
             kind: .ed25519,
             publicKeyOpenSSH: SSHKeys.publicKeyOpenSSH(NIOSSHPrivateKey(ed25519Key: raw), comment: comment)
         )
-        try store(info, secret: Data(raw.makeSSHRepresentation(comment: comment).utf8))
-        return info
+        return (info, raw.makeSSHRepresentation(comment: comment))
     }
 
     /// Комментарий публичного ключа: `tmuxpad-<имя>` без пробелов.

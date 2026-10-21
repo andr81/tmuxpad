@@ -345,22 +345,33 @@ KeychainKeyStoreTests,KeychainHostKeyStoreTests,DeviceIdentityTests,JSONFileStor
 `App/State/KeyLibrary.swift`, `App/UI/ErrorText.swift` (все create), `App/TmuxPadApp.swift`,
 `AppTests/{ServerStoreTests,KeyLibraryTests,ErrorTextTests}.swift` (create).
 
-- [ ] `AppEnvironment.swift` по решению 9: `static func live() throws -> AppEnvironment` и
+- [x] `AppEnvironment.swift` по решению 9: `static func live() throws -> AppEnvironment` и
       `static func inMemory(directory: URL? = nil) -> AppEnvironment`; выбор в `TmuxPadApp` —
       `ProcessInfo.processInfo.arguments.contains("-uitest-inmemory")`; ошибка `live()` →
       `StartupErrorView` с текстом и без дальнейшей работы. `AppError.keyMissing(UUID)`.
-- [ ] `ServerStore.swift` и `KeyLibrary.swift` по решению 10; оба получают зависимости через
+- [x] `ServerStore.swift` и `KeyLibrary.swift` по решению 10; оба получают зависимости через
       инициализатор (не через синглтон), загружаются из JSON при создании.
-- [ ] `ErrorText.swift` по решению 3: русские тексты всех случаев `SSHError` («Не удалось
+- [x] `ErrorText.swift` по решению 3: русские тексты всех случаев `SSHError` («Не удалось
       подключиться: …», «Сервер не принял ключ», «Ключ сервера изменился», «Сервер отказал в
       новом канале», «Сервер не ответил вовремя», «Соединение потеряно»), `HostError` («На
       сервере нет host-скрипта», «Сервер отклонил запрос: …», «Сессия с таким именем уже
       есть», «Сессии больше нет», «Папки проектов нет на сервере», «Команда завершилась с
       кодом N: …», «Неожиданный ответ сервера: …»), `KeyError`, `KeyStoreError`,
       `KeyLibraryError`, `AppError`.
-- [ ] Окружение передаётся в SwiftUI через `.environment(...)` для `@Observable`-моделей и
+- [x] Окружение передаётся в SwiftUI через `.environment(...)` для `@Observable`-моделей и
       собственный `EnvironmentKey` для `AppEnvironment`.
-- [ ] Тесты из Testing Strategy; `scripts/ios-test.sh --no-bench` проходит.
+- [x] Тесты из Testing Strategy; `scripts/ios-test.sh --no-bench` проходит.
+- Заметки исполнения: `inMemory(directory:)` бросает, как и `live()`: `HostBootstrap()` и
+  загрузка `servers.json` могут упасть, а `try!` в тестах прятал бы причину. Создание и импорт
+  ключей вынесены в протокол `AppKeyStore: KeyStore` (`App/Platform/AppKeyStore.swift`), его
+  реализуют `KeychainKeyStore` и `InMemoryKeyStore` (SE — `secureEnclaveUnavailable`);
+  `AppEnvironment.keyStore` — `any AppKeyStore`, `KeychainKeyStore.list()` — `nonisolated`,
+  чтобы `live()` загрузил ключи синхронно. `ServerStore.issues(for:keys:)` получает список ключей
+  параметром (у `KeyLibrary` ссылка на `ServerStore`, обратная дала бы цикл) и отдаёт русские
+  тексты (`serverIssueText` в `ErrorText.swift`). `delete` сбрасывает отпечаток `host:port`,
+  только если других серверов с тем же адресом нет: запись в `HostKeyStore` общая у копий.
+  Симулятор, который `ios-test.sh` выбирает первым, отказывал в запуске («Busy, Application
+  failed preflight checks»), пока не был загружен вручную (`xcrun simctl boot`).
 
 ### Task 4: настройки — ключи и серверы
 

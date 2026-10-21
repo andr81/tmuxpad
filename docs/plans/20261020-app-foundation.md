@@ -405,7 +405,7 @@ ServersView,ServerEditView,QRCodeView}.swift` (create), `App/UI/Root/RootView.sw
 `App/UI/DoctorText.swift` (все create), `App/UI/Settings/ServerEditView.swift`,
 `AppTests/Support/Bench.swift` (create), `AppTests/ServerCheckBenchTests.swift` (create).
 
-- [ ] `ServerCheckModel` по решению 10. `check()`: `pool.connection(for:auth:)` с
+- [x] `ServerCheckModel` по решению 10. `check()`: `pool.connection(for:auth:)` с
       `environment.auth(for:)` → `connect()`; `SSHError.authFailed` → `.authFailed`;
       `.hostKeyChanged(expected, actual)` → `.hostKeyChanged`; прочие → `.failed(userText)`;
       успех с `hostKeyFirstSeen` → `.trustPrompt(fingerprint)` (дальше — только после
@@ -414,13 +414,24 @@ ServersView,ServerEditView,QRCodeView}.swift` (create), `App/UI/Root/RootView.sw
       повторный `check()`. `prepare()` → `bootstrap.prepare(api:)` → `.done(.ready, report)`.
       `sendToken(_:)` → `api.auth(token:)`; токен не попадает ни в журнал, ни в состояние
       модели.
-- [ ] `ServerCheckView` и `TokenView` по решению 11; кнопки сервера в `ServerEditView` открывают
+- [x] `ServerCheckView` и `TokenView` по решению 11; кнопки сервера в `ServerEditView` открывают
       их (кнопки недоступны для несохранённого сервера). `DoctorText.swift` по решению 12.
-- [ ] `AppTests/Support/Bench.swift`: `Bench.isAvailable`, `Bench.config(keyID:)`, ключ из
+- [x] `AppTests/Support/Bench.swift`: `Bench.isAvailable`, `Bench.config(keyID:)`, ключ из
       `TMUXPAD_BENCH_KEY_B64` в `InMemoryKeyStore`; `ServerCheckBenchTests` из Testing Strategy,
       `.serialized`, `.enabled(if: Bench.isAvailable)`; перед каждым тестом — сброс состояния
       стенда так же, как в `TmuxPadCore/Tests/TmuxPadCoreTests/Support/Bench.swift`.
-- [ ] `scripts/ios-test.sh` (со стендом) проходит.
+- [x] `scripts/ios-test.sh` (со стендом) проходит.
+- Заметки исполнения: действия `ServerCheckModel` синхронно меняют `state` и возвращают
+  `Task`: алерт, закрытый кнопкой, не всплывает снова до старта задачи, а тесты ждут `value`.
+  Если `HostKeyStore` уже доверяет ключу, а поле конфига пустое или другое (копия сервера),
+  `check()` молча пишет отпечаток в конфиг, без вопроса. `resetHostKey()` очищает и поле
+  конфига, иначе повторный вопрос «Доверять» не задался бы. После «Доверять» на экране токена
+  передача продолжается сама. Существующий сервер после «Сохранить» остаётся открытым, кнопки
+  сервера доступны только без несохранённых правок. ⚠️ `makeSSHRepresentation` Citadel (и
+  `SSHKeys.generateEd25519` ядра поверх него) при комментарии длиной 5 по модулю 8 пишет файл,
+  который Citadel не читает (`invalidPadding`); приложение сериализует Ed25519 само
+  (`KeychainKeyStore.openSSHText`), ядро не тронуто. Стенду на этом Mac нужен
+  `PATH=/Applications/Docker.app/Contents/Resources/bin:$PATH` (`docker-credential-desktop`).
 
 ### Task 6: экран диагностики
 

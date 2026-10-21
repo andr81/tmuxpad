@@ -37,7 +37,7 @@ final class KeychainKeyStoreTests {
         #expect(info.kind == .ed25519)
         #expect(info.publicKeyOpenSSH.hasPrefix("ssh-ed25519 "))
         #expect(info.publicKeyOpenSSH.hasSuffix(" tmuxpad-My-iPad"))
-        #expect(try await store.list() == [info])
+        #expect(try store.list() == [info])
         #expect(try keychain.accounts() == [info.id.uuidString])
 
         let key = try #require(try await store.privateKey(for: info.id))
@@ -45,18 +45,31 @@ final class KeychainKeyStoreTests {
 
         // Метаданные переживают новый экземпляр хранилища.
         let reopened = KeychainKeyStore(keychain: keychain, metadata: JSONFileStore(fileName: "keys.json", directory: directory))
-        #expect(try await reopened.list() == [info])
+        #expect(try reopened.list() == [info])
 
         try await store.delete(info.id)
-        #expect(try await store.list().isEmpty)
+        #expect(try store.list().isEmpty)
         #expect(try keychain.accounts().isEmpty)
         #expect(try await store.privateKey(for: info.id) == nil)
+    }
+
+    /// Комментарий любой длины по модулю 8: `makeSSHRepresentation` Citadel давал нечитаемый
+    /// файл при длине 5 (`tmuxpad-bench`).
+    @Test(arguments: 0..<8) func ed25519TextReadsBackForEveryCommentLength(extra: Int) throws {
+        let name = String(repeating: "x", count: 5 + extra)
+        let (info, text) = KeychainKeyStore.newEd25519(name: name)
+        let key = try SSHKeys.importOpenSSHEd25519(text)
+        #expect(SSHKeys.publicKeyOpenSSH(key, comment: KeychainKeyStore.comment(for: name)) == info.publicKeyOpenSSH)
+
+        let (imported, plain) = try KeychainKeyStore.decryptEd25519(name: name, text: text, passphrase: nil)
+        #expect(imported.publicKeyOpenSSH == info.publicKeyOpenSSH)
+        _ = try SSHKeys.importOpenSSHEd25519(plain)
     }
 
     @Test func listIsSortedByCreation() async throws {
         let first = try await store.createEd25519(name: "a")
         let second = try await store.createEd25519(name: "b")
-        #expect(try await store.list().map(\.id) == [first.id, second.id])
+        #expect(try store.list().map(\.id) == [first.id, second.id])
     }
 
     @Test func importWithPassphrase() async throws {
@@ -73,7 +86,7 @@ final class KeychainKeyStoreTests {
         await #expect(throws: KeyError.self) {
             try await self.store.importEd25519(name: "x", text: Self.encryptedKey, passphrase: "wrong")
         }
-        #expect(try await store.list().isEmpty)
+        #expect(try store.list().isEmpty)
     }
 
     @Test func importGarbageIsInvalidKey() async throws {
@@ -82,7 +95,7 @@ final class KeychainKeyStoreTests {
         } throws: { error in
             if case KeyError.invalidKey = error { true } else { false }
         }
-        #expect(try await store.list().isEmpty)
+        #expect(try store.list().isEmpty)
         #expect(try keychain.accounts().isEmpty)
     }
 

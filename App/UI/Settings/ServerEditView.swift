@@ -19,7 +19,7 @@ struct ServerEditView: View {
     }
 
     private var canSave: Bool {
-        servers.issues(for: draft, keys: keys.keys).isEmpty
+        (isNew || servers.server(id: draft.id) != draft) && servers.issues(for: draft, keys: keys.keys).isEmpty
     }
 
     var body: some View {
@@ -66,6 +66,7 @@ struct ServerEditView: View {
             } footer: {
                 Text("Запоминается при первом подключении; при смене ключа сервера подключение блокируется.")
             }
+            actions
         }
         .navigationTitle(isNew ? "Новый сервер" : draft.label)
         .navigationBarTitleDisplayMode(.inline)
@@ -86,6 +87,45 @@ struct ServerEditView: View {
             Text("При следующем подключении приложение спросит, доверять ли ключу сервера.")
         }
         .errorAlert(message: $error)
+        .onChange(of: servers.server(id: draft.id)?.hostKeyFingerprint) { _, fingerprint in
+            // «Доверять» и «Сбросить» на экране проверки пишут отпечаток в сохранённый конфиг;
+            // иначе «Сохранить» вернул бы прежний
+            draft.hostKeyFingerprint = fingerprint
+        }
+    }
+
+    // MARK: - Кнопки сервера
+
+    /// Проверяется сохранённый конфиг, поэтому с несохранёнными правками кнопки недоступны.
+    private var actions: some View {
+        let saved = servers.server(id: draft.id)
+        let enabled = !isNew && saved == draft
+        return Section {
+            NavigationLink {
+                ServerCheckView(serverID: draft.id, action: .check)
+            } label: {
+                Label("Проверить подключение", systemImage: "network")
+            }
+            NavigationLink {
+                ServerCheckView(serverID: draft.id, action: .prepare)
+            } label: {
+                Label("Подготовить сервер", systemImage: "wrench.and.screwdriver")
+            }
+            NavigationLink {
+                TokenView(serverID: draft.id)
+            } label: {
+                Label("Передать токен Claude", systemImage: "key.horizontal")
+            }
+        } footer: {
+            if isNew {
+                Text("Доступно после сохранения сервера.")
+            } else if !enabled {
+                Text("Сначала сохраните изменения.")
+            } else {
+                Text("«Подготовить сервер» устанавливает host-скрипт и проверяет tmux, claude и папку проектов.")
+            }
+        }
+        .disabled(!enabled)
     }
 
     // MARK: - Поля
@@ -139,12 +179,13 @@ struct ServerEditView: View {
 
     private func save() {
         do {
+            // существующий сервер остаётся открытым: после сохранения доступны кнопки проверки
             if isNew {
                 try servers.add(draft)
+                dismiss()
             } else {
                 try servers.update(draft)
             }
-            dismiss()
         } catch {
             self.error = userText(error)
         }

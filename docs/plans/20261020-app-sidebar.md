@@ -156,15 +156,15 @@ swift test --package-path TmuxPadCore --skip IntegrationTests
 `App/AppEnvironment.swift`, `App/UI/Root/RootView.swift`,
 `AppTests/{OpenSessionsModelTests,SidebarBenchTests}.swift` (create).
 
-- [ ] `AppEnvironment`: `refresher: TreeRefresher` (`auth` — `environment.auth(for:)`,
+- [x] `AppEnvironment`: `refresher: TreeRefresher` (`auth` — `environment.auth(for:)`,
       `bootstrap` — тот же `HostBootstrap`), модели `tree: TreeModel`, `openSessions:
       OpenSessionsModel`.
-- [ ] `TreeModel` по решению 1; `OpenSessionsModel` по решению 2.
-- [ ] `RootView`: `start()`/`stop()` по `scenePhase`; `setServers` при изменении списка
+- [x] `TreeModel` по решению 1; `OpenSessionsModel` по решению 2.
+- [x] `RootView`: `start()`/`stop()` по `scenePhase`; `setServers` при изменении списка
       серверов.
-- [ ] `OpenSessionsModelTests`; в `SidebarBenchTests` — тесты «стенд онлайн с проектами» и
+- [x] `OpenSessionsModelTests`; в `SidebarBenchTests` — тесты «стенд онлайн с проектами» и
       «неверный порт офлайн, стенд онлайн».
-- [ ] `scripts/ios-test.sh` проходит.
+- [x] `scripts/ios-test.sh` проходит.
 
 ### Task 2: сайдбар
 

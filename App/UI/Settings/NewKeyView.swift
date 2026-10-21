@@ -49,6 +49,7 @@ struct NewKeyView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Создать", action: create)
+                        .accessibilityIdentifier("newKey.create")
                         .disabled(working || name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }

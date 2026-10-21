@@ -4,6 +4,9 @@ import TmuxPadCore
 /// Форма сервера по таблице §3.6. Новый сервер — в sheet, существующий — в навигации настроек.
 struct ServerEditView: View {
     let isNew: Bool
+    /// Онбординг: вызывается после сохранения вместо закрытия; кнопок проверки и «Отмены» нет,
+    /// проверка — следующий шаг онбординга.
+    var onSaved: ((ServerConfig) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(ServerStore.self) private var servers
@@ -12,8 +15,9 @@ struct ServerEditView: View {
     @State private var confirmReset = false
     @State private var error: String?
 
-    init(config: ServerConfig, isNew: Bool) {
+    init(config: ServerConfig, isNew: Bool, onSaved: ((ServerConfig) -> Void)? = nil) {
         self.isNew = isNew
+        self.onSaved = onSaved
         _draft = State(initialValue: config)
     }
 
@@ -24,10 +28,10 @@ struct ServerEditView: View {
     var body: some View {
         Form {
             Section {
-                field("Название", text: $draft.label, issue: labelIssue)
-                field("Адрес", text: $draft.host, issue: coreIssue("host is empty"), prompt: "IP или DNS")
+                field("Название", text: $draft.label, issue: labelIssue, id: "serverEdit.label")
+                field("Адрес", text: $draft.host, issue: coreIssue("host is empty"), prompt: "IP или DNS", id: "serverEdit.host")
                 numberField("Порт", value: $draft.port, issue: coreIssue("port must be 1...65535"))
-                field("Пользователь", text: $draft.user, issue: coreIssue("user must be non-empty without spaces"))
+                field("Пользователь", text: $draft.user, issue: coreIssue("user must be non-empty without spaces"), id: "serverEdit.user")
             }
             Section {
                 Picker("Ключ", selection: $draft.keyID) {
@@ -65,12 +69,14 @@ struct ServerEditView: View {
             } footer: {
                 Text("Запоминается при первом подключении; при смене ключа сервера подключение блокируется.")
             }
-            actions
+            if onSaved == nil {
+                actions
+            }
         }
         .navigationTitle(isNew ? "Новый сервер" : draft.label)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if isNew {
+            if isNew, onSaved == nil {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Отмена") { dismiss() }
                 }
@@ -78,6 +84,7 @@ struct ServerEditView: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Сохранить", action: save)
                     .disabled(!canSave)
+                    .accessibilityIdentifier("serverEdit.save")
             }
         }
         .confirmationDialog("Сбросить отпечаток?", isPresented: $confirmReset, titleVisibility: .visible) {
@@ -129,13 +136,15 @@ struct ServerEditView: View {
 
     // MARK: - Поля
 
-    private func field(_ title: String, text: Binding<String>, issue: String?, prompt: String? = nil) -> some View {
+    /// `id` — `accessibilityIdentifier` поля для `AppUITests`.
+    private func field(_ title: String, text: Binding<String>, issue: String?, prompt: String? = nil, id: String? = nil) -> some View {
         VStack(alignment: .leading) {
             LabeledContent(title) {
                 TextField(title, text: text, prompt: prompt.map { Text($0) })
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+                    .accessibilityIdentifier(id ?? title)
             }
             issueText(issue)
         }
@@ -179,9 +188,13 @@ struct ServerEditView: View {
             // существующий сервер остаётся открытым: после сохранения доступны кнопки проверки
             if isNew {
                 try servers.add(draft)
-                dismiss()
             } else {
                 try servers.update(draft)
+            }
+            if let onSaved {
+                onSaved(draft)
+            } else if isNew {
+                dismiss()
             }
         } catch {
             self.error = userText(error)

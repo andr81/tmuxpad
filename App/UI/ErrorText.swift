@@ -46,6 +46,7 @@ func userText(_ error: Error) -> String {
         case .hostKeyUnconfirmed: "Подключение к серверу не проверено — нажмите «Проверить» у сервера"
         case let .projectNotFound(project): "Проект \(project) не найден на сервере"
         case .projectUnknown: "Проект сессии неизвестен"
+        case .biometricsDenied: "Доступ к ключу отменён"
         }
     case let error as KeychainError:
         switch error {

@@ -21,7 +21,8 @@ struct OpenTerminalTests {
 
     private func terminal(
         calls: Calls = Calls(),
-        snapshot: @escaping @MainActor (UUID) -> ServerSnapshot? = { _ in nil }
+        snapshot: @escaping @MainActor (UUID) -> ServerSnapshot? = { _ in nil },
+        unlock: @escaping @MainActor () async -> Bool = { true }
     ) -> OpenTerminal {
         OpenTerminal(key: key, dependencies: OpenTerminal.Dependencies(
             connection: { _ in
@@ -31,8 +32,8 @@ struct OpenTerminalTests {
             },
             snapshot: snapshot,
             log: nil,
-            defaults: defaults,
-            appearance: TerminalAppearance(defaults: defaults)
+            appearance: TerminalAppearance(defaults: defaults),
+            unlock: unlock
         ))
     }
 
@@ -86,6 +87,17 @@ struct OpenTerminalTests {
         #expect(calls.count == 1)
     }
 
+    @Test func retryWithDeniedUnlockTouchesNothing() async throws {
+        let calls = Calls()
+        let terminal = terminal(calls: calls, unlock: { false })
+        terminal.start()
+        try await waitUntil { terminal.state != .connecting }
+        let state = terminal.state
+        await terminal.retry()
+        #expect(calls.count == 1)
+        #expect(terminal.state == state)
+    }
+
     @Test func closedTerminalDoesNotConnect() async {
         let calls = Calls()
         let terminal = terminal(calls: calls)
@@ -116,6 +128,15 @@ struct OpenTerminalTests {
         }
     }
 
+    @Test func restoredTerminalTakesProjectFromLaterSnapshot() throws {
+        // восстановлен после перезапуска: дерево ещё не опрошено
+        let current = Snapshot()
+        let terminal = terminal(snapshot: { _ in current.value })
+        #expect(terminal.project == nil)
+        current.value = snapshot(projects: ["api"], sessions: [("api", "api")])
+        #expect(try terminal.recreateProject() == "api")
+    }
+
     @Test func recreateProjectFromOpeningSnapshot() throws {
         let current = Snapshot()
         current.value = snapshot(projects: ["api"], sessions: [("api", "api")])
@@ -134,28 +155,6 @@ struct TerminalDelegateTests {
     @Test(arguments: ["tel:123", "file:///etc/passwd", "javascript:alert(1)", "tmuxpad://x", "example.com", ""])
     func otherLinksDoNotOpen(_ link: String) {
         #expect(TerminalDelegate.openableURL(link) == nil)
-    }
-}
-
-@MainActor
-struct TerminalSettingsTests {
-    let defaults = UserDefaults(suiteName: "dev.tmuxpad.test.\(UUID().uuidString)")!
-
-    @Test func defaultsWhenUnset() {
-        #expect(TerminalSettings.fontSize(defaults) == TerminalSettings.defaultFontSize)
-        #expect(TerminalSettings.optionAsMeta(defaults))
-        #expect(TerminalSettings.bellEnabled(defaults))
-    }
-
-    @Test(arguments: [(100, 32), (1, 9), (20, 20)])
-    func storedFontSizeIsClamped(_ stored: Int, _ expected: Int) {
-        defaults.set(stored, forKey: TerminalSettings.fontSizeKey)
-        #expect(TerminalSettings.fontSize(defaults) == expected)
-    }
-
-    @Test func bellOff() {
-        defaults.set("off", forKey: TerminalSettings.bellKey)
-        #expect(!TerminalSettings.bellEnabled(defaults))
     }
 }
 

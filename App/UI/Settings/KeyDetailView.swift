@@ -4,6 +4,8 @@ import TmuxPadCore
 /// Публичный ключ: текст, копирование, «Поделиться», QR и команда для сервера.
 struct KeyDetailView: View {
     let keyID: UUID
+    /// Онбординг: ключ только что создан, удалять его там незачем.
+    var allowsDelete = true
 
     @Environment(\.dismiss) private var dismiss
     @Environment(KeyLibrary.self) private var keys
@@ -29,6 +31,7 @@ struct KeyDetailView: View {
                 Text(key.publicKeyOpenSSH)
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
+                    .accessibilityIdentifier("keyDetail.publicKey")
                 Button("Скопировать", systemImage: "doc.on.doc") {
                     UIPasteboard.general.string = key.publicKeyOpenSSH
                 }
@@ -50,9 +53,11 @@ struct KeyDetailView: View {
             } footer: {
                 Text("Выполните её на сервере, чтобы он принимал этот ключ.")
             }
-            Section {
-                Button("Удалить ключ", systemImage: "trash", role: .destructive) {
-                    confirmDelete = true
+            if allowsDelete {
+                Section {
+                    Button("Удалить ключ", systemImage: "trash", role: .destructive) {
+                        confirmDelete = true
+                    }
                 }
             }
         }

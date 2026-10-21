@@ -3,6 +3,7 @@ import TmuxPadCore
 
 struct KeysView: View {
     @Environment(KeyLibrary.self) private var keys
+    @Environment(SecurityPreferences.self) private var security
     @State private var sheet: Sheet?
 
     private enum Sheet: String, Identifiable {
@@ -11,21 +12,32 @@ struct KeysView: View {
     }
 
     var body: some View {
-        List(keys.keys) { key in
-            NavigationLink {
-                KeyDetailView(keyID: key.id)
-            } label: {
-                VStack(alignment: .leading) {
-                    Text(key.name)
-                    Text(key.kind.title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        List {
+            Section {
+                ForEach(keys.keys) { key in
+                    NavigationLink {
+                        KeyDetailView(keyID: key.id)
+                    } label: {
+                        VStack(alignment: .leading) {
+                            Text(key.name)
+                            Text(key.kind.title)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("keys.row")
+                }
+                if keys.keys.isEmpty {
+                    ContentUnavailableView("Ключей нет", systemImage: "key", description: Text("Создайте ключ или импортируйте свой"))
                 }
             }
-        }
-        .overlay {
-            if keys.keys.isEmpty {
-                ContentUnavailableView("Ключей нет", systemImage: "key", description: Text("Создайте ключ или импортируйте свой"))
+            Section {
+                Toggle("Требовать Face ID для ключей", isOn: Binding(
+                    get: { security.requireBiometrics },
+                    set: { value in Task { await security.setRequireBiometrics(value) } }
+                ))
+            } footer: {
+                Text("Face ID или код-пароль перед первым подключением после запуска и после возврата из фона.")
             }
         }
         .navigationTitle("Ключи")
@@ -33,10 +45,12 @@ struct KeysView: View {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button("Создать", systemImage: "plus") { sheet = .create }
+                        .accessibilityIdentifier("keys.create")
                     Button("Импортировать", systemImage: "square.and.arrow.down") { sheet = .importKey }
                 } label: {
                     Label("Добавить", systemImage: "plus")
                 }
+                .accessibilityIdentifier("keys.add")
             }
         }
         .sheet(item: $sheet) { sheet in

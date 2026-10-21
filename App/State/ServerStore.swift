@@ -54,7 +54,9 @@ final class ServerStore {
         guard let config = server(id: id) else {
             return
         }
-        try await hostKeys.reset(host: config.host, port: config.port)
+        // отпечатки очищаются до первого `await`: пока в конфиге старый отпечаток, опрос дерева
+        // и «Повторить» подключаются, и после сброса `HostKeyStore` новый ключ записался бы
+        // молча, без «Доверять» (§8)
         let updated = servers.map { server in
             var server = server
             if server.host == config.host && server.port == config.port {
@@ -63,6 +65,13 @@ final class ServerStore {
             return server
         }
         try commit(updated)
+        // соединения с этим адресом уходят из пула: возврат из фона и смена сети иначе
+        // переподключили бы их к ключу, которому ещё не сказали «Доверять», а открытые
+        // терминалы — следом
+        for server in servers where server.host == config.host && server.port == config.port {
+            await pool.remove(id: server.id)
+        }
+        try await hostKeys.reset(host: config.host, port: config.port)
     }
 
     /// Отпечаток уже подтверждён у другого сервера с тем же адресом (копия сервера).

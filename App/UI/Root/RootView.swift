@@ -2,11 +2,15 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(ServerStore.self) private var servers
+    @Environment(KeyLibrary.self) private var keys
     @Environment(TreeModel.self) private var tree
     @Environment(OpenSessionsModel.self) private var openSessions
     @Environment(AppNavigation.self) private var navigation
+    @Environment(TerminalAppearance.self) private var appearance
+    @Environment(\.appEnvironment) private var env
     @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
+    @State private var showOnboarding = false
     /// «Создать» из пустого мастера «Подключиться»: «Новая сессия» откроется, когда тот закроется.
     @State private var createAfterAttach: UUID?
 
@@ -22,6 +26,7 @@ struct RootView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .keyboardShortcut(",", modifiers: .command)
+                    .accessibilityIdentifier("root.settings")
                     .padding()
                     .background(.bar)
                 }
@@ -45,6 +50,7 @@ struct RootView: View {
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
+                .preferredColorScheme(appearance.theme.colorScheme)
         }
         // мастера — здесь, а не в сайдбаре: `⌘N` и `⌘O` открывают их и при скрытом сайдбаре
         .sheet(item: $navigation.newSessionTarget) { target in
@@ -58,16 +64,23 @@ struct RootView: View {
         }) {
             AttachWizard(servers: servers.servers) { createAfterAttach = $0 }
         }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView { showOnboarding = false }
+                .preferredColorScheme(appearance.theme.colorScheme)
+        }
+        .onAppear {
+            // раз за запуск; пройденный или пропущенный онбординг не возвращается
+            if let env, OnboardingFlag.shouldShow(defaults: env.defaults, hasKeys: !keys.keys.isEmpty, hasServers: !servers.servers.isEmpty) {
+                showOnboarding = true
+            }
+        }
         .onChange(of: servers.servers, initial: true) { _, list in
             tree.setServers(list)
         }
-        // фон, смена сети и переподключение открытых сессий — план 7; здесь только опрос дерева
+        .preferredColorScheme(appearance.theme.colorScheme)
+        // фон и возврат: опрос дерева и соединения ведёт координатор
         .onChange(of: scenePhase, initial: true) { _, phase in
-            if phase == .active {
-                tree.start()
-            } else {
-                tree.stop()
-            }
+            env?.lifecycle.scenePhaseChanged(phase)
         }
     }
 

@@ -16,6 +16,7 @@ struct ErrorTextTests {
         KeyStoreError.secureEnclaveUnavailable, KeyStoreError.unsupportedKind, KeyStoreError.notFound,
         KeyLibraryError.inUse(["prod"]), AppError.keyMissing(UUID()), AppError.serverMissing,
         AppError.hostKeyUnconfirmed, AppError.projectNotFound("api"), AppError.projectUnknown,
+        AppError.biometricsDenied,
         KeychainError.status(-25308), KeychainError.unexpectedData,
     ]
 

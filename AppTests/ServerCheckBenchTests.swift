@@ -60,6 +60,8 @@ final class ServerCheckBenchTests {
         }
         #expect(version == env.bootstrap.bundledVersion)
         #expect(report.ok, "\(report.lines)")
+        // стенд может держать проекты других тестов: важно, что число пришло из `list`
+        #expect(model.projectCount != nil)
 
         // новый экран: соединение в пуле то же, `hostKeyFirstSeen` у него по-прежнему true
         let again = ServerCheckModel(serverID: server.id, environment: env)
@@ -149,7 +151,8 @@ final class ServerCheckBenchTests {
         await rejecting.value
         #expect(model.state == .idle)
         #expect(try await env.hostKeys.fingerprint(for: server.host, port: server.port) == nil)
-        #expect(await env.pool.existing(id: server.id)?.state == .disconnected)
+        // не просто отключено, а убрано из пула: `reconnectAll` его не поднимет
+        #expect(await env.pool.existing(id: server.id) == nil)
         #expect(env.servers.server(id: server.id)?.hostKeyFingerprint == nil)
         await finish()
     }
@@ -242,14 +245,18 @@ final class ServerCheckBenchTests {
         await again.trust().value
         #expect(env.servers.server(id: server.id)?.hostKeyFingerprint == fingerprint)
 
-        // «Сбросить отпечаток» в форме при живом соединении
+        // «Сбросить отпечаток» в форме при живом соединении: оно уходит из пула, проверка
+        // подключается заново, как в первый раз, и снова спрашивает
+        let live = await env.pool.existing(id: server.id)
         try await env.servers.resetFingerprint(id: server.id)
+        #expect(await env.pool.existing(id: server.id) == nil)
         await again.check().value
         #expect(again.state == .trustPrompt(fingerprint: fingerprint))
-        #expect(try await env.hostKeys.fingerprint(for: server.host, port: server.port) == nil)
+        #expect(await env.pool.existing(id: server.id) !== live)
+        #expect(env.servers.server(id: server.id)?.hostKeyFingerprint == nil)
 
-        // ядро на живом соединении ключ не пересохраняет: это делает «Доверять»
         await again.trust().value
+        #expect(env.servers.server(id: server.id)?.hostKeyFingerprint == fingerprint)
         #expect(try await env.hostKeys.fingerprint(for: server.host, port: server.port) == fingerprint)
         await finish()
     }

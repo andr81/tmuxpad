@@ -36,6 +36,7 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: TmuxPad
+        NSFaceIDUsageDescription: Face ID защищает доступ к SSH-ключам, если это включено в настройках.
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UILaunchScreen: {}
@@ -62,11 +63,23 @@ targets:
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/TmuxPad.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TmuxPad
         BUNDLE_LOADER: $(TEST_HOST)
         GENERATE_INFOPLIST_FILE: YES
+  AppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [AppUITests]
+    dependencies:
+      - target: TmuxPad
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.tmuxpad.app.uitests
+        TEST_TARGET_NAME: TmuxPad
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   TmuxPad:
     build:
       targets:
         TmuxPad: all
         AppTests: [test]
+        AppUITests: [test]
     test:
-      targets: [AppTests]
+      targets: [AppTests, AppUITests]

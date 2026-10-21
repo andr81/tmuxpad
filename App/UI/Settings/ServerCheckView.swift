@@ -11,6 +11,8 @@ struct ServerCheckView: View {
 
     let serverID: UUID
     let action: Action
+    /// Онбординг: кнопка «Далее», доступная, когда действие закончилось отчётом.
+    var onContinue: (() -> Void)?
 
     @Environment(\.appEnvironment) private var env
     @State private var model: ServerCheckModel?
@@ -19,6 +21,15 @@ struct ServerCheckView: View {
         Group {
             if let model {
                 ServerCheckContent(model: model)
+                    .toolbar {
+                        if let onContinue {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Далее", action: onContinue)
+                                    .disabled(!model.isDone)
+                                    .accessibilityIdentifier("onboarding.next")
+                            }
+                        }
+                    }
             } else {
                 ProgressView()
             }
@@ -87,6 +98,9 @@ private struct ServerCheckContent: View {
                 if let report {
                     Section {
                         DoctorReportView(report: report)
+                        if let count = model.projectCount {
+                            Text("Проектов найдено: \(count)")
+                        }
                     } header: {
                         Text("Проверка сервера")
                     } footer: {

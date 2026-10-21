@@ -14,7 +14,6 @@ struct TerminalAppearanceTests {
             connection: { _ in throw AppError.serverMissing },
             snapshot: { _ in nil },
             log: nil,
-            defaults: defaults,
             appearance: appearance
         )
         model.makeTerminal = { OpenTerminal(key: $0, dependencies: dependencies) }

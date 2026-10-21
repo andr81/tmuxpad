@@ -46,7 +46,8 @@ TestFlight требует учётной записи Apple Developer и ост�
    - `.inactive` (шторка, переключатель приложений) — ничего не делает.
    - `.active` после разрыва: `pool.reconnectAll()`, `tree.start()` и `tree.refresh()`;
      терминалы переоткрываются сами (ядро), их плашка — «Переподключение…» по состоянию.
-     После `.active` без разрыва — только `tree.start()`.
+     После `.active` без разрыва — `pool.reconnectAll()` (живые не трогает, `failed` пробует
+     снова, §6) и `tree.start()`.
    - Первый `.active` после запуска — восстановление (решение 3).
 2. **`NetworkMonitor`** (`App/Platform/NetworkMonitor.swift`): `NWPathMonitor` на своей
    очереди; событие «сеть сменилась» — изменение `status` на `.satisfied` или набора
@@ -185,25 +186,25 @@ shellcheck -s bash scripts/ios-test.sh
 `App/UI/Root/RootView.swift`, `App/AppEnvironment.swift`,
 `AppTests/{LifecycleCoordinatorTests,NetworkMonitorTests,LifecycleBenchTests}.swift` (create).
 
-- [ ] `LifecycleCoordinator` по решению 1 с протоколом `LifecycleTargets` и адаптером
+- [x] `LifecycleCoordinator` по решению 1 с протоколом `LifecycleTargets` и адаптером
       приложения (решение 10); `RootView` передаёт `scenePhase` координатору вместо прямых
       `tree.start/stop`.
-- [ ] `NetworkMonitor` по решению 2; чистая функция `networkChanged(from:to:) -> Bool` над
+- [x] `NetworkMonitor` по решению 2; чистая функция `networkChanged(from:to:) -> Bool` над
       `struct PathSnapshot { satisfied: Bool; interfaces: Set<String> }`.
-- [ ] Каждое событие координатора и монитора — в `DiagnosticsLog` (`kind: .reconnect`,
+- [x] Каждое событие координатора и монитора — в `DiagnosticsLog` (`kind: .reconnect`,
       «background close», «foreground reconnect», «network changed: wifi → cellular»).
-- [ ] Тесты из решения 10 для координатора, монитора и стенда.
-- [ ] `scripts/ios-test.sh` проходит.
+- [x] Тесты из решения 10 для координатора, монитора и стенда.
+- [x] `scripts/ios-test.sh` проходит.
 
 ### Task 2: восстановление открытых сессий
 
 **Файлы:** `App/State/OpenSessionsPersistence.swift` (create), `App/State/OpenSessionsModel.swift`,
 `App/State/LifecycleCoordinator.swift`, `AppTests/OpenSessionsPersistenceTests.swift` (create).
 
-- [ ] Сохранение и восстановление по решению 3; `OpenSessionsModel` сообщает об изменении
+- [x] Сохранение и восстановление по решению 3; `OpenSessionsModel` сообщает об изменении
       ростера одной точкой (`onRosterChange`).
-- [ ] `OpenSessionsPersistenceTests` (тестовый `UserDefaults(suiteName:)`).
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `OpenSessionsPersistenceTests` (тестовый `UserDefaults(suiteName:)`).
+- [x] `scripts/ios-test.sh --no-bench` проходит.
 
 ### Task 3: настройки терминала, тема, Face ID
 
@@ -212,15 +213,15 @@ shellcheck -s bash scripts/ios-test.sh
 `App/Terminal/TmuxTerminalView.swift`, `App/AppEnvironment.swift`, `App/TmuxPadApp.swift`,
 `project.yml`, `AppTests/{TerminalSettingsTests,KeyUnlockerTests}.swift` (create).
 
-- [ ] Раздел «Терминал» по решению 5; `TerminalAppearance` хранит и рассылает все параметры
+- [x] Раздел «Терминал» по решению 5; `TerminalAppearance` хранит и рассылает все параметры
       (шрифт, размер, тема, Option = Meta, звук); `TmuxTerminalView` применяет их без
       пересоздания.
-- [ ] Тема приложения — `preferredColorScheme` на корне по настройке.
-- [ ] Face ID по решению 6: настройка в разделе «Ключи»; `KeyUnlocker` за протоколом
+- [x] Тема приложения — `preferredColorScheme` на корне по настройке.
+- [x] Face ID по решению 6: настройка в разделе «Ключи»; `KeyUnlocker` за протоколом
       (`authenticate() async throws`), в тестах — фейк; `KeyUnlockerTests` — второе
       обращение не спрашивает, после `.background` спрашивает снова, отказ → ошибка.
-- [ ] `TerminalSettingsTests` — смена каждого параметра доходит до открытого терминала.
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `TerminalSettingsTests` — смена каждого параметра доходит до открытого терминала.
+- [x] `scripts/ios-test.sh --no-bench` проходит.
 
 ### Task 4: онбординг
 
@@ -228,10 +229,10 @@ shellcheck -s bash scripts/ios-test.sh
 `App/UI/Root/RootView.swift`, `App/UI/Settings/{KeyDetailView,ServerEditView,
 ServerCheckView}.swift` (режим онбординга), `AppTests/OnboardingStepTests.swift` (create).
 
-- [ ] Онбординг по решению 4; шаг подготовки показывает «Проектов найдено: N».
-- [ ] `OnboardingStepTests` — переходы при доступном и недоступном SE, «Пропустить», возврат
+- [x] Онбординг по решению 4; шаг подготовки показывает «Проектов найдено: N».
+- [x] `OnboardingStepTests` — переходы при доступном и недоступном SE, «Пропустить», возврат
       на шаг ключа после удаления ключа.
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `scripts/ios-test.sh --no-bench` проходит.
 
 ### Task 5: иконка, README, UI-смоук
 
@@ -239,24 +240,24 @@ ServerCheckView}.swift` (режим онбординга), `AppTests/OnboardingS
 `README.md` (create), `project.yml` (таргет `AppUITests`), `AppUITests/SmokeUITests.swift`
 (create), контролы с `accessibilityIdentifier` в `App/UI/**`.
 
-- [ ] Иконка по решению 7: `swift scripts/make-icon.swift App/Resources/Assets.xcassets/
+- [x] Иконка по решению 7: `swift scripts/make-icon.swift App/Resources/Assets.xcassets/
       AppIcon.appiconset/icon-1024.png`; `Contents.json` single-size; сборка без
       предупреждений актива.
-- [ ] `README.md` по решению 8.
-- [ ] `AppUITests` по решению 9; `scripts/ios-test.sh -only-testing:AppUITests` проходит.
+- [x] `README.md` по решению 8.
+- [x] `AppUITests` по решению 9; `scripts/ios-test.sh -only-testing:AppUITests` проходит.
 
 ### Task 6: документация, полный прогон, завершение
 
 **Файлы:** `CLAUDE.md`, `docs/tmuxpad-spec.md` (§11 — отметки фаз 5 и 6),
 `docs/plans/20261020-app-lifecycle-release.md` (move).
 
-- [ ] `CLAUDE.md`: раскладка `App/UI/Onboarding`, `AppUITests`, `scripts/make-icon.swift`;
+- [x] `CLAUDE.md`: раскладка `App/UI/Onboarding`, `AppUITests`, `scripts/make-icon.swift`;
       инвариант «на `scenePhase` и сеть реагирует только `LifecycleCoordinator`».
-- [ ] Спека §11: отметить сделанное в фазах 5 и 6 (TestFlight — не отмечать); расхождения —
+- [x] Спека §11: отметить сделанное в фазах 5 и 6 (TestFlight — не отмечать); расхождения —
       правкой спеки.
-- [ ] Полный прогон Validation Commands и `TmuxPadCore/scripts/test.sh`; в progress-лог —
+- [x] Полный прогон Validation Commands и `TmuxPadCore/scripts/test.sh`; в progress-лог —
       число тестов по таргетам.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
 
 ## Post-Completion
 

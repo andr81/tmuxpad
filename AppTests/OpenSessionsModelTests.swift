@@ -76,7 +76,6 @@ struct OpenSessionsModelTests {
             connection: { _ in throw AppError.serverMissing },
             snapshot: { _ in nil },
             log: nil,
-            defaults: defaults,
             appearance: TerminalAppearance(defaults: defaults)
         )
         model.makeTerminal = { OpenTerminal(key: $0, dependencies: dependencies) }
@@ -115,7 +114,6 @@ struct OpenSessionsModelTests {
             },
             snapshot: { _ in nil },
             log: nil,
-            defaults: defaults,
             appearance: TerminalAppearance(defaults: defaults)
         )
         model.makeTerminal = { OpenTerminal(key: $0, dependencies: dependencies) }
@@ -146,7 +144,6 @@ struct OpenSessionsModelTests {
             },
             snapshot: { _ in nil },
             log: nil,
-            defaults: defaults,
             appearance: TerminalAppearance(defaults: defaults)
         )
         model.makeTerminal = { OpenTerminal(key: $0, dependencies: dependencies) }

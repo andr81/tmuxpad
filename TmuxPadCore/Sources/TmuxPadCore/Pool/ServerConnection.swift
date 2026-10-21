@@ -20,6 +20,8 @@ public actor ServerConnection: ExecRunner {
     private let transport: any SSHTransport
     private let auth: SSHAuth
     private let hostKeys: any HostKeyStore
+    /// Ждёт перед каждой попыткой реконнекта (`authenticate` она не заменяет); ошибка — цикл выходит.
+    private let reconnectGate: (@Sendable () async throws -> Void)?
     private let execSlots: AsyncSemaphore
 
     private var connection: (any SSHConnection)?
@@ -29,6 +31,8 @@ public actor ServerConnection: ExecRunner {
     private var keepaliveTask: Task<Void, Never>?
     private var watcherTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
+    /// Первая попытка `connect()` в своей эпохе: одновременные вызовы ждут её.
+    private var pendingConnect: (epoch: Int, task: Task<Void, Error>)?
     /// Последний успешный exec, кроме пингов: свежий exec заменяет пинг.
     private var lastExecAt: ContinuousClock.Instant?
     private var missedPings = 0
@@ -42,13 +46,15 @@ public actor ServerConnection: ExecRunner {
         auth: SSHAuth,
         hostKeys: any HostKeyStore,
         settings: PoolSettings? = nil,
-        log: DiagnosticsLog = DiagnosticsLog()
+        log: DiagnosticsLog = DiagnosticsLog(),
+        reconnectGate: (@Sendable () async throws -> Void)? = nil
     ) {
         self.config = config
         self.deviceID = deviceID
         self.transport = transport
         self.auth = auth
         self.hostKeys = hostKeys
+        self.reconnectGate = reconnectGate
         let settings = settings ?? PoolSettings(config: config)
         self.settings = settings
         self.log = log
@@ -83,8 +89,25 @@ public actor ServerConnection: ExecRunner {
         if state.isConnected, connection?.isConnected == true {
             return
         }
+        // попытка этой эпохи уже идёт: ждать её, а не начинать новое рукопожатие (восстановление
+        // открытых терминалов при запуске иначе открыло бы по соединению на каждый)
+        if let pendingConnect, pendingConnect.epoch == epoch {
+            try await pendingConnect.task.value
+            return
+        }
         let current = await beginEpoch()
         setState(.connecting)
+        let task = Task { try await self.firstAttempt(current) }
+        pendingConnect = (current, task)
+        try await task.value
+    }
+
+    private func firstAttempt(_ current: Int) async throws {
+        defer {
+            if pendingConnect?.epoch == current {
+                pendingConnect = nil
+            }
+        }
         do {
             try await attempt(current)
         } catch {
@@ -227,6 +250,17 @@ public actor ServerConnection: ExecRunner {
                 try await Task.sleep(for: delay)
             } catch {
                 return
+            }
+            do {
+                // попытка идёт с сохранённым `auth`: приложение держит её, пока ключ закрыт (Face ID, §8)
+                try await reconnectGate?()
+            } catch {
+                // отказ приложения — `.failed`: ждать дальше нечего, повтор — `reconnectNow`
+                guard current == epoch, !(error is CancellationError) else {
+                    return
+                }
+                lastError = "\(error)"
+                break
             }
             guard current == epoch else {
                 return

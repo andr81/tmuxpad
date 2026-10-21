@@ -189,13 +189,22 @@ App
 │   ├── SidebarView            дерево Server → Project → Session
 │   ├── TerminalScreen         UIViewRepresentable вокруг SwiftTerm.TerminalView
 │   ├── NewSessionWizard, AttachWizard
-│   └── Settings (Servers, Keys, Terminal)
+│   └── Settings (Servers, Keys, Terminal, Diagnostics)
 ├── State (@Observable)
 │   ├── ServerStore            конфиги серверов (Codable JSON)
+│   ├── KeyLibrary             список ключей, создание, импорт, удаление
+│   ├── ServerCheckModel       «Проверить подключение», «Подготовить сервер», токен, вопрос «Доверять»
+│   ├── DiagnosticsModel       события журнала для экрана «Диагностика»
 │   ├── TreeModel              снимок list по каждому серверу + статус доступности (опрос — TreeRefresher ядра)
 │   └── OpenSessionsModel      открытые терминалы, выбранная сессия (порядок и вытеснение — OpenSessionsRoster ядра)
+├── Platform
+│   ├── Keychain               единственная точка SecItem*
+│   ├── KeychainKeyStore       ключи: Secure Enclave P-256, Ed25519 в Keychain
+│   ├── KeychainHostKeyStore   TOFU-отпечатки в Keychain
+│   ├── JSONFileStore          servers.json, keys.json
+│   └── DeviceIdentity         UUID устройства
 ├── Core
-│   ├── KeyManager             генерация/импорт/экспорт ключей, Keychain, Secure Enclave
+│   ├── KeyStore, SSHKeys      протокол хранилища ключей, разбор и экспорт OpenSSH
 │   ├── HostKeyStore           TOFU-отпечатки
 │   ├── ConnectionPool         одно SSH-соединение на сервер, keepalive, reconnect
 │   ├── HostAPI                list / new / kill / take / copy-cancel / setup / version — exec-каналы, парсинг
@@ -376,7 +385,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 
 - Приватный ключ: Secure Enclave (неизвлекаемый) или Keychain `ThisDeviceOnly`; никогда не логируется, не попадает в бэкапы.
 - Опционально: Face ID перед первым использованием ключа в сессии приложения (`LAContext` / access control у SE-ключа).
-- Хост-ключ: TOFU с явным подтверждением отпечатка: ядро при первом подключении само сохраняет отпечаток и подключается, UI по `ServerConnection.hostKeyFirstSeen` показывает «Доверять», отказ → `disconnect()` + `HostKeyStore.reset(host:port:)` (отпечаток — `SHA256:<base64 без '='>` от wire-формата ключа, как печатает OpenSSH); смена отпечатка → блокирующее предупреждение, подключение только после ручного «Сбросить».
+- Хост-ключ: TOFU с явным подтверждением отпечатка: ядро при первом подключении само сохраняет отпечаток и подключается, UI показывает «Доверять», пока отпечаток соединения не совпадает с подтверждённым в `ServerConfig.hostKeyFingerprint` (не только при `ServerConnection.hostKeyFirstSeen`: вопрос без ответа — приложение закрыли, соединение переподключилось — не считается согласием), отказ → `disconnect()` + `HostKeyStore.reset(host:port:)`. Доверие в `HostKeyStore` хранится по `host:port` и общее у серверов с одним адресом: копия сервера, чей отпечаток уже подтверждён у другого сервера с тем же адресом, подключается без вопроса; удаление сервера сбрасывает доверие, только если адрес больше никем не используется; смена адреса или порта очищает отпечаток в конфиге; «Сбросить» в форме сервера применяется сразу (отпечаток — `SHA256:<base64 без '='>` от wire-формата ключа, как печатает OpenSSH); смена отпечатка → блокирующее предупреждение, подключение только после ручного «Сбросить».
 - Без паролей в v1 (только ключи) — меньше поверхность и не надо хранить пароли.
 - Имена сессий/проектов валидируются и в приложении, и в скрипте; в exec-строки ничего не подставляется без экранирования (одинарные кавычки + запрет `'`, как в рецепте).
 - Токен Claude (`auth`) передаётся через stdin, не в аргументах; на сервере `0600`.
@@ -422,7 +431,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 1. `completed/20261020-host-script.md` — host-скрипт и Docker-стенд (фаза 2 целиком, часть фазы 0). Linux.
 2. `completed/20261020-tmuxpad-core.md` — пакет ядра `TmuxPadCore` по §5.2: `HostAPI`, `ConnectionPool`, `HostBootstrap`, `TerminalSession`, модели, тесты против стенда плана 1 (фаза 1 без Keychain/SE, ядро фаз 4–5). Linux.
 3. `completed/20261020-core-ui-support.md` — логика для UI, которую можно тестировать без Apple-фреймворков: `MouseReport` и ввод терминала мимо `copy-cancel`, `SessionTree`, подсказка имени, `OpenSessionsRoster`, `TreeRefresher`; переносимость стенда на macOS. Linux или Mac.
-4. `20261020-app-foundation.md` — Xcode-проект (XcodeGen), Keychain/Secure Enclave, хранилища, настройки ключей и серверов, «Проверить подключение», «Подготовить сервер», токен, журнал диагностики (фазы 0–2 в части приложения). Mac.
+4. `completed/20261020-app-foundation.md` — Xcode-проект (XcodeGen), Keychain/Secure Enclave, хранилища, настройки ключей и серверов, «Проверить подключение», «Подготовить сервер», токен, журнал диагностики (фазы 0–2 в части приложения). Mac.
 5. `20261020-app-sidebar.md` — `TreeModel`, сайдбар, мастера «Новая сессия» и «Подключиться», kill (фаза 3). Mac.
 6. `20261020-app-terminal.md` — `TerminalScreen` на SwiftTerm, открытые терминалы, клавиатура, скролл и чип, плашки (фаза 4). Mac.
 7. `20261020-app-lifecycle-release.md` — `scenePhase`, `NWPathMonitor`, восстановление открытых сессий, онбординг, настройки терминала, Face ID, README, UI-смоук, TestFlight (фазы 5–6). Mac.
@@ -446,7 +455,7 @@ tmux-формат сессий: `#{session_name}\t#{session_path}\t#{session_act
 **Готово, когда:** с iPad вручную открывается tmux-сессия на сервере и в ней удобно работать с claude.
 
 ### Фаза 1 — Ядро: ключи, серверы, соединения · 4–5 дней
-- [x] `KeyManager`: генерация SE/Ed25519, импорт OpenSSH Ed25519, экспорт публичного ключа, share/QR (план 4; без share-экстеншенов).
+- [x] Ключи (`KeychainKeyStore`, `KeyLibrary`): генерация SE/Ed25519, импорт OpenSSH Ed25519, экспорт публичного ключа, share/QR (план 4; без share-экстеншенов).
 - [x] `HostKeyStore` (TOFU) + алерт смены ключа (план 4).
 - [x] `ServerStore` (Codable JSON) + экран настроек серверов + «Проверить подключение» (план 4).
 - [ ] `ConnectionPool`: одно соединение на сервер, exec-пинг, очередь exec на 2 слота, бэкофф-реконнект, `NWPathMonitor` — ядро готово (план 2), пул заведён в `AppEnvironment` (план 4), `NWPathMonitor` — план 7.

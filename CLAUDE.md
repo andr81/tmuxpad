@@ -42,9 +42,9 @@ shellcheck -s bash host/tests/bench.sh TmuxPadCore/scripts/test.sh
 Раскладка приложения:
 - `project.yml` — XcodeGen, единственный источник настроек проекта;
 - `App/TmuxPadApp.swift` (`@main`), `App/AppEnvironment.swift` — composition root: пул, хранилища, журнал, модели;
-- `App/Platform/` — Keychain (`Keychain.swift`), `KeychainKeyStore` (Secure Enclave P-256 и Ed25519), `KeychainHostKeyStore`, `JSONFileStore` (`servers.json`, `keys.json` в Application Support), `DeviceIdentity`;
+- `App/Platform/` — Keychain (`Keychain.swift`), протокол `AppKeyStore` (создание и импорт ключей; `KeychainKeyStore` в приложении, `InMemoryKeyStore` в тестах), `KeychainKeyStore` (Secure Enclave P-256 и Ed25519), `KeychainHostKeyStore`, `JSONFileStore` (`servers.json`, `keys.json` в Application Support), `DeviceIdentity`;
 - `App/State/` — `@MainActor @Observable` модели: `ServerStore`, `KeyLibrary`, `ServerCheckModel`, `DiagnosticsModel`;
-- `App/UI/` — SwiftUI: `Root/`, `Settings/` (ключи, серверы, проверка, токен, диагностика), `ErrorText.swift` (`userText(_:)`), `DoctorText.swift`;
+- `App/UI/` — SwiftUI: `Root/`, `Settings/` (ключи, серверы, проверка, токен, диагностика), `ErrorText.swift` (`userText(_:)`), `ErrorAlert.swift` (`errorAlert(_:message:)`), `DoctorText.swift`;
 - `AppTests/` — Swift Testing в симуляторе, хост — приложение; `ServerCheckBenchTests` против стенда, без него пропускаются; `AppTests/Support/` — хелперы;
 - `scripts/ios-test.sh` — `xcodegen generate` → стенд → `xcodebuild test`.
 
@@ -88,9 +88,11 @@ TmuxPad — iPad-клиент (iPadOS 17+, Swift 6, SwiftUI) для работы
 - **Терминал — за протоколом `TerminalSurface`**, чтобы SwiftTerm можно было заменить на libghostty.
 - **Приложение не логирует токен Claude и приватные ключи**: ни в `DiagnosticsLog`, ни в `print`/`os_log`, ни в тексты ошибок.
 - **Keychain — только через `App/Platform/Keychain.swift`** (`SecItem*` больше нигде): там `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` и сервисы `dev.tmuxpad.*`.
+- **Вопрос «Доверять» — по несовпадению отпечатка с `ServerConfig.hostKeyFingerprint`, а не по `hostKeyFirstSeen`** (`ServerCheckModel.connectTrusted`): ядро пишет ключ в `HostKeyStore` до ответа пользователя. Без вопроса конфиг догоняет только копия сервера, у которой этот отпечаток уже подтверждён для того же `host:port`. Смена адреса в `ServerStore.update` очищает отпечаток.
+- **OpenSSH-текст Ed25519 пишет `KeychainKeyStore.openSSHText`**, не `makeSSHRepresentation` Citadel и не `SSHKeys.generateEd25519`: при комментарии длиной 5 по модулю 8 они дают файл, который Citadel не читает (`invalidPadding`). Комментарий ключа (`KeychainKeyStore.comment(for:)`) — только `[A-Za-z0-9._-]`: он попадает в shell-команду `authorizedKeysCommand`.
 - **Ошибки ядра показываются пользователю через `userText(_:)`** из `App/UI/ErrorText.swift`: у `SSHError`/`HostError` английские `description`, новый случай в ядре — новый русский текст и строка в `ErrorTextTests`.
 - iPadOS рвёт сокеты в фоне; устойчивость даёт tmux, приложение переподключается по `scenePhase` и `NWPathMonitor` (§6).
 
 ## Тесты
 
-Ядро — Swift Testing, интеграционные — против Docker-контейнера с sshd + tmux (`bench.sh`); host-скрипт — свой раннер `host/tests/run.sh` и shellcheck. Приложение — `AppTests` (Swift Testing в симуляторе, `scripts/ios-test.sh`); Secure Enclave в симуляторе недоступен и проверяется только на устройстве.
+Ядро — Swift Testing, интеграционные — против Docker-контейнера с sshd + tmux (`bench.sh`); host-скрипт — свой раннер `host/tests/run.sh` и shellcheck. Приложение — `AppTests` (Swift Testing в симуляторе, `scripts/ios-test.sh`); в симуляторе Xcode 26 Secure Enclave доступен (`secureEnclaveUnavailableThrows` там пропускается), вход SE-ключом на настоящий сервер проверяется на устройстве.

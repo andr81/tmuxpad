@@ -34,13 +34,38 @@ final class ServerStore {
         try commit(servers + [config])
     }
 
+    /// Новый адрес — новый сервер для TOFU: отпечаток прежнего адреса в конфиге не остаётся.
     func update(_ config: ServerConfig) throws {
         guard let index = servers.firstIndex(where: { $0.id == config.id }) else {
             return
         }
+        var config = config
+        if servers[index].host != config.host || servers[index].port != config.port {
+            config.hostKeyFingerprint = nil
+        }
         var updated = servers
         updated[index] = config
         try commit(updated)
+    }
+
+    /// «Сбросить отпечаток»: доверие по адресу сервера забывается, поле конфига очищается.
+    func resetFingerprint(id: UUID) async throws {
+        guard let config = server(id: id) else {
+            return
+        }
+        try await hostKeys.reset(host: config.host, port: config.port)
+        guard var current = server(id: id) else {
+            return
+        }
+        current.hostKeyFingerprint = nil
+        try update(current)
+    }
+
+    /// Отпечаток уже подтверждён у другого сервера с тем же адресом (копия сервера).
+    func isConfirmedElsewhere(_ fingerprint: String, for config: ServerConfig) -> Bool {
+        servers.contains {
+            $0.id != config.id && $0.host == config.host && $0.port == config.port && $0.hostKeyFingerprint == fingerprint
+        }
     }
 
     /// Копия сразу после оригинала, без отпечатка: доверие подтверждается заново.
@@ -78,15 +103,17 @@ final class ServerStore {
 
     /// Русские тексты для формы: проверки ядра, пустая метка, неизвестный ключ.
     func issues(for config: ServerConfig, keys: [SSHKeyInfo]) -> [String] {
-        var issues: [String] = []
-        if config.label.trimmingCharacters(in: .whitespaces).isEmpty {
-            issues.append("Укажите название")
-        }
-        issues += config.validationIssues().map(serverIssueText)
-        if !keys.contains(where: { $0.id == config.keyID }) {
-            issues.append("Выберите ключ")
-        }
-        return issues
+        [Self.labelIssue(config)].compactMap { $0 }
+            + config.validationIssues().map(serverIssueText)
+            + [Self.keyIssue(config, keys: keys)].compactMap { $0 }
+    }
+
+    static func labelIssue(_ config: ServerConfig) -> String? {
+        config.label.trimmingCharacters(in: .whitespaces).isEmpty ? "Укажите название" : nil
+    }
+
+    static func keyIssue(_ config: ServerConfig, keys: [SSHKeyInfo]) -> String? {
+        keys.contains { $0.id == config.keyID } ? nil : "Выберите ключ"
     }
 
     private func renumbered(_ list: [ServerConfig]) -> [ServerConfig] {

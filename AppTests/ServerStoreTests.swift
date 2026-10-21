@@ -38,6 +38,90 @@ final class ServerStoreTests {
         #expect(env.servers.servers == [server])
     }
 
+    @Test func updateWithNewAddressDropsFingerprint() throws {
+        var original = config("a")
+        original.hostKeyFingerprint = "SHA256:abc"
+        try env.servers.add(original)
+        var server = env.servers.servers[0]
+        server.label = "b"
+        try env.servers.update(server)
+        #expect(env.servers.servers[0].hostKeyFingerprint == "SHA256:abc")
+
+        server.host = "other.example.com"
+        try env.servers.update(server)
+        #expect(env.servers.servers[0].hostKeyFingerprint == nil)
+
+        server = env.servers.servers[0]
+        server.hostKeyFingerprint = "SHA256:def"
+        try env.servers.update(server)
+        server.port = 2222
+        try env.servers.update(server)
+        #expect(env.servers.servers[0].hostKeyFingerprint == nil)
+    }
+
+    @Test func updateAndDeleteOfUnknownIdChangeNothing() async throws {
+        try env.servers.add(config("a"))
+        let before = env.servers.servers
+        try env.servers.update(config("ghost"))
+        try await env.servers.delete(id: UUID())
+        #expect(env.servers.servers == before)
+    }
+
+    @Test func failedWriteKeepsList() throws {
+        let blocked = directory.appending(path: "blocked")
+        let store = try ServerStore(
+            file: JSONFileStore(fileName: "servers.json", directory: blocked),
+            pool: env.pool,
+            hostKeys: env.hostKeys
+        )
+        // каталог хранилища занят обычным файлом: запись `servers.json` падает
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data().write(to: blocked)
+        #expect(throws: (any Error).self) {
+            try store.add(config("a"))
+        }
+        #expect(store.servers.isEmpty)
+    }
+
+    @Test func loadSortsBySortIndex() throws {
+        var list: [ServerConfig] = []
+        for (label, index) in [("c", 2), ("a", 0), ("b", 1)] {
+            var server = config(label)
+            server.sortIndex = index
+            list.append(server)
+        }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try JSONEncoder().encode(list).write(to: directory.appending(path: "servers.json"))
+        #expect(try AppEnvironment.inMemory(directory: directory).servers.servers.map(\.label) == ["a", "b", "c"])
+    }
+
+    @Test func resetFingerprintForgetsTrustAndField() async throws {
+        var original = config("a")
+        original.hostKeyFingerprint = "SHA256:abc"
+        try env.servers.add(original)
+        let server = env.servers.servers[0]
+        try await env.hostKeys.save("SHA256:abc", for: server.host, port: server.port)
+
+        try await env.servers.resetFingerprint(id: server.id)
+        #expect(env.servers.servers[0].hostKeyFingerprint == nil)
+        #expect(try await env.hostKeys.fingerprint(for: server.host, port: server.port) == nil)
+    }
+
+    @Test func confirmedElsewhereNeedsSameAddressAndFingerprint() throws {
+        var original = config("a")
+        original.hostKeyFingerprint = "SHA256:abc"
+        try env.servers.add(original)
+        let source = env.servers.servers[0]
+        let copy = try env.servers.duplicate(source)
+        try env.servers.add(config("far", host: "other.example.com"))
+        let far = env.servers.servers[2]
+
+        #expect(env.servers.isConfirmedElsewhere("SHA256:abc", for: copy))
+        #expect(!env.servers.isConfirmedElsewhere("SHA256:other", for: copy))
+        #expect(!env.servers.isConfirmedElsewhere("SHA256:abc", for: source))
+        #expect(!env.servers.isConfirmedElsewhere("SHA256:abc", for: far))
+    }
+
     @Test func duplicateDropsFingerprintAndGoesAfterOriginal() throws {
         var original = config("prod")
         original.hostKeyFingerprint = "SHA256:abc"

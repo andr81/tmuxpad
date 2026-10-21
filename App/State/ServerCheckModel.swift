@@ -17,6 +17,7 @@ final class ServerCheckModel {
         case doctor
         case preparing
         case sendingToken
+        case rejecting
     }
 
     enum State: Equatable {
@@ -106,20 +107,23 @@ final class ServerCheckModel {
     }
 
     /// «Не доверять»: соединение рвётся, отпечаток, который ядро уже сохранило, забывается.
+    /// Новое действие начнётся только после сброса: иначе оно подключилось бы по старому
+    /// отпечатку.
     @discardableResult
     func reject() -> Task<Void, Never> {
         guard case .trustPrompt = state else {
             return Task {}
         }
         pending = .none
-        state = .idle
-        let connection = connection
-        let config = config
-        let hostKeys = env.hostKeys
-        return Task {
-            await connection?.disconnect()
-            if let config {
-                try? await hostKeys.reset(host: config.host, port: config.port)
+        return start(.rejecting) { model in
+            await model.connection?.disconnect()
+            do {
+                if let config = model.config {
+                    try await model.env.hostKeys.reset(host: config.host, port: config.port)
+                }
+                model.state = .idle
+            } catch {
+                model.fail(error)
             }
         }
     }
@@ -129,14 +133,12 @@ final class ServerCheckModel {
     @discardableResult
     func resetHostKey() -> Task<Void, Never> {
         start(.connecting) { model in
-            guard var config = model.config else {
+            guard model.config != nil else {
                 model.state = .failed("Сервер удалён")
                 return
             }
             do {
-                try await model.env.hostKeys.reset(host: config.host, port: config.port)
-                config.hostKeyFingerprint = nil
-                try model.env.servers.update(config)
+                try await model.env.servers.resetFingerprint(id: model.serverID)
             } catch {
                 model.fail(error)
                 return
@@ -184,6 +186,11 @@ final class ServerCheckModel {
 
     /// Подключённое соединение с доверенным ключом. `nil` — `state` уже объясняет почему: вопрос
     /// «Доверять» (тогда после `trust()` выполнится `next`) или ошибка.
+    ///
+    /// Вопрос задаётся всякий раз, когда отпечаток не совпадает с подтверждённым в конфиге, а не
+    /// только при `hostKeyFirstSeen`: ядро сохраняет ключ в `HostKeyStore` до ответа, и вопрос,
+    /// оставленный без ответа (приложение закрыли, соединение переподключилось, поле сбросили
+    /// при живом соединении), иначе считался бы согласием.
     private func connectTrusted(then next: Pending) async -> ServerConnection? {
         guard let config else {
             state = .failed("Сервер удалён")
@@ -203,14 +210,14 @@ final class ServerCheckModel {
         guard let fingerprint = await connection.hostKeyFingerprint, config.hostKeyFingerprint != fingerprint else {
             return connection
         }
-        if await connection.hostKeyFirstSeen {
-            pending = next
-            state = .trustPrompt(fingerprint: fingerprint)
-            return nil
+        // копия сервера: этот ключ уже подтверждён для того же адреса, конфиг догоняет без
+        // вопроса, иначе `TreeRefresher` не опрашивал бы копию
+        if env.servers.isConfirmedElsewhere(fingerprint, for: config) {
+            return store(fingerprint: fingerprint) ? connection : nil
         }
-        // `HostKeyStore` уже доверяет ключу (копия сервера, сброшенное поле): конфиг догоняет
-        // его без вопроса, иначе `TreeRefresher` не опрашивал бы сервер
-        return store(fingerprint: fingerprint) ? connection : nil
+        pending = next
+        state = .trustPrompt(fingerprint: fingerprint)
+        return nil
     }
 
     private func store(fingerprint: String) -> Bool {

@@ -130,6 +130,7 @@ private struct ServerCheckContent: View {
         case .doctor: "Проверка сервера…"
         case .preparing: "Установка скрипта и настройка…"
         case .sendingToken: "Передача токена…"
+        case .rejecting: "Отключение…"
         }
     }
 }

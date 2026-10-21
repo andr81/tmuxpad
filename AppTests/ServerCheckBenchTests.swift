@@ -7,6 +7,8 @@ import TmuxPadCore
 @MainActor
 @Suite(.serialized, .enabled(if: Bench.isAvailable), .timeLimit(.minutes(2)))
 final class ServerCheckBenchTests {
+    struct UnexpectedState: Error {}
+
     let directory = temporaryDirectory()
     let env: AppEnvironment
 
@@ -28,7 +30,7 @@ final class ServerCheckBenchTests {
         await model.check().value
         guard case let .trustPrompt(fingerprint) = model.state else {
             Issue.record("expected trustPrompt, got \(model.state)")
-            throw CancellationError()
+            throw UnexpectedState()
         }
         await model.trust().value
         return fingerprint
@@ -95,7 +97,9 @@ final class ServerCheckBenchTests {
             return
         }
 
-        await model.reject().value
+        let rejecting = model.reject()
+        #expect(model.state == .running(.rejecting))
+        await rejecting.value
         #expect(model.state == .idle)
         #expect(try await env.hostKeys.fingerprint(for: server.host, port: server.port) == nil)
         #expect(await env.pool.existing(id: server.id)?.state == .disconnected)
@@ -125,10 +129,51 @@ final class ServerCheckBenchTests {
         #expect(model.state == .idle)
 
         let connection = try #require(await env.pool.existing(id: server.id))
-        let file = try await connection.exec("cat ~/.tmuxpad/env; stat -c %a ~/.tmuxpad/env")
+        let file = try await connection.exec("cat ~/.tmuxpad/env")
         #expect(file.stdoutText.contains("CLAUDE_CODE_OAUTH_TOKEN='tok_123'"))
-        #expect(file.stdoutText.contains("600"))
+        let mode = try await connection.exec("stat -c %a ~/.tmuxpad/env")
+        #expect(mode.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines) == "600")
         #expect(!(await env.log.export()).contains("tok_123"))
+        await finish()
+    }
+
+    @Test func copyOfTrustedServerConnectsWithoutPrompt() async throws {
+        let server = try await Bench.addServer(to: env)
+        let fingerprint = try await checkTrusted(ServerCheckModel(serverID: server.id, environment: env))
+
+        let copy = try env.servers.duplicate(try #require(env.servers.server(id: server.id)))
+        let model = ServerCheckModel(serverID: copy.id, environment: env)
+        await model.check().value
+        #expect(model.state == .done(.missing, nil))
+        #expect(env.servers.server(id: copy.id)?.hostKeyFingerprint == fingerprint)
+        await finish()
+    }
+
+    /// Ключ в `HostKeyStore` без подтверждения в конфиге — например, приложение закрыли при
+    /// открытом вопросе или поле сбросили при живом соединении — вопрос задаётся снова.
+    @Test func unconfirmedKeyAsksAgain() async throws {
+        let server = try await Bench.addServer(to: env)
+        let model = ServerCheckModel(serverID: server.id, environment: env)
+        await model.check().value
+        guard case let .trustPrompt(fingerprint) = model.state else {
+            Issue.record("expected trustPrompt, got \(model.state)")
+            return
+        }
+
+        // вопрос остался без ответа, соединение переподключилось: `hostKeyFirstSeen` уже false
+        await env.pool.existing(id: server.id)?.disconnect()
+        let again = ServerCheckModel(serverID: server.id, environment: env)
+        await again.check().value
+        #expect(again.state == .trustPrompt(fingerprint: fingerprint))
+        #expect(env.servers.server(id: server.id)?.hostKeyFingerprint == nil)
+
+        await again.trust().value
+        #expect(env.servers.server(id: server.id)?.hostKeyFingerprint == fingerprint)
+
+        // «Сбросить отпечаток» в форме при живом соединении
+        try await env.servers.resetFingerprint(id: server.id)
+        await again.check().value
+        #expect(again.state == .trustPrompt(fingerprint: fingerprint))
         await finish()
     }
 }

@@ -150,9 +150,10 @@ actor KeychainKeyStore: AppKeyStore {
         return "-----BEGIN OPENSSH PRIVATE KEY-----\n\(base64)\n-----END OPENSSH PRIVATE KEY-----\n"
     }
 
-    /// Комментарий публичного ключа: `tmuxpad-<имя>` без пробелов.
+    /// Комментарий публичного ключа: `tmuxpad-<имя>`, из имени — только `[A-Za-z0-9._]`, прочее
+    /// становится `-`. Публичный ключ попадает в shell-команду `authorizedKeysCommand` внутри `'…'`.
     static func comment(for name: String) -> String {
-        let words = name.split(whereSeparator: \.isWhitespace)
+        let words = name.split { !($0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "_")) }
         return (["tmuxpad"] + words).joined(separator: "-")
     }
 

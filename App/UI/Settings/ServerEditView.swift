@@ -6,7 +6,6 @@ struct ServerEditView: View {
     let isNew: Bool
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.appEnvironment) private var env
     @Environment(ServerStore.self) private var servers
     @Environment(KeyLibrary.self) private var keys
     @State private var draft: ServerConfig
@@ -163,11 +162,11 @@ struct ServerEditView: View {
     }
 
     private var labelIssue: String? {
-        draft.label.trimmingCharacters(in: .whitespaces).isEmpty ? "Укажите название" : nil
+        ServerStore.labelIssue(draft)
     }
 
     private var keyIssue: String? {
-        keys.key(id: draft.keyID) == nil ? "Выберите ключ" : nil
+        ServerStore.keyIssue(draft, keys: keys.keys)
     }
 
     /// Строка `validationIssues()` ядра для поля, по-русски.
@@ -193,17 +192,10 @@ struct ServerEditView: View {
 
     /// Сбрасывает доверие по сохранённому адресу и очищает поле, в форме и в `servers.json`.
     private func resetFingerprint() {
-        let saved = servers.server(id: draft.id)
         Task {
             do {
-                if let saved, let env {
-                    try await env.hostKeys.reset(host: saved.host, port: saved.port)
-                }
+                try await servers.resetFingerprint(id: draft.id)
                 draft.hostKeyFingerprint = nil
-                if var saved {
-                    saved.hostKeyFingerprint = nil
-                    try servers.update(saved)
-                }
             } catch {
                 self.error = userText(error)
             }

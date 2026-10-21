@@ -79,6 +79,16 @@ final class TreeModel {
         }
     }
 
+    /// После действия (new, kill): `refresh` без `force` дождался бы `list` тика, начатого до
+    /// действия, и вернул бы старый снимок — тогда нужен ещё один.
+    func refreshAfterAction(serverID: UUID) async {
+        await queue?.value
+        if await refresher.state(for: serverID)?.refreshing == true {
+            await refresher.refresh(serverID)
+        }
+        await refresh(serverID: serverID)
+    }
+
     /// После «Подготовить» в проверке сервера: перечитать версию скрипта и список.
     func markPrepared(_ serverID: UUID) async {
         await queue?.value

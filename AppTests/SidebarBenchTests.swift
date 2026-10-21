@@ -131,6 +131,23 @@ final class SidebarBenchTests {
         await finish()
     }
 
+    /// Опрос идёт: `list` тика, начатый до действия, не должен стать снимком после него.
+    @Test func actionsWhilePollingSeeFreshTree() async throws {
+        let server = try await preparedServer()
+        env.tree.setServers(env.servers.servers)
+        env.tree.start()
+        try await waitUntil(timeout: .seconds(10)) { env.tree.states[server.id]?.reachability == .online }
+
+        for index in 0..<5 {
+            let key = OpenSessionKey(serverID: server.id, name: "poll\(index)")
+            try await env.actions.create(key, project: "api")
+            #expect(env.tree.nodes(for: server.id).flatMap(\.sessions).map(\.session.name) == [key.name])
+            try await env.actions.kill(key)
+            #expect(env.tree.nodes(for: server.id).isEmpty)
+        }
+        await finish()
+    }
+
     /// Снимок устарел: имя занято на сервере, но дерево его ещё не знает.
     @Test func repeatedNameConflicts() async throws {
         let server = try await preparedServer()

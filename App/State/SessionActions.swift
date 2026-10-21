@@ -48,10 +48,11 @@ final class SessionActions {
             do {
                 try await api(for: config).kill(session: key.name)
             } catch HostError.noSession {
+            } catch AppError.serverMissing {
             }
         }
         openSessions.close(key)
-        await tree.refresh(serverID: key.serverID)
+        await tree.refreshAfterAction(serverID: key.serverID)
     }
 
     /// `new` на сервере, затем перечитывание дерева и открытие (§3.3). Имя занято —
@@ -61,7 +62,10 @@ final class SessionActions {
             throw AppError.serverMissing
         }
         try await api(for: config).new(session: key.name, project: project)
-        await tree.refresh(serverID: key.serverID)
+        await tree.refreshAfterAction(serverID: key.serverID)
+        guard servers.server(id: key.serverID) != nil else {
+            throw AppError.serverMissing
+        }
         openSessions.open(key)
     }
 
@@ -70,10 +74,20 @@ final class SessionActions {
         guard config.hostKeyFingerprint != nil else {
             throw AppError.hostKeyUnconfirmed
         }
-        let connection = await pool.connection(for: config, auth: try await auth(config))
+        let credentials = try await auth(config)
+        // пока ждали ключ, сервер могли удалить: `pool.connection` вернул бы его в пул
+        guard servers.server(id: config.id) != nil else {
+            throw AppError.serverMissing
+        }
+        let connection = await pool.connection(for: config, auth: credentials)
         // `connect()` не из `.disconnected` начал бы новую эпоху, как в `TreeRefresher`
         if await connection.state == .disconnected {
             try await connection.connect()
+        }
+        // удалили во время `pool.connection` или `connect()`: убрать соединение, как в `TreeRefresher`
+        guard servers.server(id: config.id) != nil else {
+            await pool.remove(id: config.id)
+            throw AppError.serverMissing
         }
         return await connection.api
     }

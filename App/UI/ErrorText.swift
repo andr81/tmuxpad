@@ -44,6 +44,8 @@ func userText(_ error: Error) -> String {
         case .keyMissing: "Ключа сервера нет на устройстве — выберите другой в настройках сервера"
         case .serverMissing: "Сервер удалён"
         case .hostKeyUnconfirmed: "Подключение к серверу не проверено — нажмите «Проверить» у сервера"
+        case let .projectNotFound(project): "Проект \(project) не найден на сервере"
+        case .projectUnknown: "Проект сессии неизвестен"
         }
     case let error as KeychainError:
         switch error {

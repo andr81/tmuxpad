@@ -1,4 +1,5 @@
 import Foundation
+import Testing
 import TmuxPadCore
 @testable import TmuxPad
 
@@ -38,6 +39,21 @@ enum Bench {
         let key = try await env.keys.importKey(name: "bench", text: keyText ?? "", passphrase: nil)
         try env.servers.add(config(keyID: key.id))
         return env.servers.servers.last!
+    }
+
+    /// Сервер стенда с подтверждённым отпечатком и установленным скриптом.
+    @MainActor
+    static func preparedServer(in env: AppEnvironment) async throws -> ServerConfig {
+        let server = try await addServer(to: env)
+        let model = ServerCheckModel(serverID: server.id, environment: env)
+        await model.check().value
+        await model.trust().value
+        await model.prepare().value
+        guard case .done(.ready, _) = model.state else {
+            Issue.record("expected done(.ready), got \(model.state)")
+            throw CancellationError()
+        }
+        return try #require(env.servers.server(id: server.id))
     }
 
     /// Отдельное соединение со свежим `InMemoryHostKeyStore`, команда, отключение.

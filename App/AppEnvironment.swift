@@ -10,6 +10,10 @@ enum AppError: Error, Equatable {
     case serverMissing
     /// Отпечаток хост-ключа не подтверждён: подключение сохранило бы его без «Доверять» (§8).
     case hostKeyUnconfirmed
+    /// «Создать заново»: проекта сессии нет в последнем снимке сервера.
+    case projectNotFound(String)
+    /// «Создать заново»: проект сессии неизвестен — её не было в снимке, когда её открыли.
+    case projectUnknown
 }
 
 /// Composition root: неизменяемые зависимости и модели State. Создаётся один раз при запуске.
@@ -67,6 +71,13 @@ final class AppEnvironment {
             openSessions: openSessions,
             tree: tree
         )
+        let dependencies = OpenTerminal.Dependencies(
+            connection: { [unowned actions = self.actions] in try await actions.terminalConnection(serverID: $0) },
+            snapshot: { [unowned tree = self.tree] in tree.states[$0]?.snapshot },
+            log: log,
+            defaults: defaults
+        )
+        openSessions.makeTerminal = { OpenTerminal(key: $0, dependencies: dependencies) }
     }
 
     /// Keychain, Secure Enclave и JSON в Application Support. Ошибка — экран `StartupErrorView`.

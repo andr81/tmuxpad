@@ -24,8 +24,8 @@ struct RootView: View {
                 }
         } detail: {
             Group {
-                if let key = openSessions.selection {
-                    SessionPlaceholderView(key: key)
+                if let terminal = openSessions.selectedTerminal {
+                    TerminalScreen(terminal: terminal)
                 } else {
                     Text("Выберите сессию")
                         .foregroundStyle(.secondary)

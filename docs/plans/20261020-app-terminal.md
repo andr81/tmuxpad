@@ -222,12 +222,12 @@ InputPump}.swift` (create), `AppTests/{EchoTests,SwiftTermSurfaceTests,InputPump
 `App/UI/Root/RootView.swift`, `App/UI/Root/SessionPlaceholderView.swift` (delete),
 `AppTests/OpenSessionsModelTests.swift`, `AppTests/TerminalBenchTests.swift` (create).
 
-- [ ] `OpenTerminal` по решению 3; `OpenSessionsModel` по решению 4.
-- [ ] `TerminalScreen`, `TerminalContainerView`, `TerminalHeader` по решению 8; `RootView`
+- [x] `OpenTerminal` по решению 3; `OpenSessionsModel` по решению 4.
+- [x] `TerminalScreen`, `TerminalContainerView`, `TerminalHeader` по решению 8; `RootView`
       показывает `TerminalScreen` для выделения.
-- [ ] Тесты вытеснения в `OpenSessionsModelTests`; в `TerminalBenchTests` — «открытие даёт
+- [x] Тесты вытеснения в `OpenSessionsModelTests`; в `TerminalBenchTests` — «открытие даёт
       `.live` и приглашение», «ввод `echo hi`».
-- [ ] `scripts/ios-test.sh` проходит.
+- [x] `scripts/ios-test.sh` проходит.
 
 ### Task 3: скролл, чип, плашки, меню, шорткаты, шрифт
 

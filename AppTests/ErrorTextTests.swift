@@ -15,7 +15,7 @@ struct ErrorTextTests {
         KeyError.invalidKey("x"),
         KeyStoreError.secureEnclaveUnavailable, KeyStoreError.unsupportedKind, KeyStoreError.notFound,
         KeyLibraryError.inUse(["prod"]), AppError.keyMissing(UUID()), AppError.serverMissing,
-        AppError.hostKeyUnconfirmed,
+        AppError.hostKeyUnconfirmed, AppError.projectNotFound("api"), AppError.projectUnknown,
         KeychainError.status(-25308), KeychainError.unexpectedData,
     ]
 
@@ -29,6 +29,7 @@ struct ErrorTextTests {
         #expect(userText(SSHError.connectFailed("refused")) == "Не удалось подключиться: refused")
         #expect(userText(HostError.failed(code: 7, stderr: "boom")) == "Команда завершилась с кодом 7: boom")
         #expect(userText(KeyLibraryError.inUse(["prod", "dev"])) == "Ключ используется: prod, dev")
+        #expect(userText(AppError.projectNotFound("api")) == "Проект api не найден на сервере")
     }
 
     @Test func unknownErrorIsDescribed() {

@@ -5,6 +5,7 @@ struct RootView: View {
     @Environment(TreeModel.self) private var tree
     @Environment(OpenSessionsModel.self) private var openSessions
     @Environment(AppNavigation.self) private var navigation
+    @Environment(\.appEnvironment) private var env
     @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
     /// «Создать» из пустого мастера «Подключиться»: «Новая сессия» откроется, когда тот закроется.
@@ -61,13 +62,9 @@ struct RootView: View {
         .onChange(of: servers.servers, initial: true) { _, list in
             tree.setServers(list)
         }
-        // фон, смена сети и переподключение открытых сессий — план 7; здесь только опрос дерева
+        // фон и возврат: опрос дерева и соединения ведёт координатор
         .onChange(of: scenePhase, initial: true) { _, phase in
-            if phase == .active {
-                tree.start()
-            } else {
-                tree.stop()
-            }
+            env?.lifecycle.scenePhaseChanged(phase)
         }
     }
 

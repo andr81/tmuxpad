@@ -36,6 +36,9 @@ final class AppEnvironment {
     let actions: SessionActions
     let appearance: TerminalAppearance
     let navigation = AppNavigation()
+    let lifecycle: LifecycleCoordinator
+    /// Запускается только в `live()`: тесты сеть не слушают.
+    let network = NetworkMonitor()
 
     init(
         deviceID: UUID,
@@ -74,6 +77,7 @@ final class AppEnvironment {
             tree: tree
         )
         appearance = TerminalAppearance(defaults: defaults)
+        lifecycle = LifecycleCoordinator(targets: AppLifecycleTargets(pool: pool, tree: tree), log: log)
         // слабые: задача `start` терминала может пережить окружение (так бывает в `AppTests`)
         let dependencies = OpenTerminal.Dependencies(
             connection: { [weak actions = self.actions] in
@@ -88,12 +92,15 @@ final class AppEnvironment {
             appearance: appearance
         )
         openSessions.makeTerminal = { OpenTerminal(key: $0, dependencies: dependencies) }
+        network.onChange = { [weak lifecycle] old, new in
+            lifecycle?.networkChanged("\(old.summary) → \(new.summary)")
+        }
     }
 
     /// Keychain, Secure Enclave и JSON в Application Support. Ошибка — экран `StartupErrorView`.
     static func live() throws -> AppEnvironment {
         let keyStore = KeychainKeyStore()
-        return try AppEnvironment(
+        let env = try AppEnvironment(
             deviceID: try DeviceIdentity.load(),
             keyStore: keyStore,
             initialKeys: try keyStore.list(),
@@ -102,6 +109,8 @@ final class AppEnvironment {
             defaults: .standard,
             serversFile: JSONFileStore(fileName: "servers.json")
         )
+        env.network.start()
+        return env
     }
 
     /// Хранилища в памяти, JSON во временном каталоге (или в `directory`), свежий `UserDefaults`.

@@ -185,15 +185,15 @@ shellcheck -s bash scripts/ios-test.sh
 `App/UI/Root/RootView.swift`, `App/AppEnvironment.swift`,
 `AppTests/{LifecycleCoordinatorTests,NetworkMonitorTests,LifecycleBenchTests}.swift` (create).
 
-- [ ] `LifecycleCoordinator` по решению 1 с протоколом `LifecycleTargets` и адаптером
+- [x] `LifecycleCoordinator` по решению 1 с протоколом `LifecycleTargets` и адаптером
       приложения (решение 10); `RootView` передаёт `scenePhase` координатору вместо прямых
       `tree.start/stop`.
-- [ ] `NetworkMonitor` по решению 2; чистая функция `networkChanged(from:to:) -> Bool` над
+- [x] `NetworkMonitor` по решению 2; чистая функция `networkChanged(from:to:) -> Bool` над
       `struct PathSnapshot { satisfied: Bool; interfaces: Set<String> }`.
-- [ ] Каждое событие координатора и монитора — в `DiagnosticsLog` (`kind: .reconnect`,
+- [x] Каждое событие координатора и монитора — в `DiagnosticsLog` (`kind: .reconnect`,
       «background close», «foreground reconnect», «network changed: wifi → cellular»).
-- [ ] Тесты из решения 10 для координатора, монитора и стенда.
-- [ ] `scripts/ios-test.sh` проходит.
+- [x] Тесты из решения 10 для координатора, монитора и стенда.
+- [x] `scripts/ios-test.sh` проходит.
 
 ### Task 2: восстановление открытых сессий
 

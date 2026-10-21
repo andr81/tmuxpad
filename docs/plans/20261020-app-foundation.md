@@ -378,20 +378,26 @@ KeychainKeyStoreTests,KeychainHostKeyStoreTests,DeviceIdentityTests,JSONFileStor
 **Файлы:** `App/UI/Settings/{SettingsView,KeysView,KeyDetailView,NewKeyView,ImportKeyView,
 ServersView,ServerEditView,QRCodeView}.swift` (create), `App/UI/Root/RootView.swift`.
 
-- [ ] `SettingsView`: sheet с `NavigationStack`, разделы «Серверы», «Ключи», «Диагностика»
+- [x] `SettingsView`: sheet с `NavigationStack`, разделы «Серверы», «Ключи», «Диагностика»
       (ссылка на экран из Task 6; до Task 6 — заглушка), кнопка «Готово». `RootView`: кнопка
       «⚙ Настройки» внизу сайдбара и `⌘,` открывают sheet; список серверов в сайдбаре — из
       `ServerStore`.
-- [ ] `KeysView`, `NewKeyView`, `ImportKeyView`, `KeyDetailView`, `QRCodeView` по решению 11.
+- [x] `KeysView`, `NewKeyView`, `ImportKeyView`, `KeyDetailView`, `QRCodeView` по решению 11.
       Имя ключа по умолчанию — «iPad SE-key» или «iPad Ed25519»; QR — `CIImage` →
       `UIImage` с масштабом без сглаживания (`.interpolation(.none)`); копирование —
       `UIPasteboard.general.string`; удаление используемого ключа — алерт со списком серверов.
-- [ ] `ServersView`, `ServerEditView` по решению 11: новые серверы получают первый ключ
+- [x] `ServersView`, `ServerEditView` по решению 11: новые серверы получают первый ключ
       библиотеки; без ключей «Добавить сервер» ведёт на создание ключа. Поле «Отпечаток
       хост-ключа» показывает `ServerConfig.hostKeyFingerprint` или «ещё не подключались»;
       «Сбросить» — подтверждение, `hostKeys.reset` и очистка поля.
-- [ ] Ручная проверка в симуляторе не требуется; сборка без предупреждений и `scripts/ios-
+- [x] Ручная проверка в симуляторе не требуется; сборка без предупреждений и `scripts/ios-
       test.sh --no-bench`.
+- Заметки исполнения: общий алерт ошибок — `App/UI/ErrorAlert.swift` (`errorAlert(_:message:)`).
+  Без ключей «Добавить сервер» открывает `NewKeyView`, форма нового сервера с этим ключом
+  открывается в `onDismiss` sheet ключа (два sheet подряд без задержки SwiftUI не показывает).
+  Ошибки под полями формы — по строкам `validationIssues()` ядра через `serverIssueText`.
+  «Сбросить» отпечаток сбрасывает доверие по сохранённому `host:port` и сразу пишет
+  `servers.json`, не дожидаясь «Сохранить». Раздел «Диагностика» — заглушка до Task 6.
 
 ### Task 5: проверка подключения, подготовка сервера, токен
 

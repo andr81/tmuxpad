@@ -46,7 +46,8 @@ TestFlight требует учётной записи Apple Developer и ост�
    - `.inactive` (шторка, переключатель приложений) — ничего не делает.
    - `.active` после разрыва: `pool.reconnectAll()`, `tree.start()` и `tree.refresh()`;
      терминалы переоткрываются сами (ядро), их плашка — «Переподключение…» по состоянию.
-     После `.active` без разрыва — только `tree.start()`.
+     После `.active` без разрыва — `pool.reconnectAll()` (живые не трогает, `failed` пробует
+     снова, §6) и `tree.start()`.
    - Первый `.active` после запуска — восстановление (решение 3).
 2. **`NetworkMonitor`** (`App/Platform/NetworkMonitor.swift`): `NWPathMonitor` на своей
    очереди; событие «сеть сменилась» — изменение `status` на `.satisfied` или набора

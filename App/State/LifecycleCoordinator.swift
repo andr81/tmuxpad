@@ -42,8 +42,8 @@ struct NoKeyUnlock: KeyUnlocking {
 }
 
 /// Единственное место, которое реагирует на `scenePhase` и смену сети (§6). Уход в фон —
-/// соединения закрываются через `closeDelay`, возврат раньше ничего не рвёт; возврат после
-/// разрыва — `reconnectAll`, терминалы переоткрывают `attach` сами (ядро). С Face ID (§8)
+/// соединения закрываются через `closeDelay`, возврат раньше ничего не рвёт, но повторяет
+/// сдавшиеся (`reconnectAll(force: false)`); возврат после разрыва — `reconnectAll`, терминалы переоткрывают `attach` сами (ядро). С Face ID (§8)
 /// запуск и возврат из фона сначала ждут `authenticate()`; отказ оставляет соединения и опрос
 /// дерева выключенными до `unlock()` («Повторить» у терминала) или `keyUnlocked()`. Опрос дерева в фоне
 /// останавливается сразу: его тик после `lock()` спрашивал бы Face ID.
@@ -65,6 +65,9 @@ final class LifecycleCoordinator {
     /// Соединения закрыты уходом в фон или упали на отказе Face ID (реконнект пула ждёт ключ в
     /// `reconnectGate` и после отказа уходит в `.failed`): следующий подъём зовёт `reconnectAll`.
     private var needsReconnect = false
+    /// Возврат из фона без разрыва: соединения, которые пул бросил в `.failed` (сдался за время
+    /// фона или раньше), пробуют снова (§6); живые `reconnectAll(force: false)` не трогает.
+    private var needsRetry = false
     /// До первого `.active` и после ухода в фон ключ снова закрыт.
     private var needsUnlock = true
     /// Растёт на каждый уход в фон: шаг очереди, поставленный до него, ничего не поднимает.
@@ -187,6 +190,7 @@ final class LifecycleCoordinator {
 
     private func enterBackground() {
         needsUnlock = true
+        needsRetry = true
         inBackground = true
         generation += 1
         // мимо очереди: шаг впереди может ждать сеть, а ключ и опрос дерева закрываются сразу
@@ -268,9 +272,10 @@ final class LifecycleCoordinator {
 
     private func resume(_ targets: any LifecycleTargets, _ current: Int) async {
         let reconnect = needsReconnect
-        if reconnect {
+        if reconnect || needsRetry {
             // сбрасывается до вызова: закрытие в фоне во время реконнекта ставит его снова
             needsReconnect = false
+            needsRetry = false
             await disconnectTask?.value
             // ушли в фон, пока ждали закрытия: ключ уже закрыт, переподключит следующий возврат
             guard isCurrent(current) else {

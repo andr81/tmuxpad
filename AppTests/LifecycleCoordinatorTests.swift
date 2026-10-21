@@ -126,12 +126,13 @@ struct LifecycleCoordinatorTests {
         #expect(try await messages() == ["background close"])
     }
 
-    @Test func returnBeforeDelayTouchesNothing() async throws {
+    @Test func returnBeforeDelayOnlyRetriesFailed() async throws {
         coordinator.scenePhaseChanged(.background)
         coordinator.scenePhaseChanged(.inactive)
         await coordinator.scenePhaseChanged(.active)?.value
         try await Task.sleep(for: .milliseconds(150))
-        #expect(targets.calls == [.stopTree, .startTree])
+        // живые соединения `reconnectAll(force: false)` не трогает, сдавшиеся пробуют снова (§6)
+        #expect(targets.calls == [.stopTree, .reconnectAll(force: false), .startTree])
         #expect(tasks.ended.count == 1)
         #expect(!coordinator.closed)
         #expect(try await messages().isEmpty)
@@ -279,7 +280,7 @@ struct LifecycleUnlockTests {
         targets.calls = []
         coordinator.scenePhaseChanged(.background)
         await coordinator.scenePhaseChanged(.active)?.value
-        #expect(targets.calls == [.stopTree, .lock, .authenticate, .startTree])
+        #expect(targets.calls == [.stopTree, .lock, .authenticate, .reconnectAll(force: false), .startTree])
     }
 
     @Test func denialOnQuickReturnKeepsTreeStopped() async throws {
@@ -382,6 +383,13 @@ struct LifecycleUnlockTests {
         // реконнект не потерян: его делает следующий возврат
         await coordinator.scenePhaseChanged(.active)?.value
         #expect(targets.calls.contains(.reconnectAll(force: false)))
+    }
+
+    @Test func activeWithoutBackgroundDoesNotRetry() async throws {
+        await coordinator.scenePhaseChanged(.active)?.value
+        coordinator.scenePhaseChanged(.inactive)
+        await coordinator.scenePhaseChanged(.active)?.value
+        #expect(targets.calls == [.authenticate, .startTree, .startTree])
     }
 
     @Test func unlockWithoutDenialOnlyAsks() async {

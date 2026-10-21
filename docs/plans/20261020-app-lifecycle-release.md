@@ -228,10 +228,10 @@ shellcheck -s bash scripts/ios-test.sh
 `App/UI/Root/RootView.swift`, `App/UI/Settings/{KeyDetailView,ServerEditView,
 ServerCheckView}.swift` (режим онбординга), `AppTests/OnboardingStepTests.swift` (create).
 
-- [ ] Онбординг по решению 4; шаг подготовки показывает «Проектов найдено: N».
-- [ ] `OnboardingStepTests` — переходы при доступном и недоступном SE, «Пропустить», возврат
+- [x] Онбординг по решению 4; шаг подготовки показывает «Проектов найдено: N».
+- [x] `OnboardingStepTests` — переходы при доступном и недоступном SE, «Пропустить», возврат
       на шаг ключа после удаления ключа.
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `scripts/ios-test.sh --no-bench` проходит.
 
 ### Task 5: иконка, README, UI-смоук
 

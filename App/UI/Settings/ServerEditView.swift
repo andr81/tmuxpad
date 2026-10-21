@@ -4,6 +4,9 @@ import TmuxPadCore
 /// Форма сервера по таблице §3.6. Новый сервер — в sheet, существующий — в навигации настроек.
 struct ServerEditView: View {
     let isNew: Bool
+    /// Онбординг: вызывается после сохранения вместо закрытия; кнопок проверки и «Отмены» нет,
+    /// проверка — следующий шаг онбординга.
+    var onSaved: ((ServerConfig) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(ServerStore.self) private var servers
@@ -12,8 +15,9 @@ struct ServerEditView: View {
     @State private var confirmReset = false
     @State private var error: String?
 
-    init(config: ServerConfig, isNew: Bool) {
+    init(config: ServerConfig, isNew: Bool, onSaved: ((ServerConfig) -> Void)? = nil) {
         self.isNew = isNew
+        self.onSaved = onSaved
         _draft = State(initialValue: config)
     }
 
@@ -65,12 +69,14 @@ struct ServerEditView: View {
             } footer: {
                 Text("Запоминается при первом подключении; при смене ключа сервера подключение блокируется.")
             }
-            actions
+            if onSaved == nil {
+                actions
+            }
         }
         .navigationTitle(isNew ? "Новый сервер" : draft.label)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if isNew {
+            if isNew, onSaved == nil {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Отмена") { dismiss() }
                 }
@@ -179,9 +185,13 @@ struct ServerEditView: View {
             // существующий сервер остаётся открытым: после сохранения доступны кнопки проверки
             if isNew {
                 try servers.add(draft)
-                dismiss()
             } else {
                 try servers.update(draft)
+            }
+            if let onSaved {
+                onSaved(draft)
+            } else if isNew {
+                dismiss()
             }
         } catch {
             self.error = userText(error)

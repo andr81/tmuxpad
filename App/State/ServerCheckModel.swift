@@ -44,6 +44,9 @@ final class ServerCheckModel {
     private(set) var state: State = .idle
     /// Последний `sendToken` дошёл до сервера.
     private(set) var tokenSent = false
+    /// Проектов в `list` после последней подготовки (§3.7); `nil` — не подготавливали или
+    /// `list` не ответил.
+    private(set) var projectCount: Int?
 
     @ObservationIgnored private let env: AppEnvironment
     @ObservationIgnored private var connection: ServerConnection?
@@ -57,6 +60,11 @@ final class ServerCheckModel {
 
     var isRunning: Bool {
         if case .running = state { true } else { false }
+    }
+
+    /// Действие закончилось отчётом (`done`).
+    var isDone: Bool {
+        if case .done = state { true } else { false }
     }
 
     var config: ServerConfig? {
@@ -265,6 +273,7 @@ final class ServerCheckModel {
 
     private func inspect(_ connection: ServerConnection) async {
         state = .running(.checkingScript)
+        projectCount = nil
         let api = await connection.api
         let status = await env.bootstrap.status(api: api)
         guard case .ready = status else {
@@ -281,10 +290,13 @@ final class ServerCheckModel {
 
     private func install(_ connection: ServerConnection) async {
         state = .running(.preparing)
+        projectCount = nil
         do {
             let report = try await env.bootstrap.prepare(api: await connection.api)
             // дерево держит прежний статус скрипта, пока ему не сказать, откуда бы ни шла подготовка
             await env.tree.markPrepared(serverID)
+            // число проектов — часть отчёта, но не условие успеха: подготовка уже прошла
+            projectCount = try? await connection.api.list().projects.count
             state = .done(.ready(version: env.bootstrap.bundledVersion), report)
         } catch {
             fail(error)

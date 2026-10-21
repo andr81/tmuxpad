@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(ServerStore.self) private var servers
+    @Environment(KeyLibrary.self) private var keys
     @Environment(TreeModel.self) private var tree
     @Environment(OpenSessionsModel.self) private var openSessions
     @Environment(AppNavigation.self) private var navigation
@@ -9,6 +10,7 @@ struct RootView: View {
     @Environment(\.appEnvironment) private var env
     @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
+    @State private var showOnboarding = false
     /// «Создать» из пустого мастера «Подключиться»: «Новая сессия» откроется, когда тот закроется.
     @State private var createAfterAttach: UUID?
 
@@ -60,6 +62,16 @@ struct RootView: View {
             }
         }) {
             AttachWizard(servers: servers.servers) { createAfterAttach = $0 }
+        }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView { showOnboarding = false }
+                .preferredColorScheme(appearance.theme.colorScheme)
+        }
+        .onAppear {
+            // раз за запуск; пройденный или пропущенный онбординг не возвращается
+            if let env, OnboardingFlag.shouldShow(defaults: env.defaults, hasKeys: !keys.keys.isEmpty, hasServers: !servers.servers.isEmpty) {
+                showOnboarding = true
+            }
         }
         .onChange(of: servers.servers, initial: true) { _, list in
             tree.setServers(list)

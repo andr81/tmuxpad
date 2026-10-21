@@ -60,6 +60,8 @@ final class ServerCheckBenchTests {
         }
         #expect(version == env.bootstrap.bundledVersion)
         #expect(report.ok, "\(report.lines)")
+        // стенд может держать проекты других тестов: важно, что число пришло из `list`
+        #expect(model.projectCount != nil)
 
         // новый экран: соединение в пуле то же, `hostKeyFirstSeen` у него по-прежнему true
         let again = ServerCheckModel(serverID: server.id, environment: env)

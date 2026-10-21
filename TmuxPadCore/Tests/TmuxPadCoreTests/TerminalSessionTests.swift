@@ -425,4 +425,38 @@ struct TerminalSessionTests {
         #expect(surface.states.last == .ended)
         #expect(connection.openedPTYs.count == 1)
     }
+
+    @Test func detachWaitsForPendingReconnect() async throws {
+        let transport = FakeTransport()
+        let (_, session, _) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        let connection = try #require(transport.lastConnection)
+        connection.ptyDelay = .milliseconds(200)
+        let reconnect = Task { await session.reconnect() }
+        try await Task.sleep(for: .milliseconds(50))
+        await session.detach()
+        // канал «Переподключить» открылся после `detach` и уже закрыт: слот свободен
+        #expect(connection.openedPTYs.count == 2)
+        #expect(connection.openPTYCount == 0)
+        await reconnect.value
+    }
+
+    @Test func detachWaitsForClosingChannel() async throws {
+        let transport = FakeTransport()
+        let (_, session, _) = try await Self.make(transport)
+        await session.start()
+        let pty = try await Self.pty(transport)
+        let connection = try #require(transport.lastConnection)
+        pty.closeDelay = .milliseconds(200)
+        let reconnect = Task { await session.reconnect() }
+        try await Task.sleep(for: .milliseconds(50))
+        await session.detach()
+        // старый канал закрыт, вытесненный «Переподключить» нового не открыл
+        #expect(pty.isClosed)
+        #expect(connection.openedPTYs.count == 1)
+        await reconnect.value
+        #expect(connection.openedPTYs.count == 1)
+        #expect(await session.state == .ended)
+    }
 }

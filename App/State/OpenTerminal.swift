@@ -38,6 +38,8 @@ final class OpenTerminal {
     @ObservationIgnored private var delegate: TerminalDelegate?
     @ObservationIgnored private var setup: Task<TerminalSession?, Never>?
     @ObservationIgnored private var events: Task<Void, Never>?
+    /// Конец потока `events`: сам он не кончится, пока жива задача, которая его читает.
+    @ObservationIgnored private var eventsEnd: AsyncStream<Event>.Continuation?
 
     /// Начальный кадр до вёрстки: размер PTY при `attach`, потом его поправит `sizeChanged`.
     static let initialFrame = CGRect(x: 0, y: 0, width: 1024, height: 768)
@@ -84,7 +86,7 @@ final class OpenTerminal {
     }
 
     /// `detach()` и конец ввода; tmux-сессия на сервере остаётся. Задача кончается, когда
-    /// PTY закрыт и его слот в пуле свободен.
+    /// PTY закрыт и его слот в пуле свободен; поток состояний — после `.ended` от `detach`.
     @discardableResult
     func close() -> Task<Void, Never> {
         guard !isClosed else {
@@ -96,6 +98,8 @@ final class OpenTerminal {
         let session = session
         return Task {
             await (setup?.value ?? session)?.detach()
+            self.eventsEnd?.finish()
+            self.eventsEnd = nil
         }
     }
 
@@ -199,6 +203,8 @@ final class OpenTerminal {
     private func drop(_ old: TerminalSession) {
         events?.cancel()
         events = nil
+        eventsEnd?.finish()
+        eventsEnd = nil
         pump?.finish()
         pump = nil
         delegate = nil
@@ -237,13 +243,15 @@ final class OpenTerminal {
         }
         guard !isClosed else {
             pump.finish()
+            continuation.finish()
             return nil
         }
         self.session = session
         self.pump = pump
         self.delegate = delegate
         view.terminalDelegate = delegate
-        // кончается вместе с потоком: продолжение держит поверхность, её — сессия
+        eventsEnd = continuation
+        // кончается вместе с потоком: `finish` в `close` и `drop`
         events = Task { [weak self] in
             for await event in stream {
                 await self?.apply(event)

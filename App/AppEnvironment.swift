@@ -74,9 +74,15 @@ final class AppEnvironment {
             tree: tree
         )
         appearance = TerminalAppearance(defaults: defaults)
+        // слабые: задача `start` терминала может пережить окружение (так бывает в `AppTests`)
         let dependencies = OpenTerminal.Dependencies(
-            connection: { [unowned actions = self.actions] in try await actions.terminalConnection(serverID: $0) },
-            snapshot: { [unowned tree = self.tree] in tree.states[$0]?.snapshot },
+            connection: { [weak actions = self.actions] in
+                guard let actions else {
+                    throw AppError.serverMissing
+                }
+                return try await actions.terminalConnection(serverID: $0)
+            },
+            snapshot: { [weak tree = self.tree] in tree?.states[$0]?.snapshot },
             log: log,
             defaults: defaults,
             appearance: appearance

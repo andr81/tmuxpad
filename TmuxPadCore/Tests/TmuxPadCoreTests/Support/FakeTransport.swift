@@ -79,6 +79,7 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
     private var calls: [Call] = []
     private var connected = true
     private var delay: Duration?
+    private var ptyWait: Duration?
     private var hang = false
     private var inFlight = 0
     private var peakInFlight = 0
@@ -137,6 +138,12 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
     var execDelay: Duration? {
         get { lock.withLock { delay } }
         set { lock.withLock { delay = newValue } }
+    }
+
+    /// Каждый `openPTY` ждёт `delay` перед ответом.
+    var ptyDelay: Duration? {
+        get { lock.withLock { ptyWait } }
+        set { lock.withLock { ptyWait = newValue } }
     }
 
     /// `exec` не отвечает до своего таймаута, затем `SSHError.timeout`.
@@ -214,7 +221,10 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
     }
 
     func openPTY(command: String, term: String, cols: Int, rows: Int, environment: [String: String]) async throws -> any PTYChannel {
-        try lock.withLock {
+        if let delay = ptyDelay {
+            try await Task.sleep(for: delay)
+        }
+        return try lock.withLock {
             guard connected else {
                 throw SSHError.disconnected
             }
@@ -244,6 +254,7 @@ final class FakePTY: PTYChannel, @unchecked Sendable {
     private var closed = false
     private var sentData: [Data] = []
     private var sizes: [(cols: Int, rows: Int)]
+    private var closeWait: Duration?
     var onSend: (@Sendable (Data) -> Void)?
 
     init(command: String, cols: Int, rows: Int, environment: [String: String]) {
@@ -267,6 +278,12 @@ final class FakePTY: PTYChannel, @unchecked Sendable {
 
     var resizes: [(cols: Int, rows: Int)] {
         lock.withLock { sizes }
+    }
+
+    /// `close()` от приложения ждёт `delay`, прежде чем закрыть канал.
+    var closeDelay: Duration? {
+        get { lock.withLock { closeWait } }
+        set { lock.withLock { closeWait = newValue } }
     }
 
     func emit(_ data: Data) {
@@ -302,6 +319,9 @@ final class FakePTY: PTYChannel, @unchecked Sendable {
     }
 
     func close() async {
+        if let delay = closeDelay {
+            try? await Task.sleep(for: delay)
+        }
         close(exitCode: nil)
     }
 }

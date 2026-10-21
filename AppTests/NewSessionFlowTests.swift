@@ -101,7 +101,7 @@ struct NewSessionFlowTests {
     @Test func conflictOutcomeMarksNameTaken() {
         var flow = NewSessionFlow(servers: [first])
         flow.selectProject("api")
-        flow.apply(.conflict)
+        flow.apply(.conflict, of: flow)
         #expect(flow.nameIssue(snapshot: snapshot(sessions: [])) == .exists)
         flow.editName("api-2")
         #expect(flow.nameIssue(snapshot: snapshot(sessions: [])) == nil)
@@ -111,8 +111,8 @@ struct NewSessionFlowTests {
         var flow = NewSessionFlow(servers: [first, second])
         flow.selectServer(first.id)
         flow.selectProject("api")
-        flow.apply(.conflict)
-        flow.apply(.invalid("bad project"))
+        flow.apply(.conflict, of: flow)
+        flow.apply(.invalid("bad project"), of: flow)
         flow.selectServer(second.id)
         flow.selectProject("api")
         #expect(flow.nameIssue(snapshot: snapshot(sessions: [])) == nil)
@@ -123,13 +123,43 @@ struct NewSessionFlowTests {
     @Test func invalidOutcomeClearsOnEdit() {
         var flow = NewSessionFlow(servers: [first])
         flow.selectProject("api")
-        flow.apply(.invalid("bad project"))
+        flow.apply(.invalid("bad project"), of: flow)
         #expect(flow.serverIssue == "bad project")
         #expect(!flow.canCreate(snapshot: nil))
         #expect(NameStep.footer(issue: nil, serverIssue: flow.serverIssue) == "bad project")
         flow.editName("api-2")
         #expect(flow.serverIssue == nil)
         #expect(NameStep.footer(issue: .invalid, serverIssue: nil)?.hasPrefix("Допустимы") == true)
+    }
+
+    @Test func projectChangeClearsServerIssue() {
+        var flow = NewSessionFlow(servers: [first])
+        flow.selectProject("gone")
+        flow.apply(.invalid("no project gone"), of: flow)
+        flow.selectProject("gone")
+        #expect(flow.serverIssue == "no project gone")
+        flow.selectProject("api")
+        #expect(flow.serverIssue == nil)
+        #expect(flow.canCreate(snapshot: snapshot(sessions: [])))
+    }
+
+    /// Ответ `new` пришёл после того, как пользователь сменил сервер, проект или имя.
+    @Test func staleOutcomeIgnored() {
+        var flow = NewSessionFlow(servers: [first, second])
+        flow.selectServer(first.id)
+        flow.selectProject("api")
+        let request = flow
+        flow.selectServer(second.id)
+        flow.selectProject("api")
+        flow.apply(.conflict, of: request)
+        flow.apply(.invalid("bad"), of: request)
+        #expect(flow.nameIssue(snapshot: snapshot(sessions: [])) == nil)
+        #expect(flow.serverIssue == nil)
+
+        let renamed = flow
+        flow.editName("other")
+        flow.apply(.conflict, of: renamed)
+        #expect(flow.nameIssue(snapshot: snapshot(sessions: [])) == nil)
     }
 
     /// Сервер удалили, пока мастер был открыт.

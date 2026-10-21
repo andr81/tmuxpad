@@ -76,7 +76,11 @@ struct NewSessionFlow: Equatable {
         serverID = id
     }
 
+    /// Смена проекта сбрасывает `serverIssue`: `badRequest` мог относиться к прежнему проекту.
     mutating func selectProject(_ name: String) {
+        if project != name {
+            serverIssue = nil
+        }
         project = name
         if !nameEdited {
             self.name = Validation.suggestedSessionName(from: name)
@@ -134,7 +138,12 @@ struct NewSessionFlow: Equatable {
         }
     }
 
-    mutating func apply(_ outcome: CreateOutcome) {
+    /// `request` — копия, с которой шёл `create`: ответ про другой сервер, проект или имя не
+    /// применяется.
+    mutating func apply(_ outcome: CreateOutcome, of request: NewSessionFlow) {
+        guard request.serverID == serverID, request.project == project, request.name == name else {
+            return
+        }
         switch outcome {
         case .conflict:
             takenNames.insert(name)

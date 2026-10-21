@@ -67,6 +67,8 @@ struct NewSessionWizard: View {
                 }
             }
         }
+        // назад во время `new` нельзя: ответ относится к отправленным серверу, проекту и имени
+        .navigationBarBackButtonHidden(creating)
         .toolbar {
             if step == flow.steps[0] {
                 ToolbarItem(placement: .cancellationAction) {
@@ -117,7 +119,7 @@ struct NewSessionWizard: View {
         Task {
             let outcome = await request.create(using: actions)
             creating = false
-            flow.apply(outcome)
+            flow.apply(outcome, of: request)
             switch outcome {
             case .created:
                 dismiss()

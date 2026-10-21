@@ -59,6 +59,23 @@ final class SidebarBenchTests {
         await finish()
     }
 
+    /// Подготовка не из сайдбара (настройки): дерево не держит старый «скрипт не установлен».
+    @Test func prepareOutsideSidebarUnblocksTree() async throws {
+        let server = try await Bench.addServer(to: env)
+        let model = ServerCheckModel(serverID: server.id, environment: env)
+        await model.check().value
+        await model.trust().value
+        env.tree.setServers(env.servers.servers)
+        env.tree.start()
+        try await waitUntil(timeout: .seconds(10)) {
+            if case .needsSetup = env.tree.states[server.id]?.reachability { true } else { false }
+        }
+
+        await model.prepare().value
+        try await waitUntil(timeout: .seconds(10)) { env.tree.states[server.id]?.reachability == .online }
+        await finish()
+    }
+
     @Test func wrongPortOfflineBenchOnline() async throws {
         let server = try await preparedServer()
         var broken = Bench.config(keyID: server.keyID, label: "broken")
@@ -162,7 +179,7 @@ final class SidebarBenchTests {
 
         let outcome = await flow.create(using: env.actions)
         #expect(outcome == .conflict)
-        flow.apply(outcome)
+        flow.apply(outcome, of: flow)
         #expect(flow.nameIssue(snapshot: snapshot) == .exists)
         #expect(env.openSessions.selection == nil)
         await finish()

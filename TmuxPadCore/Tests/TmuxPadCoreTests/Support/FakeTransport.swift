@@ -83,6 +83,7 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
     private var inFlight = 0
     private var peakInFlight = 0
     private var ptys: [FakePTY] = []
+    private var ptyErrors: [Error] = []
     private var events: [String] = []
     let onDisconnect: AsyncStream<Void>
     private let disconnectContinuation: AsyncStream<Void>.Continuation
@@ -142,6 +143,11 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
     var hangExec: Bool {
         get { lock.withLock { hang } }
         set { lock.withLock { hang = newValue } }
+    }
+
+    /// Следующие `count` вызовов `openPTY` бросают `error`, соединение остаётся живым.
+    func failNextPTYs(_ count: Int, with error: Error) {
+        lock.withLock { ptyErrors = Array(repeating: error, count: count) }
     }
 
     /// Наибольшее число одновременных `exec`.
@@ -211,6 +217,9 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
         try lock.withLock {
             guard connected else {
                 throw SSHError.disconnected
+            }
+            if !ptyErrors.isEmpty {
+                throw ptyErrors.removeFirst()
             }
             let pty = FakePTY(command: command, cols: cols, rows: rows, environment: environment)
             pty.onSend = { [weak self] data in self?.note("pty " + String(decoding: data, as: UTF8.self)) }

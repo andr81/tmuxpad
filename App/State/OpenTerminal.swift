@@ -113,6 +113,10 @@ final class OpenTerminal {
             return
         }
         await session.server.reconnectNow()
+        // закрыли, пока пул переподключался: `detach` уже освободил слот
+        guard !isClosed else {
+            return
+        }
         await session.reconnect()
     }
 

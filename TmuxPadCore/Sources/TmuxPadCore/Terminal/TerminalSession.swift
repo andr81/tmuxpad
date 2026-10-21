@@ -50,7 +50,7 @@ public actor TerminalSession {
 
     /// Открывает канал `attach`. Ошибки не бросает: они видны в `state`.
     public func start() async {
-        guard pty == nil else {
+        guard pty == nil, !userDetached else {
             return
         }
         let current = await begin()
@@ -98,7 +98,8 @@ public actor TerminalSession {
         try await pty?.resize(cols: cols, rows: rows)
     }
 
-    /// Закрыть терминал; tmux-сессия на сервере остаётся.
+    /// Закрыть терминал; tmux-сессия на сервере остаётся. Окончательно: `start`, `reconnect` и
+    /// `take` после него ничего не делают, иначе запоздавший «Повторить» занял бы PTY-слот.
     public func detach() async {
         userDetached = true
         setCopyModeSuspected(false)
@@ -109,6 +110,9 @@ public actor TerminalSession {
 
     /// «Забрать»: `take` выкидывает всех прочих клиентов (§6.1).
     public func take() async {
+        guard !userDetached else {
+            return
+        }
         let current = await begin()
         setState(.reconnecting)
         await record("take")
@@ -117,6 +121,9 @@ public actor TerminalSession {
 
     /// Новый канал `attach`: возврат из фона, «Переподключить», «Повторить».
     public func reconnect() async {
+        guard !userDetached else {
+            return
+        }
         let current = await begin()
         setState(.reconnecting)
         await open(take: false, current)
@@ -200,7 +207,6 @@ public actor TerminalSession {
     }
 
     private func openChannel(take: Bool, _ current: Int) async throws {
-        userDetached = false
         let api = await server.api
         let command = take ? try api.takeCommand(session: name) : try api.attachCommand(session: name)
         let size = surface.size
@@ -307,11 +313,12 @@ public actor TerminalSession {
     private func transportLost(_ reason: String, _ current: Int) async {
         setState(.reconnecting)
         await record("connection lost: \(reason)")
-        waitTask?.cancel()
         let updates = await server.stateUpdates()
+        // устаревший вызов не трогает ожидание новой операции
         guard current == generation else {
             return
         }
+        waitTask?.cancel()
         waitTask = Task { [weak self] in
             for await connectionState in updates {
                 guard let self else {
@@ -353,6 +360,11 @@ public actor TerminalSession {
             }
             if Self.isTransport(error) {
                 await record("reattach failed: \(error)")
+                // пул жив (канал не открылся по таймауту): следующего `.connected` может не быть,
+                // поэтому «Повторить», а не вечное «Переподключение…»
+                if await server.state.isConnected, current == generation {
+                    setState(.offline("\(error)"))
+                }
                 return true
             }
             setState(.offline("\(error)"))

@@ -13,6 +13,9 @@ final class OpenSessionsModel {
     private(set) var terminals: [OpenSessionKey: OpenTerminal] = [:]
     /// Терминал новой открытой сессии; ставит `AppEnvironment`. Без фабрики — только ростер.
     @ObservationIgnored var makeTerminal: ((OpenSessionKey) -> OpenTerminal)?
+    /// `detach` закрытых терминалов, ещё не дошедший до сервера, по серверам: PTY-слот
+    /// освобождается после ответа, и новый терминал того же сервера ждёт их (лимит пула).
+    @ObservationIgnored private var closing: [UUID: [UUID: Task<Void, Never>]] = [:]
 
     init(limit: Int = OpenSessionsRoster.defaultLimit) {
         roster = OpenSessionsRoster(limit: limit)
@@ -21,16 +24,13 @@ final class OpenSessionsModel {
     /// Открывает (или активирует открытую) и выделяет. Сверх лимита самые давно неактивные
     /// закрываются. `take` — «Забрать» (§6.1): у открытой — `take()`, у новой — открытие через `take`.
     func open(_ key: OpenSessionKey, take: Bool = false) {
-        var evictions: [Task<Void, Never>] = []
         for evicted in roster.open(key) {
             if let terminal = terminals.removeValue(forKey: evicted) {
-                let eviction = terminal.close()
-                // PTY-слоты у каждого сервера свои: чужой сервер новый терминал не держит
-                if evicted.serverID == key.serverID {
-                    evictions.append(eviction)
-                }
+                closeTerminal(terminal, serverID: evicted.serverID)
             }
         }
+        // PTY-слоты у каждого сервера свои: чужой сервер новый терминал не держит
+        let evictions = closing[key.serverID].map { Array($0.values) } ?? []
         selection = key
         if let terminal = terminals[key] {
             terminal.activate()
@@ -46,7 +46,9 @@ final class OpenSessionsModel {
     /// Выделение переходит к последней активированной из оставшихся.
     func close(_ key: OpenSessionKey) {
         roster.close(key)
-        terminals.removeValue(forKey: key)?.close()
+        if let terminal = terminals.removeValue(forKey: key) {
+            closeTerminal(terminal, serverID: key.serverID)
+        }
         if selection == key {
             selection = roster.active
         }
@@ -56,7 +58,9 @@ final class OpenSessionsModel {
     func close(serverID: UUID) {
         roster.close(serverID: serverID)
         for key in terminals.keys where key.serverID == serverID {
-            terminals.removeValue(forKey: key)?.close()
+            if let terminal = terminals.removeValue(forKey: key) {
+                closeTerminal(terminal, serverID: serverID)
+            }
         }
         if selection?.serverID == serverID {
             selection = roster.active
@@ -86,6 +90,20 @@ final class OpenSessionsModel {
 
     var selectedTerminal: OpenTerminal? {
         selection.flatMap { terminals[$0] }
+    }
+
+    /// `detach` и учёт его до ответа сервера.
+    private func closeTerminal(_ terminal: OpenTerminal, serverID: UUID) {
+        let id = UUID()
+        let task = terminal.close()
+        closing[serverID, default: [:]][id] = task
+        Task { [weak self] in
+            await task.value
+            self?.closing[serverID]?[id] = nil
+            if self?.closing[serverID]?.isEmpty == true {
+                self?.closing[serverID] = nil
+            }
+        }
     }
 
     private func activate(_ key: OpenSessionKey) {

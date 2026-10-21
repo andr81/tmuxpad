@@ -73,8 +73,15 @@ private struct TerminalHost: UIViewRepresentable {
     }
 
     func updateUIView(_ container: TerminalContainerView, context: Context) {
-        // сначала `acceptsInput`: `show` нового терминала при плашке не должен его фокусировать
-        container.acceptsInput = acceptsInput
-        container.show(view)
+        // фокус получает только терминал, который уже на экране: при плашке `show` нового не
+        // должен его фокусировать, а без плашки фокус не должен на миг вернуться прежнему
+        // (его focus-отчёты ушли бы в чужую сессию)
+        if acceptsInput {
+            container.show(view)
+            container.acceptsInput = true
+        } else {
+            container.acceptsInput = false
+            container.show(view)
+        }
     }
 }

@@ -129,6 +129,38 @@ struct OpenSessionsModelTests {
         #expect(terminal.state == .offline(userText(AppError.serverMissing)))
     }
 
+    /// Закрытый терминал ещё не освободил PTY-слот: новый на том же сервере ждёт его `detach`.
+    @Test func openWaitsForPendingCloseOnSameServer() async throws {
+        let (released, release) = AsyncStream<Void>.makeStream()
+        defer { release.finish() }
+        let calls = Counter()
+        let model = OpenSessionsModel()
+        let defaults = UserDefaults(suiteName: "dev.tmuxpad.test.\(UUID().uuidString)")!
+        let dependencies = OpenTerminal.Dependencies(
+            connection: { _ in
+                // первое подключение (терминал `api`) висит: его `close()` не кончается
+                if calls.next() == 1 {
+                    for await _ in released {}
+                }
+                throw AppError.serverMissing
+            },
+            snapshot: { _ in nil },
+            log: nil,
+            defaults: defaults,
+            appearance: TerminalAppearance(defaults: defaults)
+        )
+        model.makeTerminal = { OpenTerminal(key: $0, dependencies: dependencies) }
+        model.open(key("api"))
+        model.close(key("api"))
+        model.open(key("web"))
+        let web = try #require(model.terminals[key("web")])
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(web.state == .connecting)
+        release.finish()
+        try await waitUntil { web.state != .connecting }
+        #expect(web.state == .offline(userText(AppError.serverMissing)))
+    }
+
     @Test func reopenKeepsTerminal() {
         let model = modelWithTerminals()
         model.open(key("api"))
@@ -186,5 +218,16 @@ struct OpenSessionsModelTests {
         model.open(key("n6"))
         #expect(model.isOpen(key("a")))
         #expect(!model.isOpen(key("b")))
+    }
+}
+
+/// Номер вызова, с 1.
+@MainActor
+private final class Counter {
+    private var value = 0
+
+    func next() -> Int {
+        value += 1
+        return value
     }
 }

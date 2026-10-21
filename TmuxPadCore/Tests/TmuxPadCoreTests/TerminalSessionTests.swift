@@ -373,6 +373,33 @@ struct TerminalSessionTests {
         #expect(try await surface.waitFor(.live))
     }
 
+    /// Канал не открылся по таймауту, а пул жив: следующего `.connected` не будет, поэтому
+    /// «Повторить», а не вечное «Переподключение…».
+    @Test func ptyTimeoutWithLivePoolIsOffline() async throws {
+        let transport = FakeTransport()
+        let (_, session, surface) = try await Self.make(transport)
+        try #require(transport.lastConnection).failNextPTYs(2, with: SSHError.timeout)
+        await session.start()
+        #expect(try await Bench.eventually { if case .offline = surface.states.last { true } else { false } })
+        #expect(surface.states.dropLast() == [.connecting, .reconnecting])
+        await session.reconnect()
+        #expect(try await surface.waitFor(.live))
+    }
+
+    @Test func detachIsFinal() async throws {
+        let transport = FakeTransport()
+        let (_, session, surface) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        await session.detach()
+        await session.reconnect()
+        await session.take()
+        await session.start()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(surface.states.last == .ended)
+        #expect(transport.lastConnection?.openedPTYs.count == 1)
+    }
+
     @Test func refusedChannelIsOfflineWithoutRetry() async throws {
         let transport = FakeTransport()
         let server = try ServerConnectionTests.make(transport, settings: PoolSettings(keepalive: .seconds(60), ptySlots: 0))

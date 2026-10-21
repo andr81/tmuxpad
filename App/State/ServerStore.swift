@@ -48,17 +48,21 @@ final class ServerStore {
         try commit(updated)
     }
 
-    /// «Сбросить отпечаток»: доверие по адресу сервера забывается, поле конфига очищается.
+    /// «Сбросить отпечаток»: доверие по адресу сервера забывается, поле очищается у всех
+    /// серверов с этим адресом, иначе подтверждённый отпечаток копии блокировал бы новый ключ.
     func resetFingerprint(id: UUID) async throws {
         guard let config = server(id: id) else {
             return
         }
         try await hostKeys.reset(host: config.host, port: config.port)
-        guard var current = server(id: id) else {
-            return
+        let updated = servers.map { server in
+            var server = server
+            if server.host == config.host && server.port == config.port {
+                server.hostKeyFingerprint = nil
+            }
+            return server
         }
-        current.hostKeyFingerprint = nil
-        try update(current)
+        try commit(updated)
     }
 
     /// Отпечаток уже подтверждён у другого сервера с тем же адресом (копия сервера).
@@ -66,6 +70,14 @@ final class ServerStore {
         servers.contains {
             $0.id != config.id && $0.host == config.host && $0.port == config.port && $0.hostKeyFingerprint == fingerprint
         }
+    }
+
+    /// Отпечаток, подтверждённый у другого сервера с тем же адресом: для сервера без своего
+    /// отпечатка другой ключ по этому адресу — смена ключа, а не первый коннект.
+    func confirmedFingerprint(elsewhereFor config: ServerConfig) -> String? {
+        servers.first {
+            $0.id != config.id && $0.host == config.host && $0.port == config.port && $0.hostKeyFingerprint != nil
+        }?.hostKeyFingerprint
     }
 
     /// Копия сразу после оригинала, без отпечатка: доверие подтверждается заново.

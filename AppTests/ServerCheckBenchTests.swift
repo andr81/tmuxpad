@@ -176,6 +176,31 @@ final class ServerCheckBenchTests {
         await finish()
     }
 
+    /// Бэкап на новом iPad: `HostKeyStore` пуст, у оригинала подтверждён другой ключ. Копия без
+    /// своего отпечатка получает блокировку, а не вопрос «Доверять… впервые».
+    @Test func copyWithoutFingerprintBlocksOnKeyConfirmedElsewhere() async throws {
+        let server = try await Bench.addServer(to: env)
+        let fingerprint = try await checkTrusted(ServerCheckModel(serverID: server.id, environment: env))
+        await env.pool.existing(id: server.id)?.disconnect()
+
+        var original = try #require(env.servers.server(id: server.id))
+        let copy = try env.servers.duplicate(original)
+        original.hostKeyFingerprint = "SHA256:confirmed"
+        try env.servers.update(original)
+        try await env.hostKeys.reset(host: server.host, port: server.port)
+
+        let model = ServerCheckModel(serverID: copy.id, environment: env)
+        await model.check().value
+        #expect(model.state == .hostKeyChanged(expected: "SHA256:confirmed", actual: fingerprint))
+        #expect(try await env.hostKeys.fingerprint(for: server.host, port: server.port) == "SHA256:confirmed")
+
+        // «Сбросить» очищает отпечаток и у оригинала, иначе блокировка не снялась бы
+        await model.resetHostKey().value
+        #expect(model.state == .trustPrompt(fingerprint: fingerprint))
+        #expect(env.servers.server(id: server.id)?.hostKeyFingerprint == nil)
+        await finish()
+    }
+
     /// Ключ в `HostKeyStore` без подтверждения в конфиге — например, приложение закрыли при
     /// открытом вопросе или поле сбросили при живом соединении — вопрос задаётся снова.
     @Test func unconfirmedKeyAsksAgain() async throws {

@@ -107,6 +107,35 @@ final class ServerStoreTests {
         #expect(try await env.hostKeys.fingerprint(for: server.host, port: server.port) == nil)
     }
 
+    @Test func resetFingerprintClearsServersWithSameAddress() async throws {
+        var original = config("a")
+        original.hostKeyFingerprint = "SHA256:abc"
+        try env.servers.add(original)
+        var copy = try env.servers.duplicate(env.servers.servers[0])
+        copy.hostKeyFingerprint = "SHA256:abc"
+        try env.servers.update(copy)
+        var far = config("far", host: "other.example.com")
+        far.hostKeyFingerprint = "SHA256:far"
+        try env.servers.add(far)
+
+        try await env.servers.resetFingerprint(id: copy.id)
+        #expect(env.servers.servers.map(\.hostKeyFingerprint) == [nil, nil, "SHA256:far"])
+    }
+
+    @Test func confirmedFingerprintElsewhereNeedsSameAddress() throws {
+        var original = config("a")
+        original.hostKeyFingerprint = "SHA256:abc"
+        try env.servers.add(original)
+        let source = env.servers.servers[0]
+        let copy = try env.servers.duplicate(source)
+        try env.servers.add(config("far", host: "other.example.com"))
+        let far = env.servers.servers[2]
+
+        #expect(env.servers.confirmedFingerprint(elsewhereFor: copy) == "SHA256:abc")
+        #expect(env.servers.confirmedFingerprint(elsewhereFor: source) == nil)
+        #expect(env.servers.confirmedFingerprint(elsewhereFor: far) == nil)
+    }
+
     @Test func confirmedElsewhereNeedsSameAddressAndFingerprint() throws {
         var original = config("a")
         original.hostKeyFingerprint = "SHA256:abc"

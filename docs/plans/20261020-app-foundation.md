@@ -320,19 +320,24 @@ shellcheck -s bash scripts/ios-test.sh
 KeychainKeyStoreTests,KeychainHostKeyStoreTests,DeviceIdentityTests,JSONFileStoreTests}.swift`
 (create).
 
-- [ ] `Keychain.swift` по решению 4; `KeychainError: Error, Equatable` с `status(OSStatus)` и
+- [x] `Keychain.swift` по решению 4; `KeychainError: Error, Equatable` с `status(OSStatus)` и
       `unexpectedData`.
-- [ ] `JSONFileStore.swift` по решению 8; каталог задаётся в инициализаторе (по умолчанию
+- [x] `JSONFileStore.swift` по решению 8; каталог задаётся в инициализаторе (по умолчанию
       Application Support/`TmuxPad`), тесты используют `FileManager.default.temporaryDirectory`
       + UUID.
-- [ ] `KeychainKeyStore.swift` по решению 5: `actor KeychainKeyStore: KeyStore` с
+- [x] `KeychainKeyStore.swift` по решению 5: `actor KeychainKeyStore: KeyStore` с
       `init(keychain: Keychain, metadata: JSONFileStore<[SSHKeyInfo]>)`; `KeyStoreError`
       (`secureEnclaveUnavailable`, `unsupportedKind`, `notFound`). `@preconcurrency import
       NIOSSH`; `import CryptoKit` для `SecureEnclave`.
-- [ ] `KeychainHostKeyStore.swift` по решению 6; `DeviceIdentity.swift` по решению 7.
-- [ ] Тесты из Testing Strategy для этих типов; каждый suite работает в собственном сервисе
+- [x] `KeychainHostKeyStore.swift` по решению 6; `DeviceIdentity.swift` по решению 7.
+- [x] Тесты из Testing Strategy для этих типов; каждый suite работает в собственном сервисе
       `dev.tmuxpad.test.<suite>.<UUID>` и удаляет его записи в конце.
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `scripts/ios-test.sh --no-bench` проходит.
+- Заметки исполнения: приложению добавлена прямая зависимость `Citadel` в `project.yml` (тот же
+  URL, что в ядре): импорт с паролем пересохраняет ключ без шифра через
+  `Curve25519.Signing.PrivateKey(sshEd25519:decryptionKey:)` и `makeSSHRepresentation`, а
+  `NIOSSHPrivateKey` сырых байт не отдаёт. В симуляторе Xcode 26 `SecureEnclave.isAvailable ==
+  true`, полный цикл SE-ключа прошёл и там.
 
 ### Task 3: `AppEnvironment`, `ServerStore`, `KeyLibrary`, тексты ошибок
 

@@ -12,6 +12,9 @@ settings:
 packages:
   TmuxPadCore:
     path: TmuxPadCore
+  Citadel:
+    url: https://github.com/orlandos-nl/Citadel.git
+    from: 0.12.1
   swift-nio-ssh:
     url: https://github.com/Wellz26/swift-nio-ssh.git
     from: 0.3.4
@@ -24,6 +27,7 @@ targets:
       - package: TmuxPadCore
       - package: swift-nio-ssh
         product: NIOSSH
+      - package: Citadel
     info:
       path: App/Info.plist
       properties:

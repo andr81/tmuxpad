@@ -104,7 +104,7 @@ final class ServerCheckBenchTests {
         await model.check().value
         #expect(model.state == .hostKeyChanged(expected: "SHA256:confirmed", actual: fingerprint))
         #expect(try await env.hostKeys.fingerprint(for: server.host, port: server.port) == "SHA256:confirmed")
-        #expect(await env.pool.existing(id: server.id)?.state == .disconnected)
+        #expect(await env.pool.existing(id: server.id)?.state.isConnected == false)
 
         // повторная проверка упирается в ту же блокировку уже в ядре
         await model.check().value
@@ -112,6 +112,26 @@ final class ServerCheckBenchTests {
 
         await model.resetHostKey().value
         #expect(model.state == .trustPrompt(fingerprint: fingerprint))
+        await finish()
+    }
+
+    /// То же, но сервер ещё и отвергает вход: смена ключа видна раньше `authFailed`, а ядро не
+    /// запоминает чужой ключ как первый увиденный.
+    @Test func confirmedKeyMismatchWinsOverAuthFailed() async throws {
+        let server = try await Bench.addServer(to: env)
+        let fingerprint = try await checkTrusted(ServerCheckModel(serverID: server.id, environment: env))
+        await env.pool.disconnectAll()
+        try await env.hostKeys.reset(host: server.host, port: server.port)
+
+        let key = try await env.keys.create(kind: .ed25519, name: "foreign")
+        var foreign = Bench.config(keyID: key.id)
+        foreign.hostKeyFingerprint = "SHA256:confirmed"
+        try env.servers.add(foreign)
+        let model = ServerCheckModel(serverID: foreign.id, environment: env)
+
+        await model.check().value
+        #expect(model.state == .hostKeyChanged(expected: "SHA256:confirmed", actual: fingerprint))
+        #expect(try await env.hostKeys.fingerprint(for: server.host, port: server.port) == "SHA256:confirmed")
         await finish()
     }
 

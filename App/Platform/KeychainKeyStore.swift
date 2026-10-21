@@ -55,9 +55,18 @@ actor KeychainKeyStore: AppKeyStore {
         }
     }
 
+    /// Метаданные уходят первыми: сбой между шагами оставляет невидимую запись Keychain, а не
+    /// ключ без приватной части. Если Keychain не удалил запись, метаданные возвращаются, чтобы
+    /// удаление можно было повторить.
     func delete(_ id: UUID) throws {
-        try metadata.save(try list().filter { $0.id != id })
-        try keychain.delete(account: id.uuidString)
+        let keys = try list()
+        try metadata.save(keys.filter { $0.id != id })
+        do {
+            try keychain.delete(account: id.uuidString)
+        } catch {
+            try? metadata.save(keys)
+            throw error
+        }
     }
 
     func createEd25519(name: String) throws -> SSHKeyInfo {

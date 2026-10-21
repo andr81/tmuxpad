@@ -197,8 +197,14 @@ final class ServerCheckModel {
             return nil
         }
         state = .running(.connecting)
+        // подтверждённый отпечаток ставится в `HostKeyStore` до входа: иначе сервер со сменённым
+        // ключом, отвергнувший вход, дал бы `authFailed`, а ядро запомнило бы его ключ как первый
+        let confirmed = config.hostKeyFingerprint ?? env.servers.confirmedFingerprint(elsewhereFor: config)
         let connection: ServerConnection
         do {
+            if let confirmed, try await env.hostKeys.fingerprint(for: config.host, port: config.port) == nil {
+                try await env.hostKeys.save(confirmed, for: config.host, port: config.port)
+            }
             let auth = try await env.auth(for: config)
             connection = await env.pool.connection(for: config, auth: auth)
             self.connection = connection
@@ -215,10 +221,10 @@ final class ServerCheckModel {
         if env.servers.isConfirmedElsewhere(fingerprint, for: config) {
             return await store(fingerprint: fingerprint) ? connection : nil
         }
-        // подтверждённый ключ сменился, а `HostKeyStore` его не знал (бэкап на новом iPad,
-        // доверие по адресу сбросили у другого сервера): это смена ключа, а не первый коннект;
-        // у копии без своего отпечатка подтверждённым считается отпечаток сервера с тем же адресом
-        if let expected = config.hostKeyFingerprint ?? env.servers.confirmedFingerprint(elsewhereFor: config) {
+        // подтверждённый ключ сменился, а в `HostKeyStore` лежал другой, неподтверждённый (вопрос
+        // «Доверять» у копии остался без ответа): это смена ключа, а не первый коннект; у копии
+        // без своего отпечатка подтверждённым считается отпечаток сервера с тем же адресом
+        if let expected = confirmed {
             await connection.disconnect()
             do {
                 try await env.hostKeys.save(expected, for: config.host, port: config.port)

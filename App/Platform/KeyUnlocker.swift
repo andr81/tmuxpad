@@ -90,6 +90,15 @@ actor KeyUnlocker: KeyUnlocking {
         }
     }
 
+    /// Реконнект пула (`reconnectGate`) идёт с сохранённым `SSHAuth`, мимо `authenticate`: он
+    /// ждёт здесь, пока ключ закрыт, и не показывает запрос сам — его покажет координатор,
+    /// «Повторить» или действие с ключом. Отмена задачи — `CancellationError`.
+    func waitUntilUnlocked() async throws {
+        while isRequired(), !unlocked {
+            try await Task.sleep(for: .milliseconds(250))
+        }
+    }
+
     func lock() async {
         generation += 1
         unlocked = false

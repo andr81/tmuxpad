@@ -59,6 +59,24 @@ struct KeyUnlockerTests {
         #expect(prompt.calls == 1)
     }
 
+    /// Реконнект пула ждёт открытия ключа и сам запрос не показывает.
+    @Test func waitUntilUnlockedWaitsForAuthenticate() async throws {
+        let unlocker = unlocker()
+        let waiter = Task { try await unlocker.waitUntilUnlocked() }
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(prompt.calls == 0)
+        try await unlocker.authenticate()
+        try await waiter.value
+        await unlocker.lock()
+        let cancelled = Task { try await unlocker.waitUntilUnlocked() }
+        cancelled.cancel()
+        await #expect(throws: CancellationError.self) { try await cancelled.value }
+        // выключенная проверка не держит
+        required.value = false
+        try await unlocker.waitUntilUnlocked()
+        #expect(prompt.calls == 1)
+    }
+
     @Test func asksAgainAfterBackground() async throws {
         let unlocker = unlocker()
         try await unlocker.authenticate()

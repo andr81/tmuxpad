@@ -20,6 +20,8 @@ public actor ServerConnection: ExecRunner {
     private let transport: any SSHTransport
     private let auth: SSHAuth
     private let hostKeys: any HostKeyStore
+    /// Ждёт перед каждой попыткой реконнекта (`authenticate` она не заменяет); ошибка — цикл выходит.
+    private let reconnectGate: (@Sendable () async throws -> Void)?
     private let execSlots: AsyncSemaphore
 
     private var connection: (any SSHConnection)?
@@ -42,13 +44,15 @@ public actor ServerConnection: ExecRunner {
         auth: SSHAuth,
         hostKeys: any HostKeyStore,
         settings: PoolSettings? = nil,
-        log: DiagnosticsLog = DiagnosticsLog()
+        log: DiagnosticsLog = DiagnosticsLog(),
+        reconnectGate: (@Sendable () async throws -> Void)? = nil
     ) {
         self.config = config
         self.deviceID = deviceID
         self.transport = transport
         self.auth = auth
         self.hostKeys = hostKeys
+        self.reconnectGate = reconnectGate
         let settings = settings ?? PoolSettings(config: config)
         self.settings = settings
         self.log = log
@@ -225,6 +229,8 @@ public actor ServerConnection: ExecRunner {
             await log.record(server: config.label, kind: .reconnect, "attempt \(index + 1) in \(delay): \(lastError)")
             do {
                 try await Task.sleep(for: delay)
+                // попытка идёт с сохранённым `auth`: приложение держит её, пока ключ закрыт (Face ID, §8)
+                try await reconnectGate?()
             } catch {
                 return
             }

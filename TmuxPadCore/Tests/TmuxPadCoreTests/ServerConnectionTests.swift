@@ -31,6 +31,16 @@ private final class StateRecorder: @unchecked Sendable {
     }
 }
 
+private final class OpenFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var open = false
+
+    var isOpen: Bool {
+        get { lock.withLock { open } }
+        set { lock.withLock { open = newValue } }
+    }
+}
+
 struct ServerConnectionTests {
     static let config = ServerConfig(label: "fake", host: "fake.example", user: "dev", keyID: UUID())
 
@@ -42,7 +52,12 @@ struct ServerConnectionTests {
         PoolSettings(keepalive: keepalive, pingTimeout: pingTimeout, backoff: backoff, connectTimeout: .seconds(1), execTimeout: .seconds(2))
     }
 
-    static func make(_ transport: FakeTransport, settings: PoolSettings = settings(), log: DiagnosticsLog = DiagnosticsLog()) throws -> ServerConnection {
+    static func make(
+        _ transport: FakeTransport,
+        settings: PoolSettings = settings(),
+        log: DiagnosticsLog = DiagnosticsLog(),
+        reconnectGate: (@Sendable () async throws -> Void)? = nil
+    ) throws -> ServerConnection {
         let key = SSHKeys.generateEd25519().privateKey
         return ServerConnection(
             config: config,
@@ -51,7 +66,8 @@ struct ServerConnectionTests {
             auth: .privateKey(key, user: "dev"),
             hostKeys: InMemoryHostKeyStore(),
             settings: settings,
-            log: log
+            log: log,
+            reconnectGate: reconnectGate
         )
     }
 
@@ -240,6 +256,39 @@ struct ServerConnectionTests {
         #expect(try await recorder.waitFor { $0 == .reconnecting(attempt: 1) })
         #expect(try await Bench.eventually { await connection.state.isConnected && transport.connectAttempts == 2 })
         _ = try await connection.exec("true")
+    }
+
+    /// Закрытый ключ (Face ID, §8) держит реконнект с сохранённым `auth`, а не обрывает его.
+    @Test func reconnectWaitsForGate() async throws {
+        let transport = FakeTransport()
+        let gate = OpenFlag()
+        let connection = try Self.make(transport) {
+            while !gate.isOpen {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+        }
+        try await connection.connect()
+        transport.dropConnection()
+        #expect(try await Bench.eventually { await connection.state == .reconnecting(attempt: 1) })
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(transport.connectAttempts == 1)
+        #expect(await connection.state == .reconnecting(attempt: 1))
+        gate.isOpen = true
+        #expect(try await Bench.eventually { await connection.state.isConnected && transport.connectAttempts == 2 })
+    }
+
+    @Test func disconnectWhileWaitingForGateStops() async throws {
+        let transport = FakeTransport()
+        let connection = try Self.make(transport) {
+            try await Task.sleep(for: .seconds(60))
+        }
+        try await connection.connect()
+        transport.dropConnection()
+        #expect(try await Bench.eventually { await connection.state == .reconnecting(attempt: 1) })
+        await connection.disconnect()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(await connection.state == .disconnected)
+        #expect(transport.connectAttempts == 1)
     }
 
     @Test func backoffThenFailed() async throws {

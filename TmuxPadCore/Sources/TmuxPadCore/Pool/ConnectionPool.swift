@@ -8,6 +8,8 @@ public actor ConnectionPool {
     private let transport: any SSHTransport
     private let hostKeys: any HostKeyStore
     private let settings: @Sendable (ServerConfig) -> PoolSettings
+    /// Передаётся каждому `ServerConnection`: приложение держит им реконнект с закрытым ключом.
+    private let reconnectGate: (@Sendable () async throws -> Void)?
     private var entries: [UUID: (config: ServerConfig, connection: ServerConnection)] = [:]
 
     public init(
@@ -15,13 +17,15 @@ public actor ConnectionPool {
         hostKeys: any HostKeyStore,
         deviceID: UUID,
         log: DiagnosticsLog = DiagnosticsLog(),
-        settings: @escaping @Sendable (ServerConfig) -> PoolSettings = { PoolSettings(config: $0) }
+        settings: @escaping @Sendable (ServerConfig) -> PoolSettings = { PoolSettings(config: $0) },
+        reconnectGate: (@Sendable () async throws -> Void)? = nil
     ) {
         self.transport = transport
         self.hostKeys = hostKeys
         self.deviceID = deviceID
         self.log = log
         self.settings = settings
+        self.reconnectGate = reconnectGate
     }
 
     /// Соединение сервера, без подключения. Сменились адрес, порт, пользователь или ключ —
@@ -44,7 +48,8 @@ public actor ConnectionPool {
             auth: auth,
             hostKeys: hostKeys,
             settings: settings(config),
-            log: log
+            log: log,
+            reconnectGate: reconnectGate
         )
         entries[config.id] = (config, connection)
         await old?.disconnect()

@@ -62,7 +62,6 @@ final class AppEnvironment {
         let log = DiagnosticsLog()
         self.log = log
         diagnostics = DiagnosticsModel(log: log)
-        pool = ConnectionPool(transport: CitadelTransport(log: log), hostKeys: hostKeys, deviceID: deviceID, log: log)
         bootstrap = try HostBootstrap()
         security = SecurityPreferences(defaults: defaults)
         let cache = KeyCache()
@@ -76,6 +75,13 @@ final class AppEnvironment {
             onUnlock: { await relay.keyUnlocked() }
         )
         self.unlocker = unlocker
+        pool = ConnectionPool(
+            transport: CitadelTransport(log: log),
+            hostKeys: hostKeys,
+            deviceID: deviceID,
+            log: log,
+            reconnectGate: { try await unlocker.waitUntilUnlocked() }
+        )
         let auth: @Sendable (ServerConfig) async throws -> SSHAuth = { config in
             try await Self.auth(for: config, keyStore: keyStore, cache: cache, unlocker: unlocker)
         }

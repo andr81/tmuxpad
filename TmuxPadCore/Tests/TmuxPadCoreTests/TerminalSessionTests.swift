@@ -329,8 +329,8 @@ struct TerminalSessionTests {
         let dropped = try #require(transport.lastConnection)
         transport.failNextConnects(1)
         transport.dropConnection()
-        // бэкофф 20 мс: `.offline` может смениться `.live` раньше, чем тест посмотрит
-        #expect(try await Bench.eventually { surface.states.contains { if case .offline = $0 { true } else { false } } })
+        // пока пул в бэкоффе — «Переподключение…», а не офлайн (§3.5)
+        #expect(try await Bench.eventually { surface.states.contains(.reconnecting) })
         #expect(try await Bench.eventually { transport.connections.count == 2 })
         #expect(transport.connectAttempts == 3)
         let fresh = try #require(transport.lastConnection)
@@ -339,6 +339,26 @@ struct TerminalSessionTests {
         #expect(try await surface.waitFor(.live))
         #expect(await server.state.isConnected)
         #expect(fresh.openedPTYs[0].command.contains("attach 'api'"))
+    }
+
+    @Test func failedPoolAfterDropIsOfflineUntilReconnect() async throws {
+        let transport = FakeTransport()
+        let (server, session, surface) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        transport.failNextConnects(10)
+        transport.dropConnection()
+        #expect(try await Bench.eventually { if case .offline = surface.states.last { true } else { false } })
+        // офлайн — только когда пул сдался, до того «Переподключение…»
+        #expect(surface.states.dropLast() == [.connecting, .live, .reconnecting])
+        guard case .failed = await server.state else {
+            Issue.record("expected failed pool")
+            return
+        }
+        transport.failNextConnects(0)
+        await server.reconnectNow()
+        #expect(try await surface.waitFor(.live))
+        #expect(transport.lastConnection?.openedPTYs.count == 1)
     }
 
     @Test func refusedChannelIsOfflineWithoutRetry() async throws {

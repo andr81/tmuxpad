@@ -24,7 +24,11 @@ final class OpenSessionsModel {
         var evictions: [Task<Void, Never>] = []
         for evicted in roster.open(key) {
             if let terminal = terminals.removeValue(forKey: evicted) {
-                evictions.append(terminal.close())
+                let eviction = terminal.close()
+                // PTY-слоты у каждого сервера свои: чужой сервер новый терминал не держит
+                if evicted.serverID == key.serverID {
+                    evictions.append(eviction)
+                }
             }
         }
         selection = key

@@ -98,6 +98,37 @@ struct OpenSessionsModelTests {
         #expect(model.selectedTerminal?.key == key("s9"))
     }
 
+    @Test func evictionOnOtherServerDoesNotDelayStart() async throws {
+        let other = UUID()
+        let hung = server
+        // соединения первого сервера висят: `close()` его вытесненного терминала не кончается
+        let (released, release) = AsyncStream<Void>.makeStream()
+        defer { release.finish() }
+        let model = OpenSessionsModel()
+        let defaults = UserDefaults(suiteName: "dev.tmuxpad.test.\(UUID().uuidString)")!
+        let dependencies = OpenTerminal.Dependencies(
+            connection: { id in
+                if id == hung {
+                    for await _ in released {}
+                }
+                throw AppError.serverMissing
+            },
+            snapshot: { _ in nil },
+            log: nil,
+            defaults: defaults,
+            appearance: TerminalAppearance(defaults: defaults)
+        )
+        model.makeTerminal = { OpenTerminal(key: $0, dependencies: dependencies) }
+        for index in 1...8 {
+            model.open(key("s\(index)"))
+        }
+        model.open(key("api", server: other))
+        #expect(model.terminals[key("s1")] == nil)
+        let terminal = try #require(model.terminals[key("api", server: other)])
+        try await waitUntil { terminal.state != .connecting }
+        #expect(terminal.state == .offline(userText(AppError.serverMissing)))
+    }
+
     @Test func reopenKeepsTerminal() {
         let model = modelWithTerminals()
         model.open(key("api"))

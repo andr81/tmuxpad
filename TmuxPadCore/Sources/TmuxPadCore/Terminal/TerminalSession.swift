@@ -19,7 +19,7 @@ public actor TerminalSession {
     private var needsCopyCancel = false
     /// Когда нас в прошлый раз выбил чужой `attach -d`.
     private var lastKick: ContinuousClock.Instant?
-    /// Ожидание `.connected` от пула в состоянии `.offline`.
+    /// Ожидание `.connected` от пула после обрыва.
     private var waitTask: Task<Void, Never>?
     /// Хвост очереди ввода: `send`, `input` и `cancelCopyMode` идут в порядке вызова, даже если
     /// ждут `copy-cancel`.
@@ -186,8 +186,8 @@ public actor TerminalSession {
         return current
     }
 
-    /// Открывает канал и запускает чтение; неудача — `.offline`, при мёртвом соединении с
-    /// ожиданием пула.
+    /// Открывает канал и запускает чтение; неудача — `.offline`, при мёртвом соединении —
+    /// ожидание пула.
     private func open(take: Bool, _ current: Int) async {
         do {
             try await openChannel(take: take, current)
@@ -291,7 +291,7 @@ public actor TerminalSession {
         await open(take: false, current)
     }
 
-    /// Ошибка открытия: транспортная — ждать пул, прочая — `.offline` без повторов.
+    /// Ошибка открытия: транспортная — ждать пул (`.reconnecting`), прочая — `.offline` без повторов.
     private func failed(_ error: Error, _ current: Int) async {
         if Self.isTransport(error) {
             await transportLost("\(error)", current)
@@ -301,27 +301,46 @@ public actor TerminalSession {
         }
     }
 
-    /// Соединение мертво: `.offline` и новый `attach` на каждое `.connected` пула, пока не выйдет.
+    /// Соединение мертво: новый `attach` на каждое `.connected` пула, пока не выйдет. Пока пул
+    /// переподключается — `.reconnecting` (§3.5), пул в `.failed` — `.offline` до явного запроса.
     private func transportLost(_ reason: String, _ current: Int) async {
-        setState(.offline(reason))
-        await record("offline: \(reason)")
+        setState(.reconnecting)
+        await record("connection lost: \(reason)")
         waitTask?.cancel()
         let updates = await server.stateUpdates()
         guard current == generation else {
             return
         }
         waitTask = Task { [weak self] in
-            for await connectionState in updates where connectionState.isConnected {
-                guard let self, await self.retryAfterOffline(current) else {
+            for await connectionState in updates {
+                guard let self else {
                     return
+                }
+                switch connectionState {
+                case .connected:
+                    guard await self.retryAfterOffline(current) else {
+                        return
+                    }
+                case .failed:
+                    await self.poolChanged(.offline(reason), current)
+                case .connecting, .reconnecting, .disconnected:
+                    await self.poolChanged(.reconnecting, current)
                 }
             }
         }
     }
 
-    /// Попытка из `.offline`; `true` — ждать следующего `.connected`.
+    /// Плашка ожидания пула; устаревшее ожидание молчит.
+    private func poolChanged(_ new: TerminalState, _ current: Int) {
+        guard current == generation else {
+            return
+        }
+        setState(new)
+    }
+
+    /// Попытка после обрыва (`.reconnecting` или `.offline`); `true` — ждать следующего `.connected`.
     private func retryAfterOffline(_ current: Int) async -> Bool {
-        guard current == generation, case .offline = state else {
+        guard current == generation, state == .reconnecting || isOffline else {
             return false
         }
         do {
@@ -338,6 +357,10 @@ public actor TerminalSession {
             setState(.offline("\(error)"))
             return false
         }
+    }
+
+    private var isOffline: Bool {
+        if case .offline = state { true } else { false }
     }
 
     private func setState(_ new: TerminalState) {

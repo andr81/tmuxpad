@@ -89,7 +89,7 @@ final class SessionActions {
     }
 
     /// Соединение пула для терминала открытой сессии (§5). Ошибка `connect()` не мешает:
-    /// терминал сам уйдёт в `.offline` и переоткроется, когда пул подключится.
+    /// терминал сам покажет «Переподключение…» и переоткроется, когда пул подключится.
     func terminalConnection(serverID: UUID) async throws -> ServerConnection {
         guard let config = servers.server(id: serverID) else {
             throw AppError.serverMissing

@@ -250,13 +250,13 @@ ServerCheckView}.swift` (режим онбординга), `AppTests/OnboardingS
 **Файлы:** `CLAUDE.md`, `docs/tmuxpad-spec.md` (§11 — отметки фаз 5 и 6),
 `docs/plans/20261020-app-lifecycle-release.md` (move).
 
-- [ ] `CLAUDE.md`: раскладка `App/UI/Onboarding`, `AppUITests`, `scripts/make-icon.swift`;
+- [x] `CLAUDE.md`: раскладка `App/UI/Onboarding`, `AppUITests`, `scripts/make-icon.swift`;
       инвариант «на `scenePhase` и сеть реагирует только `LifecycleCoordinator`».
-- [ ] Спека §11: отметить сделанное в фазах 5 и 6 (TestFlight — не отмечать); расхождения —
+- [x] Спека §11: отметить сделанное в фазах 5 и 6 (TestFlight — не отмечать); расхождения —
       правкой спеки.
-- [ ] Полный прогон Validation Commands и `TmuxPadCore/scripts/test.sh`; в progress-лог —
+- [x] Полный прогон Validation Commands и `TmuxPadCore/scripts/test.sh`; в progress-лог —
       число тестов по таргетам.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
 
 ## Post-Completion
 

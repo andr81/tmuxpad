@@ -261,6 +261,32 @@ struct LifecycleUnlockTests {
         ])
     }
 
+    @Test func networkChangeBehindDeniedPromptDoesNothing() async throws {
+        coordinator.scenePhaseChanged(.background)
+        try await waitUntil { coordinator.closed && tasks.ended.count == 1 }
+        targets.calls = []
+        unlocker.granted = false
+        // смена сети приходит, пока шаг возврата ещё ждёт Face ID
+        let active = coordinator.scenePhaseChanged(.active)
+        await coordinator.networkChanged("wifi → cellular")?.value
+        await active?.value
+        #expect(targets.calls == [.authenticate])
+        #expect(coordinator.locked == true)
+    }
+
+    @Test func keyUnlockedElsewhereResumes() async throws {
+        coordinator.scenePhaseChanged(.background)
+        try await waitUntil { coordinator.closed && tasks.ended.count == 1 }
+        targets.calls = []
+        unlocker.granted = false
+        await coordinator.scenePhaseChanged(.active)?.value
+        // Face ID пройден в `auth(for:)`, например при обновлении дерева
+        await coordinator.keyUnlocked()?.value
+        #expect(coordinator.locked == nil)
+        #expect(targets.calls == [.authenticate, .reconnectAll(force: false), .startTree, .refreshTree])
+        #expect(coordinator.keyUnlocked() == nil)
+    }
+
     @Test func unlockWithoutDenialOnlyAsks() async {
         await coordinator.scenePhaseChanged(.active)?.value
         targets.calls = []

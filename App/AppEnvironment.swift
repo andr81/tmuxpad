@@ -68,10 +68,12 @@ final class AppEnvironment {
         let cache = KeyCache()
         // `UserDefaults` потокобезопасен, но не помечен `Sendable`
         nonisolated(unsafe) let settings = defaults
+        let relay = UnlockRelay()
         let unlocker = KeyUnlocker(
             prompt: biometricPrompt,
             isRequired: { settings.bool(forKey: SecuritySettings.requireBiometricsKey) },
-            onLock: { await cache.clear() }
+            onLock: { await cache.clear() },
+            onUnlock: { await relay.keyUnlocked() }
         )
         self.unlocker = unlocker
         let auth: @Sendable (ServerConfig) async throws -> SSHAuth = { config in
@@ -97,6 +99,7 @@ final class AppEnvironment {
         )
         appearance = TerminalAppearance(defaults: defaults)
         lifecycle = LifecycleCoordinator(targets: AppLifecycleTargets(pool: pool, tree: tree), log: log, unlocker: unlocker)
+        relay.coordinator = lifecycle
         // слабые: задача `start` терминала может пережить окружение (так бывает в `AppTests`)
         let dependencies = OpenTerminal.Dependencies(
             connection: { [weak actions = self.actions] in
@@ -184,6 +187,16 @@ final class AppEnvironment {
         }
         await cache.store(key, for: config.keyID)
         return .privateKey(key, user: config.user)
+    }
+}
+
+/// `KeyUnlocker` создаётся раньше координатора: пройденный Face ID доходит до него через ссылку.
+@MainActor
+private final class UnlockRelay {
+    weak var coordinator: LifecycleCoordinator?
+
+    func keyUnlocked() {
+        coordinator?.keyUnlocked()
     }
 }
 

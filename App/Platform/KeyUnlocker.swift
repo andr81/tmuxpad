@@ -37,20 +37,24 @@ actor KeyUnlocker: KeyUnlocking {
     private let prompt: any BiometricPrompt
     private let isRequired: @Sendable () -> Bool
     private let onLock: @Sendable () async -> Void
+    private let onUnlock: @Sendable () async -> Void
     private var unlocked = false
     private var pending: Task<Bool, Error>?
     /// Растёт на каждый `lock`: запрос, начатый до ухода в фон, не открывает доступ после него.
     private var generation = 0
 
-    /// `onLock` — при уходе в фон с включённой проверкой (очистка кеша ключей).
+    /// `onLock` — при уходе в фон с включённой проверкой (очистка кеша ключей); `onUnlock` —
+    /// после пройденного запроса (координатор снимает блокировку после отказа).
     init(
         prompt: any BiometricPrompt = DeviceOwnerPrompt(),
         isRequired: @escaping @Sendable () -> Bool,
-        onLock: @escaping @Sendable () async -> Void = {}
+        onLock: @escaping @Sendable () async -> Void = {},
+        onUnlock: @escaping @Sendable () async -> Void = {}
     ) {
         self.prompt = prompt
         self.isRequired = isRequired
         self.onLock = onLock
+        self.onUnlock = onUnlock
     }
 
     func authenticate() async throws {
@@ -73,8 +77,9 @@ actor KeyUnlocker: KeyUnlocking {
         guard granted else {
             throw AppError.biometricsDenied
         }
-        if generation == started {
+        if generation == started, !unlocked {
             unlocked = true
+            await onUnlock()
         }
     }
 

@@ -68,6 +68,20 @@ struct KeyUnlockerTests {
         #expect(prompt.calls == 2)
     }
 
+    @Test func onUnlockFollowsGrantedPromptOnly() async throws {
+        let unlocks = Flag(false)
+        let unlocker = KeyUnlocker(prompt: prompt, isRequired: { true }, onUnlock: { unlocks.locked() })
+        prompt.granted = false
+        await #expect(throws: AppError.biometricsDenied) {
+            try await unlocker.authenticate()
+        }
+        #expect(unlocks.locks == 0)
+        prompt.granted = true
+        try await unlocker.authenticate()
+        try await unlocker.authenticate()
+        #expect(unlocks.locks == 1)
+    }
+
     @Test func denialThrowsAndAsksAgainNextTime() async throws {
         let unlocker = unlocker()
         prompt.granted = false

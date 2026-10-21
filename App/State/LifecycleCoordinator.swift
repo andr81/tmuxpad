@@ -43,7 +43,7 @@ struct NoKeyUnlock: KeyUnlocking {
 /// соединения закрываются через `closeDelay`, возврат раньше ничего не рвёт; возврат после
 /// разрыва — `reconnectAll`, терминалы переоткрывают `attach` сами (ядро). С Face ID (§8)
 /// запуск и возврат из фона сначала ждут `authenticate()`; отказ оставляет соединения и опрос
-/// дерева выключенными до `unlock()` («Повторить» у терминала). Опрос дерева в фоне
+/// дерева выключенными до `unlock()` («Повторить» у терминала) или `keyUnlocked()`. Опрос дерева в фоне
 /// останавливается сразу: его тик после `lock()` спрашивал бы Face ID.
 @MainActor
 final class LifecycleCoordinator {
@@ -116,9 +116,29 @@ final class LifecycleCoordinator {
             return nil
         }
         record("network changed: \(description)")
-        return enqueue { targets in
+        // `locked` читается и в очереди: шаг `becomeActive` впереди мог ждать Face ID и получить отказ
+        return enqueue { [weak self] targets in
+            guard let self, locked == nil else {
+                return
+            }
             await targets.reconnectAll(force: true)
             await targets.refreshTree()
+        }
+    }
+
+    /// Face ID пройден вне `unlock()` (открытие сессии, обновление дерева, мастер): отложенное
+    /// действие возврата выполняется так же. Очередь не ждёт: вызов может прийти из её шага.
+    @discardableResult
+    func keyUnlocked() -> Task<Void, Never>? {
+        guard locked != nil else {
+            return nil
+        }
+        return enqueue { [weak self] targets in
+            guard let self, let reconnect = locked else {
+                return
+            }
+            locked = nil
+            await Self.resume(targets, reconnect: reconnect)
         }
     }
 

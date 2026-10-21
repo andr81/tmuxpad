@@ -70,6 +70,22 @@ struct OpenTerminalTests {
         #expect(calls.count == 3)
     }
 
+    @Test func startWaitsForEvictions() async throws {
+        let calls = Calls()
+        let terminal = terminal(calls: calls)
+        // `detach` вытесненного держит PTY-слот, пока сервер не закроет канал
+        let (released, release) = AsyncStream<Void>.makeStream()
+        let eviction = Task {
+            for await _ in released {}
+        }
+        terminal.start(after: [eviction])
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(calls.count == 0)
+        release.finish()
+        try await waitUntil { terminal.state != .connecting }
+        #expect(calls.count == 1)
+    }
+
     @Test func closedTerminalDoesNotConnect() async {
         let calls = Calls()
         let terminal = terminal(calls: calls)

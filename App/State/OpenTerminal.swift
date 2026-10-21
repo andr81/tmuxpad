@@ -41,6 +41,8 @@ final class OpenTerminal {
 
     /// Начальный кадр до вёрстки: размер PTY при `attach`, потом его поправит `sizeChanged`.
     static let initialFrame = CGRect(x: 0, y: 0, width: 1024, height: 768)
+    /// Плашка офлайна без фатальной ошибки пула.
+    static let offlineText = "Подробности — в журнале диагностики"
 
     init(key: OpenSessionKey, dependencies: Dependencies) {
         self.key = key
@@ -50,13 +52,17 @@ final class OpenTerminal {
         project = dependencies.snapshot(key.serverID)?.sessions.first { $0.name == key.name }?.project
     }
 
-    /// Сессия, а с `take` — «Забрать» (§6.1).
-    func start(take: Bool = false) {
+    /// Сессия, а с `take` — «Забрать» (§6.1). `after` — `detach` вытесненных: их PTY-слоты
+    /// освобождаются после ответа сервера, а ростер и пул ограничены одним числом.
+    func start(take: Bool = false, after evictions: [Task<Void, Never>] = []) {
         guard setup == nil, !isClosed else {
             return
         }
         state = .connecting
         setup = Task { [weak self] in
+            for eviction in evictions {
+                await eviction.value
+            }
             guard let self else {
                 return nil
             }
@@ -77,16 +83,18 @@ final class OpenTerminal {
         lastActive = Date()
     }
 
-    /// `detach()` и конец ввода; tmux-сессия на сервере остаётся.
-    func close() {
+    /// `detach()` и конец ввода; tmux-сессия на сервере остаётся. Задача кончается, когда
+    /// PTY закрыт и его слот в пуле свободен.
+    @discardableResult
+    func close() -> Task<Void, Never> {
         guard !isClosed else {
-            return
+            return Task {}
         }
         isClosed = true
         pump?.finish()
         let setup = setup
         let session = session
-        Task {
+        return Task {
             await (setup?.value ?? session)?.detach()
         }
     }
@@ -252,12 +260,13 @@ final class OpenTerminal {
             // `sizeChanged` во время `attach` ушёл в `resize` без PTY и потерялся
             let size = view.terminalDimensions
             delegate?.requestResize(cols: size.cols, rows: size.rows)
-        case let .state(.offline(reason)):
-            // соединение пула в `.failed` (ключ, отпечаток): причина — его ошибка, а не `disconnected` канала
+        case .state(.offline):
+            // соединение пула в `.failed` (ключ, отпечаток): причина — его ошибка, а не `disconnected` канала;
+            // прочие причины ядра — английский текст, он уже в журнале диагностики
             if let fatal = await session?.server.lastFatalError {
                 state = .offline(userText(fatal))
             } else {
-                state = .offline(reason)
+                state = .offline(Self.offlineText)
             }
         case let .state(new):
             state = new

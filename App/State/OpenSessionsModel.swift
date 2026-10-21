@@ -21,8 +21,11 @@ final class OpenSessionsModel {
     /// Открывает (или активирует открытую) и выделяет. Сверх лимита самые давно неактивные
     /// закрываются. `take` — «Забрать» (§6.1): у открытой — `take()`, у новой — открытие через `take`.
     func open(_ key: OpenSessionKey, take: Bool = false) {
+        var evictions: [Task<Void, Never>] = []
         for evicted in roster.open(key) {
-            terminals.removeValue(forKey: evicted)?.close()
+            if let terminal = terminals.removeValue(forKey: evicted) {
+                evictions.append(terminal.close())
+            }
         }
         selection = key
         if let terminal = terminals[key] {
@@ -32,7 +35,7 @@ final class OpenSessionsModel {
             }
         } else if let terminal = makeTerminal?(key) {
             terminals[key] = terminal
-            terminal.start(take: take)
+            terminal.start(take: take, after: evictions)
         }
     }
 

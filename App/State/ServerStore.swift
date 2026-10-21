@@ -55,6 +55,12 @@ final class ServerStore {
             return
         }
         try await hostKeys.reset(host: config.host, port: config.port)
+        // соединения с этим адресом уходят из пула: возврат из фона и смена сети иначе
+        // переподключили бы их к ключу, которому ещё не сказали «Доверять», а открытые
+        // терминалы — следом (§8)
+        for server in servers where server.host == config.host && server.port == config.port {
+            await pool.remove(id: server.id)
+        }
         let updated = servers.map { server in
             var server = server
             if server.host == config.host && server.port == config.port {

@@ -147,14 +147,31 @@ actor KeyCache {
 @MainActor
 @Observable
 final class SecurityPreferences {
-    var requireBiometrics: Bool {
+    static let disableReason = "Выключить Face ID для ключей"
+
+    private(set) var requireBiometrics: Bool {
         didSet { defaults.set(requireBiometrics, forKey: SecuritySettings.requireBiometricsKey) }
     }
 
     @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let prompt: any BiometricPrompt
 
-    init(defaults: UserDefaults) {
+    init(defaults: UserDefaults, prompt: any BiometricPrompt = DeviceOwnerPrompt()) {
         self.defaults = defaults
+        self.prompt = prompt
         requireBiometrics = defaults.bool(forKey: SecuritySettings.requireBiometricsKey)
+    }
+
+    /// Выключение — только после Face ID: иначе отказ на возврате из фона обходился бы
+    /// переключателем, а `KeyUnlocker` читает настройку на каждом запросе. `false` — отказ.
+    @discardableResult
+    func setRequireBiometrics(_ value: Bool) async -> Bool {
+        if requireBiometrics, !value {
+            guard (try? await prompt.evaluate(reason: Self.disableReason)) == true else {
+                return false
+            }
+        }
+        requireBiometrics = value
+        return true
     }
 }

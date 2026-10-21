@@ -31,6 +31,8 @@ public actor ServerConnection: ExecRunner {
     private var keepaliveTask: Task<Void, Never>?
     private var watcherTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
+    /// Первая попытка `connect()` в своей эпохе: одновременные вызовы ждут её.
+    private var pendingConnect: (epoch: Int, task: Task<Void, Error>)?
     /// Последний успешный exec, кроме пингов: свежий exec заменяет пинг.
     private var lastExecAt: ContinuousClock.Instant?
     private var missedPings = 0
@@ -87,8 +89,25 @@ public actor ServerConnection: ExecRunner {
         if state.isConnected, connection?.isConnected == true {
             return
         }
+        // попытка этой эпохи уже идёт: ждать её, а не начинать новое рукопожатие (восстановление
+        // открытых терминалов при запуске иначе открыло бы по соединению на каждый)
+        if let pendingConnect, pendingConnect.epoch == epoch {
+            try await pendingConnect.task.value
+            return
+        }
         let current = await beginEpoch()
         setState(.connecting)
+        let task = Task { try await self.firstAttempt(current) }
+        pendingConnect = (current, task)
+        try await task.value
+    }
+
+    private func firstAttempt(_ current: Int) async throws {
+        defer {
+            if pendingConnect?.epoch == current {
+                pendingConnect = nil
+            }
+        }
         do {
             try await attempt(current)
         } catch {

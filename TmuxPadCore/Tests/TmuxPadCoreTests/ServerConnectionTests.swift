@@ -416,4 +416,33 @@ struct ConnectionPoolTests {
         #expect(await connection.state.isConnected)
         #expect(transport.connectAttempts == 2)
     }
+
+    /// Одновременные `connect()` — одна попытка: восстановление терминалов при запуске не
+    /// открывает по рукопожатию на каждый.
+    @Test func concurrentConnectsShareOneAttempt() async throws {
+        let transport = FakeTransport()
+        transport.connectDelay = .milliseconds(100)
+        let server = try ServerConnectionTests.make(transport)
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<5 {
+                group.addTask { try await server.connect() }
+            }
+            try await group.waitForAll()
+        }
+        #expect(transport.connectAttempts == 1)
+        #expect(await server.state.isConnected)
+    }
+
+    @Test func concurrentConnectsShareFailure() async throws {
+        let transport = FakeTransport()
+        transport.connectDelay = .milliseconds(100)
+        transport.failNextConnects(1, with: SSHError.authFailed)
+        let server = try ServerConnectionTests.make(transport)
+        let first = Task { try await server.connect() }
+        try await Task.sleep(for: .milliseconds(20))
+        await #expect(throws: SSHError.authFailed) { try await server.connect() }
+        await #expect(throws: SSHError.authFailed) { try await first.value }
+        #expect(transport.connectAttempts == 1)
+    }
+
 }

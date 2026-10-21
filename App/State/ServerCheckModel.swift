@@ -124,7 +124,10 @@ final class ServerCheckModel {
         }
         pending = .none
         return start(.rejecting) { model in
-            await model.connection?.disconnect()
+            // из пула, а не только `disconnect`: иначе `reconnectAll` после фона или смены сети
+            // вошёл бы на этот сервер снова и запомнил его ключ (§8)
+            await model.env.pool.remove(id: model.serverID)
+            model.connection = nil
             do {
                 if let config = model.config {
                     try await model.env.hostKeys.reset(host: config.host, port: config.port)

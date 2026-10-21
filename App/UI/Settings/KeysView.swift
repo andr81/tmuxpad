@@ -12,7 +12,6 @@ struct KeysView: View {
     }
 
     var body: some View {
-        @Bindable var security = security
         List {
             Section {
                 ForEach(keys.keys) { key in
@@ -33,7 +32,10 @@ struct KeysView: View {
                 }
             }
             Section {
-                Toggle("Требовать Face ID для ключей", isOn: $security.requireBiometrics)
+                Toggle("Требовать Face ID для ключей", isOn: Binding(
+                    get: { security.requireBiometrics },
+                    set: { value in Task { await security.setRequireBiometrics(value) } }
+                ))
             } footer: {
                 Text("Face ID или код-пароль перед первым подключением после запуска и после возврата из фона.")
             }

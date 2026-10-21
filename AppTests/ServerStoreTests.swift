@@ -122,6 +122,27 @@ final class ServerStoreTests {
         #expect(env.servers.servers.map(\.hostKeyFingerprint) == [nil, nil, "SHA256:far"])
     }
 
+    /// Соединения адреса уходят из пула: возврат из фона не переподключит их к недоверенному ключу.
+    @Test func resetFingerprintRemovesConnectionsOfAddress() async throws {
+        let key = try await env.keys.create(kind: .ed25519, name: "k")
+        var original = config("a")
+        original.keyID = key.id
+        original.hostKeyFingerprint = "SHA256:abc"
+        try env.servers.add(original)
+        let copy = try env.servers.duplicate(env.servers.servers[0])
+        var far = config("far", host: "other.example.com")
+        far.keyID = key.id
+        try env.servers.add(far)
+        for server in env.servers.servers {
+            _ = await env.pool.connection(for: server, auth: try await env.auth(for: server))
+        }
+
+        try await env.servers.resetFingerprint(id: env.servers.servers[0].id)
+        #expect(await env.pool.existing(id: env.servers.servers[0].id) == nil)
+        #expect(await env.pool.existing(id: copy.id) == nil)
+        #expect(await env.pool.existing(id: env.servers.servers[2].id) != nil)
+    }
+
     @Test func confirmedFingerprintElsewhereNeedsSameAddress() throws {
         var original = config("a")
         original.hostKeyFingerprint = "SHA256:abc"

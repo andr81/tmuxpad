@@ -175,3 +175,26 @@ struct KeyUnlockerTests {
         #expect(prompt.calls == 2)
     }
 }
+
+@MainActor
+struct SecurityPreferencesTests {
+    let defaults = UserDefaults(suiteName: "dev.tmuxpad.test.\(UUID().uuidString)")!
+    let prompt = FakePrompt()
+
+    /// Выключить проверку без Face ID нельзя: иначе отказ на возврате обходился бы переключателем.
+    @Test func disablingAsksAndKeepsOnDenial() async {
+        let preferences = SecurityPreferences(defaults: defaults, prompt: prompt)
+        #expect(await preferences.setRequireBiometrics(true))
+        #expect(prompt.calls == 0)
+
+        prompt.granted = false
+        #expect(await preferences.setRequireBiometrics(false) == false)
+        #expect(preferences.requireBiometrics)
+        #expect(defaults.bool(forKey: SecuritySettings.requireBiometricsKey))
+
+        prompt.granted = true
+        #expect(await preferences.setRequireBiometrics(false))
+        #expect(!preferences.requireBiometrics)
+        #expect(prompt.calls == 2)
+    }
+}

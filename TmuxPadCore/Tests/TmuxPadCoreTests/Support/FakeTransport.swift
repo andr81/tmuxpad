@@ -13,6 +13,13 @@ final class FakeTransport: SSHTransport, @unchecked Sendable {
     private var failure: Error = SSHError.connectFailed("fake refused")
     private var made: [FakeConnection] = []
     private var prepare: (@Sendable (FakeConnection) -> Void)?
+    private var delay: Duration = .zero
+
+    /// Каждая попытка подключения ждёт `delay`: медленное рукопожатие.
+    var connectDelay: Duration {
+        get { lock.withLock { delay } }
+        set { lock.withLock { delay = newValue } }
+    }
 
     /// Следующие `count` попыток падают с `error`.
     func failNextConnects(_ count: Int, with error: Error = SSHError.connectFailed("fake refused")) {
@@ -45,6 +52,7 @@ final class FakeTransport: SSHTransport, @unchecked Sendable {
     }
 
     func connect(_ endpoint: SSHEndpoint, auth: SSHAuth, hostKeys: any HostKeyStore) async throws -> ConnectOutcome {
+        try await Task.sleep(for: connectDelay)
         let result: Result<FakeConnection, Error> = lock.withLock {
             attempts += 1
             if failures > 0 {

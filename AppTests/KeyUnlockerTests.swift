@@ -169,7 +169,7 @@ struct KeyUnlockerTests {
         // запрос уже открыт, а не ещё не начат
         try await waitUntil { prompt.calls == 1 }
         await unlocker.lock()
-        try await first.value
+        await #expect(throws: AppError.biometricsDenied) { try await first.value }
         prompt.delay = .zero
         try await unlocker.authenticate()
         #expect(prompt.calls == 2)

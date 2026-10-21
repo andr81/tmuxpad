@@ -18,9 +18,16 @@ final class RecordingTargets: LifecycleTargets {
     }
 
     var calls: [Call] = []
+    /// Задержка `reconnectAll`: медленная сеть.
+    var reconnectDelay: Duration = .zero
 
     func disconnectAll() async { calls.append(.disconnectAll) }
-    func reconnectAll(force: Bool) async { calls.append(.reconnectAll(force: force)) }
+
+    func reconnectAll(force: Bool) async {
+        calls.append(.reconnectAll(force: force))
+        try? await Task.sleep(for: reconnectDelay)
+    }
+
     func startTree() { calls.append(.startTree) }
     func stopTree() { calls.append(.stopTree) }
     func refreshTree() async { calls.append(.refreshTree) }
@@ -179,6 +186,31 @@ struct LifecycleCoordinatorTests {
         #expect(tasks.ended == [first, UIBackgroundTaskIdentifier(rawValue: 2)])
     }
 
+    @Test func backgroundDoesNotWaitForSlowReconnect() async throws {
+        await coordinator.scenePhaseChanged(.active)?.value
+        targets.reconnectDelay = .seconds(5)
+        let reconnect = coordinator.networkChanged("wifi → cellular")
+        try await waitUntil { targets.calls.contains(.reconnectAll(force: true)) }
+        coordinator.scenePhaseChanged(.background)
+        tasks.expiration?()
+        // закрытие не ждёт реконнекта в очереди
+        try await waitUntil { targets.calls.contains(.disconnectAll) }
+        #expect(targets.calls == [.startTree, .reconnectAll(force: true), .stopTree, .disconnectAll])
+        reconnect?.cancel()
+    }
+
+    @Test func reconnectFinishedInBackgroundClosesAgain() async throws {
+        await coordinator.scenePhaseChanged(.active)?.value
+        targets.reconnectDelay = .milliseconds(200)
+        let reconnect = coordinator.networkChanged("wifi → cellular")
+        try await waitUntil { targets.calls.contains(.reconnectAll(force: true)) }
+        coordinator.scenePhaseChanged(.background)
+        tasks.expiration?()
+        await reconnect?.value
+        // `disconnectAll` прошёл раньше конца реконнекта: закрытие повторяется, дерево не обновляется
+        #expect(targets.calls == [.startTree, .reconnectAll(force: true), .stopTree, .disconnectAll, .disconnectAll])
+    }
+
     @Test func networkChangeIgnoredWhileClosed() async throws {
         coordinator.scenePhaseChanged(.background)
         try await waitUntil { coordinator.closed && targets.calls.count == 2 }
@@ -235,24 +267,28 @@ struct LifecycleUnlockTests {
 
     @Test func returnBeforeCloseAsksToo() async throws {
         await coordinator.scenePhaseChanged(.active)?.value
-        coordinator.scenePhaseChanged(.background)
         targets.calls = []
+        coordinator.scenePhaseChanged(.background)
         await coordinator.scenePhaseChanged(.active)?.value
         #expect(targets.calls == [.stopTree, .lock, .authenticate, .startTree])
     }
 
     @Test func denialOnQuickReturnKeepsTreeStopped() async throws {
         await coordinator.scenePhaseChanged(.active)?.value
-        coordinator.scenePhaseChanged(.background)
         targets.calls = []
+        coordinator.scenePhaseChanged(.background)
         unlocker.granted = false
         await coordinator.scenePhaseChanged(.active)?.value
         // опрос дерева остановлен уходом в фон и без ключа не запускается
         #expect(targets.calls == [.stopTree, .lock, .authenticate])
-        #expect(coordinator.locked == false)
+        #expect(coordinator.locked)
         unlocker.granted = true
         #expect(await coordinator.unlock())
-        #expect(targets.calls == [.stopTree, .lock, .authenticate, .authenticate, .startTree])
+        // реконнекты пула, ждавшие ключ, после отказа ушли в `.failed`: их поднимает `reconnectAll`
+        #expect(targets.calls == [
+            .stopTree, .lock, .authenticate, .authenticate,
+            .reconnectAll(force: false), .startTree, .refreshTree,
+        ])
     }
 
     @Test func denialKeepsEverythingDownUntilUnlock() async throws {
@@ -262,7 +298,7 @@ struct LifecycleUnlockTests {
         unlocker.granted = false
         await coordinator.scenePhaseChanged(.active)?.value
         #expect(targets.calls == [.authenticate])
-        #expect(coordinator.locked == true)
+        #expect(coordinator.locked)
         // без ключа ни дерево, ни смена сети ничего не поднимают
         coordinator.scenePhaseChanged(.inactive)
         await coordinator.scenePhaseChanged(.active)?.value
@@ -272,7 +308,7 @@ struct LifecycleUnlockTests {
         #expect(await coordinator.unlock() == false)
         unlocker.granted = true
         #expect(await coordinator.unlock())
-        #expect(coordinator.locked == nil)
+        #expect(!coordinator.locked)
         #expect(targets.calls == [
             .authenticate, .authenticate, .authenticate,
             .reconnectAll(force: false), .startTree, .refreshTree,
@@ -289,7 +325,7 @@ struct LifecycleUnlockTests {
         await coordinator.networkChanged("wifi → cellular")?.value
         await active?.value
         #expect(targets.calls == [.authenticate])
-        #expect(coordinator.locked == true)
+        #expect(coordinator.locked)
     }
 
     @Test func keyUnlockedElsewhereResumes() async throws {
@@ -300,9 +336,21 @@ struct LifecycleUnlockTests {
         await coordinator.scenePhaseChanged(.active)?.value
         // Face ID пройден в `auth(for:)`, например при обновлении дерева
         await coordinator.keyUnlocked()?.value
-        #expect(coordinator.locked == nil)
+        #expect(!coordinator.locked)
         #expect(targets.calls == [.authenticate, .reconnectAll(force: false), .startTree, .refreshTree])
         #expect(coordinator.keyUnlocked() == nil)
+    }
+
+    @Test func backgroundLocksBeforeQueuedPrompt() async throws {
+        await coordinator.scenePhaseChanged(.active)?.value
+        targets.reconnectDelay = .seconds(5)
+        let reconnect = coordinator.networkChanged("wifi → cellular")
+        try await waitUntil { targets.calls.contains(.reconnectAll(force: true)) }
+        coordinator.scenePhaseChanged(.background)
+        // ключ закрывается, пока реконнект в очереди ещё идёт
+        try await waitUntil { targets.calls.contains(.lock) }
+        #expect(targets.calls == [.authenticate, .startTree, .reconnectAll(force: true), .stopTree, .lock])
+        reconnect?.cancel()
     }
 
     @Test func unlockWithoutDenialOnlyAsks() async {

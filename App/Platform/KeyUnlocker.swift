@@ -83,13 +83,17 @@ actor KeyUnlocker: KeyUnlocking {
         if pending == task {
             pending = nil
         }
+        // ответ на запрос, начатый до ухода в фон, — отказ: ключ уже закрыт `lock`
+        guard generation == started else {
+            throw AppError.biometricsDenied
+        }
         guard granted else {
-            if generation == started, !unlocked {
+            if !unlocked {
                 denied = true
             }
             throw AppError.biometricsDenied
         }
-        if generation == started, !unlocked {
+        if !unlocked {
             unlocked = true
             denied = false
             await onUnlock()

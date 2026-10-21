@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Состояние репозитория
 
-Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2) вместе с логикой для State без view (план 3). Приложения и `project.yml` ещё нет (план 4 `app-foundation`, на Mac); когда появятся, добавь сюда реальные команды сборки. Не выдумывай их заранее.
+Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2) вместе с логикой для State без view (план 3). Приложение `TmuxPad` (только на Mac) после плана 4 `app-foundation` умеет ключи, серверы, проверку и подготовку сервера, передачу токена и журнал диагностики; сайдбар — заглушка (план 5), терминала ещё нет (план 6).
 
 Раскладка `host/`:
 - `host/tmuxpad-host.sh` — сам скрипт; `host/README.md` — подкоманды, коды выхода, форматы, файлы состояния;
@@ -39,6 +39,30 @@ shellcheck -s bash host/tests/bench.sh TmuxPadCore/scripts/test.sh
 
 `host/tests/bench.sh` и `TmuxPadCore/scripts/test.sh` идут и под системным bash 3.2 macOS без GNU coreutils: без `mapfile`, `declare -A`, `${v,,}`, `readlink -f`, `stat -c`, `timeout` — только через `with_timeout`. `bash -n` из bash 5 этого не ловит, проверка — `docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -n host/tests/bench.sh` (и то же для `test.sh`). `run.sh` и `lib.sh` — только Linux.
 
+Раскладка приложения:
+- `project.yml` — XcodeGen, единственный источник настроек проекта;
+- `App/TmuxPadApp.swift` (`@main`), `App/AppEnvironment.swift` — composition root: пул, хранилища, журнал, модели;
+- `App/Platform/` — Keychain (`Keychain.swift`), протокол `AppKeyStore` (создание и импорт ключей; `KeychainKeyStore` в приложении, `InMemoryKeyStore` в тестах), `KeychainKeyStore` (Secure Enclave P-256 и Ed25519), `KeychainHostKeyStore`, `JSONFileStore` (`servers.json`, `keys.json` в Application Support), `DeviceIdentity`;
+- `App/State/` — `@MainActor @Observable` модели: `ServerStore`, `KeyLibrary`, `ServerCheckModel`, `DiagnosticsModel`;
+- `App/UI/` — SwiftUI: `Root/`, `Settings/` (ключи, серверы, проверка, токен, диагностика), `ErrorText.swift` (`userText(_:)`), `ErrorAlert.swift` (`errorAlert(_:message:)`), `DoctorText.swift`;
+- `AppTests/` — Swift Testing в симуляторе, хост — приложение; `ServerCheckBenchTests` против стенда, без него пропускаются; `AppTests/Support/` — хелперы;
+- `scripts/ios-test.sh` — `xcodegen generate` → стенд → `xcodebuild test`.
+
+Приложение собирается и тестируется только на Mac: Xcode 26, `brew install xcodegen coreutils`, Docker Desktop или OrbStack (для стенда), симулятор iPad с iOS 17+. `TmuxPad.xcodeproj` генерирует `xcodegen generate` из `project.yml` и не коммитится (он в `.gitignore`, как и `App/Info.plist`); правки проекта — только в `project.yml`. `scripts/ios-test.sh` сам вызывает `xcodegen generate`, выбирает симулятор (`TMUXPAD_SIM` — UDID или имя, иначе первый iPad), поднимает стенд, если не передан `--no-bench`, и передаёт лишние аргументы в `xcodebuild test`; результат — `build/TestResults.xcresult`. `AppTests` не зависит от `TmuxPadCore` напрямую (модуль виден через приложение-хост): прямая зависимость ломает линковку пакетных фреймворков.
+
+```
+xcodegen generate
+xcodebuild build -project TmuxPad.xcodeproj -scheme TmuxPad -destination 'generic/platform=iOS Simulator' -quiet
+scripts/ios-test.sh                                   # стенд + все AppTests в симуляторе
+scripts/ios-test.sh --no-bench                        # только юнит, без Docker
+scripts/ios-test.sh -only-testing:AppTests/ServerStoreTests
+shellcheck -s bash scripts/ios-test.sh
+```
+
+Стенд с Docker Desktop падает на `docker-credential-desktop: executable file not found`, если в `PATH` нет `/Applications/Docker.app/Contents/Resources/bin` (так бывает в неинтерактивном шелле): добавь его перед `ios-test.sh` и `bench.sh`.
+
+`scripts/ios-test.sh` тоже идёт под bash 3.2 macOS (те же ограничения, что у `bench.sh`). Предупреждения сборки в коде приложения — ошибка; предупреждения внутри зависимостей (`… is missing a dependency on …` у NIO) не считаются.
+
 Решения, которые меняют поведение, сначала вносятся в спеку, потом в код.
 
 ## Что строим
@@ -64,8 +88,13 @@ TmuxPad — iPad-клиент (iPadOS 17+, Swift 6, SwiftUI) для работы
 - **Каналы SSH ядро открывает через NIOSSH напрямую** (`SessionChannel`, `NIOSSHHandler.createChannel`), не через `executeCommand`/`withPTY` Citadel: те теряют stderr, не дают stdin с EOF и открывают shell вместо exec.
 - **`SSHTransport` — единственная точка контакта с сетью**; пул и терминал тестируются на фейке (`FakeTransport`).
 - **Терминал — за протоколом `TerminalSurface`**, чтобы SwiftTerm можно было заменить на libghostty.
+- **Приложение не логирует токен Claude и приватные ключи**: ни в `DiagnosticsLog`, ни в `print`/`os_log`, ни в тексты ошибок.
+- **Keychain — только через `App/Platform/Keychain.swift`** (`SecItem*` больше нигде): там `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` и сервисы `dev.tmuxpad.*`.
+- **Вопрос «Доверять» — по несовпадению отпечатка с `ServerConfig.hostKeyFingerprint`, а не по `hostKeyFirstSeen`** (`ServerCheckModel.connectTrusted`): ядро пишет ключ в `HostKeyStore` до ответа пользователя. Без вопроса конфиг догоняет только копия сервера, у которой этот отпечаток уже подтверждён для того же `host:port`. Смена адреса в `ServerStore.update` очищает отпечаток. Несовпадение с непустым отпечатком в конфиге (у копии без своего — в конфиге другого сервера с тем же адресом) — не вопрос, а блокировка `hostKeyChanged` с возвратом подтверждённого отпечатка в `HostKeyStore`; поэтому «Сбросить» очищает отпечаток у всех серверов с этим адресом.
+- **OpenSSH-текст Ed25519 пишет `SSHKeys.openSSHEd25519` ядра** (им пользуются `SSHKeys.generateEd25519` и `KeychainKeyStore`), не `makeSSHRepresentation` Citadel: при комментарии длиной 5 по модулю 8 тот даёт файл, который Citadel не читает (`invalidPadding`). Комментарий ключа (`KeychainKeyStore.comment(for:)`) — только `[A-Za-z0-9._-]`: он попадает в shell-команду `authorizedKeysCommand`.
+- **Ошибки ядра показываются пользователю через `userText(_:)`** из `App/UI/ErrorText.swift`: у `SSHError`/`HostError` английские `description`, новый случай в ядре — новый русский текст и строка в `ErrorTextTests`.
 - iPadOS рвёт сокеты в фоне; устойчивость даёт tmux, приложение переподключается по `scenePhase` и `NWPathMonitor` (§6).
 
 ## Тесты
 
-Ядро — Swift Testing, интеграционные — против Docker-контейнера с sshd + tmux (`bench.sh`); host-скрипт — свой раннер `host/tests/run.sh` и shellcheck. Тесты приложения — план 3.
+Ядро — Swift Testing, интеграционные — против Docker-контейнера с sshd + tmux (`bench.sh`); host-скрипт — свой раннер `host/tests/run.sh` и shellcheck. Приложение — `AppTests` (Swift Testing в симуляторе, `scripts/ios-test.sh`); в симуляторе Xcode 26 Secure Enclave доступен (`secureEnclaveUnavailableThrows` там пропускается), вход SE-ключом на настоящий сервер проверяется на устройстве.

@@ -293,24 +293,24 @@ shellcheck -s bash scripts/ios-test.sh
 (create), `App/Resources/Assets.xcassets` (create: `AccentColor`, пустой `AppIcon`),
 `AppTests/SmokeTests.swift` (create), `scripts/ios-test.sh` (create), `.gitignore`, `CLAUDE.md`.
 
-- [ ] `project.yml` по решению 2. Проверка: `xcodegen generate` создаёт
+- [x] `project.yml` по решению 2. Проверка: `xcodegen generate` создаёт
       `TmuxPad.xcodeproj`, `xcodebuild build … -destination 'generic/platform=iOS Simulator'`
       проходит; `NIOSSH` разрешился в ту же версию, что в `TmuxPadCore/Package.resolved`
       (сверить `Package.resolved` внутри `TmuxPad.xcodeproj/project.xcworkspace/xcshareddata/
       swiftpm/`).
-- [ ] `App/TmuxPadApp.swift`: `@main struct TmuxPadApp: App` с одной `WindowGroup { RootView() }`;
+- [x] `App/TmuxPadApp.swift`: `@main struct TmuxPadApp: App` с одной `WindowGroup { RootView() }`;
       `App/UI/Root/RootView.swift`: `NavigationSplitView` с пустым сайдбаром «Серверы» и
       деталью «Выберите сессию».
-- [ ] `.gitignore`: `TmuxPad.xcodeproj/`, `App/Info.plist` (генерирует XcodeGen), `build/`,
+- [x] `.gitignore`: `TmuxPad.xcodeproj/`, `App/Info.plist` (генерирует XcodeGen), `build/`,
       `DerivedData/`, `*.xcresult`.
-- [ ] `scripts/ios-test.sh` по решению 14, `chmod +x`; `shellcheck -s bash` чист.
-- [ ] `AppTests/SmokeTests.swift`: `@Test func appEnvironmentBuilds()` — пока проверяет, что
+- [x] `scripts/ios-test.sh` по решению 14, `chmod +x`; `shellcheck -s bash` чист.
+- [x] `AppTests/SmokeTests.swift`: `@Test func appEnvironmentBuilds()` — пока проверяет, что
       `TmuxPadCore` импортируется и `HostScript.version >= 1` (ресурс пакета доступен из
       приложения).
-- [ ] `CLAUDE.md`, «Состояние репозитория»: появилось приложение; команды из Validation
+- [x] `CLAUDE.md`, «Состояние репозитория»: появилось приложение; команды из Validation
       Commands; требования Mac (Xcode 26, xcodegen, coreutils, Docker); правило «проект
       генерируется, `TmuxPad.xcodeproj` не коммитить».
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `scripts/ios-test.sh --no-bench` проходит.
 
 ### Task 2: Keychain, Secure Enclave, JSON-файлы, UUID устройства
 
@@ -320,19 +320,24 @@ shellcheck -s bash scripts/ios-test.sh
 KeychainKeyStoreTests,KeychainHostKeyStoreTests,DeviceIdentityTests,JSONFileStoreTests}.swift`
 (create).
 
-- [ ] `Keychain.swift` по решению 4; `KeychainError: Error, Equatable` с `status(OSStatus)` и
+- [x] `Keychain.swift` по решению 4; `KeychainError: Error, Equatable` с `status(OSStatus)` и
       `unexpectedData`.
-- [ ] `JSONFileStore.swift` по решению 8; каталог задаётся в инициализаторе (по умолчанию
+- [x] `JSONFileStore.swift` по решению 8; каталог задаётся в инициализаторе (по умолчанию
       Application Support/`TmuxPad`), тесты используют `FileManager.default.temporaryDirectory`
       + UUID.
-- [ ] `KeychainKeyStore.swift` по решению 5: `actor KeychainKeyStore: KeyStore` с
+- [x] `KeychainKeyStore.swift` по решению 5: `actor KeychainKeyStore: KeyStore` с
       `init(keychain: Keychain, metadata: JSONFileStore<[SSHKeyInfo]>)`; `KeyStoreError`
       (`secureEnclaveUnavailable`, `unsupportedKind`, `notFound`). `@preconcurrency import
       NIOSSH`; `import CryptoKit` для `SecureEnclave`.
-- [ ] `KeychainHostKeyStore.swift` по решению 6; `DeviceIdentity.swift` по решению 7.
-- [ ] Тесты из Testing Strategy для этих типов; каждый suite работает в собственном сервисе
+- [x] `KeychainHostKeyStore.swift` по решению 6; `DeviceIdentity.swift` по решению 7.
+- [x] Тесты из Testing Strategy для этих типов; каждый suite работает в собственном сервисе
       `dev.tmuxpad.test.<suite>.<UUID>` и удаляет его записи в конце.
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `scripts/ios-test.sh --no-bench` проходит.
+- Заметки исполнения: приложению добавлена прямая зависимость `Citadel` в `project.yml` (тот же
+  URL, что в ядре): импорт с паролем пересохраняет ключ без шифра через
+  `Curve25519.Signing.PrivateKey(sshEd25519:decryptionKey:)` и `makeSSHRepresentation`, а
+  `NIOSSHPrivateKey` сырых байт не отдаёт. В симуляторе Xcode 26 `SecureEnclave.isAvailable ==
+  true`, полный цикл SE-ключа прошёл и там.
 
 ### Task 3: `AppEnvironment`, `ServerStore`, `KeyLibrary`, тексты ошибок
 
@@ -340,42 +345,59 @@ KeychainKeyStoreTests,KeychainHostKeyStoreTests,DeviceIdentityTests,JSONFileStor
 `App/State/KeyLibrary.swift`, `App/UI/ErrorText.swift` (все create), `App/TmuxPadApp.swift`,
 `AppTests/{ServerStoreTests,KeyLibraryTests,ErrorTextTests}.swift` (create).
 
-- [ ] `AppEnvironment.swift` по решению 9: `static func live() throws -> AppEnvironment` и
+- [x] `AppEnvironment.swift` по решению 9: `static func live() throws -> AppEnvironment` и
       `static func inMemory(directory: URL? = nil) -> AppEnvironment`; выбор в `TmuxPadApp` —
       `ProcessInfo.processInfo.arguments.contains("-uitest-inmemory")`; ошибка `live()` →
       `StartupErrorView` с текстом и без дальнейшей работы. `AppError.keyMissing(UUID)`.
-- [ ] `ServerStore.swift` и `KeyLibrary.swift` по решению 10; оба получают зависимости через
+- [x] `ServerStore.swift` и `KeyLibrary.swift` по решению 10; оба получают зависимости через
       инициализатор (не через синглтон), загружаются из JSON при создании.
-- [ ] `ErrorText.swift` по решению 3: русские тексты всех случаев `SSHError` («Не удалось
+- [x] `ErrorText.swift` по решению 3: русские тексты всех случаев `SSHError` («Не удалось
       подключиться: …», «Сервер не принял ключ», «Ключ сервера изменился», «Сервер отказал в
       новом канале», «Сервер не ответил вовремя», «Соединение потеряно»), `HostError` («На
       сервере нет host-скрипта», «Сервер отклонил запрос: …», «Сессия с таким именем уже
       есть», «Сессии больше нет», «Папки проектов нет на сервере», «Команда завершилась с
       кодом N: …», «Неожиданный ответ сервера: …»), `KeyError`, `KeyStoreError`,
       `KeyLibraryError`, `AppError`.
-- [ ] Окружение передаётся в SwiftUI через `.environment(...)` для `@Observable`-моделей и
+- [x] Окружение передаётся в SwiftUI через `.environment(...)` для `@Observable`-моделей и
       собственный `EnvironmentKey` для `AppEnvironment`.
-- [ ] Тесты из Testing Strategy; `scripts/ios-test.sh --no-bench` проходит.
+- [x] Тесты из Testing Strategy; `scripts/ios-test.sh --no-bench` проходит.
+- Заметки исполнения: `inMemory(directory:)` бросает, как и `live()`: `HostBootstrap()` и
+  загрузка `servers.json` могут упасть, а `try!` в тестах прятал бы причину. Создание и импорт
+  ключей вынесены в протокол `AppKeyStore: KeyStore` (`App/Platform/AppKeyStore.swift`), его
+  реализуют `KeychainKeyStore` и `InMemoryKeyStore` (SE — `secureEnclaveUnavailable`);
+  `AppEnvironment.keyStore` — `any AppKeyStore`, `KeychainKeyStore.list()` — `nonisolated`,
+  чтобы `live()` загрузил ключи синхронно. `ServerStore.issues(for:keys:)` получает список ключей
+  параметром (у `KeyLibrary` ссылка на `ServerStore`, обратная дала бы цикл) и отдаёт русские
+  тексты (`serverIssueText` в `ErrorText.swift`). `delete` сбрасывает отпечаток `host:port`,
+  только если других серверов с тем же адресом нет: запись в `HostKeyStore` общая у копий.
+  Симулятор, который `ios-test.sh` выбирает первым, отказывал в запуске («Busy, Application
+  failed preflight checks»), пока не был загружен вручную (`xcrun simctl boot`).
 
 ### Task 4: настройки — ключи и серверы
 
 **Файлы:** `App/UI/Settings/{SettingsView,KeysView,KeyDetailView,NewKeyView,ImportKeyView,
 ServersView,ServerEditView,QRCodeView}.swift` (create), `App/UI/Root/RootView.swift`.
 
-- [ ] `SettingsView`: sheet с `NavigationStack`, разделы «Серверы», «Ключи», «Диагностика»
+- [x] `SettingsView`: sheet с `NavigationStack`, разделы «Серверы», «Ключи», «Диагностика»
       (ссылка на экран из Task 6; до Task 6 — заглушка), кнопка «Готово». `RootView`: кнопка
       «⚙ Настройки» внизу сайдбара и `⌘,` открывают sheet; список серверов в сайдбаре — из
       `ServerStore`.
-- [ ] `KeysView`, `NewKeyView`, `ImportKeyView`, `KeyDetailView`, `QRCodeView` по решению 11.
+- [x] `KeysView`, `NewKeyView`, `ImportKeyView`, `KeyDetailView`, `QRCodeView` по решению 11.
       Имя ключа по умолчанию — «iPad SE-key» или «iPad Ed25519»; QR — `CIImage` →
       `UIImage` с масштабом без сглаживания (`.interpolation(.none)`); копирование —
       `UIPasteboard.general.string`; удаление используемого ключа — алерт со списком серверов.
-- [ ] `ServersView`, `ServerEditView` по решению 11: новые серверы получают первый ключ
+- [x] `ServersView`, `ServerEditView` по решению 11: новые серверы получают первый ключ
       библиотеки; без ключей «Добавить сервер» ведёт на создание ключа. Поле «Отпечаток
       хост-ключа» показывает `ServerConfig.hostKeyFingerprint` или «ещё не подключались»;
       «Сбросить» — подтверждение, `hostKeys.reset` и очистка поля.
-- [ ] Ручная проверка в симуляторе не требуется; сборка без предупреждений и `scripts/ios-
+- [x] Ручная проверка в симуляторе не требуется; сборка без предупреждений и `scripts/ios-
       test.sh --no-bench`.
+- Заметки исполнения: общий алерт ошибок — `App/UI/ErrorAlert.swift` (`errorAlert(_:message:)`).
+  Без ключей «Добавить сервер» открывает `NewKeyView`, форма нового сервера с этим ключом
+  открывается в `onDismiss` sheet ключа (два sheet подряд без задержки SwiftUI не показывает).
+  Ошибки под полями формы — по строкам `validationIssues()` ядра через `serverIssueText`.
+  «Сбросить» отпечаток сбрасывает доверие по сохранённому `host:port` и сразу пишет
+  `servers.json`, не дожидаясь «Сохранить». Раздел «Диагностика» — заглушка до Task 6.
 
 ### Task 5: проверка подключения, подготовка сервера, токен
 
@@ -383,7 +405,7 @@ ServersView,ServerEditView,QRCodeView}.swift` (create), `App/UI/Root/RootView.sw
 `App/UI/DoctorText.swift` (все create), `App/UI/Settings/ServerEditView.swift`,
 `AppTests/Support/Bench.swift` (create), `AppTests/ServerCheckBenchTests.swift` (create).
 
-- [ ] `ServerCheckModel` по решению 10. `check()`: `pool.connection(for:auth:)` с
+- [x] `ServerCheckModel` по решению 10. `check()`: `pool.connection(for:auth:)` с
       `environment.auth(for:)` → `connect()`; `SSHError.authFailed` → `.authFailed`;
       `.hostKeyChanged(expected, actual)` → `.hostKeyChanged`; прочие → `.failed(userText)`;
       успех с `hostKeyFirstSeen` → `.trustPrompt(fingerprint)` (дальше — только после
@@ -392,47 +414,70 @@ ServersView,ServerEditView,QRCodeView}.swift` (create), `App/UI/Root/RootView.sw
       повторный `check()`. `prepare()` → `bootstrap.prepare(api:)` → `.done(.ready, report)`.
       `sendToken(_:)` → `api.auth(token:)`; токен не попадает ни в журнал, ни в состояние
       модели.
-- [ ] `ServerCheckView` и `TokenView` по решению 11; кнопки сервера в `ServerEditView` открывают
+- [x] `ServerCheckView` и `TokenView` по решению 11; кнопки сервера в `ServerEditView` открывают
       их (кнопки недоступны для несохранённого сервера). `DoctorText.swift` по решению 12.
-- [ ] `AppTests/Support/Bench.swift`: `Bench.isAvailable`, `Bench.config(keyID:)`, ключ из
+- [x] `AppTests/Support/Bench.swift`: `Bench.isAvailable`, `Bench.config(keyID:)`, ключ из
       `TMUXPAD_BENCH_KEY_B64` в `InMemoryKeyStore`; `ServerCheckBenchTests` из Testing Strategy,
       `.serialized`, `.enabled(if: Bench.isAvailable)`; перед каждым тестом — сброс состояния
       стенда так же, как в `TmuxPadCore/Tests/TmuxPadCoreTests/Support/Bench.swift`.
-- [ ] `scripts/ios-test.sh` (со стендом) проходит.
+- [x] `scripts/ios-test.sh` (со стендом) проходит.
+- Заметки исполнения: действия `ServerCheckModel` синхронно меняют `state` и возвращают
+  `Task`: алерт, закрытый кнопкой, не всплывает снова до старта задачи, а тесты ждут `value`.
+  Если `HostKeyStore` уже доверяет ключу, а поле конфига пустое или другое (копия сервера),
+  `check()` молча пишет отпечаток в конфиг, без вопроса. `resetHostKey()` очищает и поле
+  конфига, иначе повторный вопрос «Доверять» не задался бы. После «Доверять» на экране токена
+  передача продолжается сама. Существующий сервер после «Сохранить» остаётся открытым, кнопки
+  сервера доступны только без несохранённых правок. ⚠️ `makeSSHRepresentation` Citadel (и
+  `SSHKeys.generateEd25519` ядра поверх него) при комментарии длиной 5 по модулю 8 пишет файл,
+  который Citadel не читает (`invalidPadding`); приложение сериализует Ed25519 само
+  (`KeychainKeyStore.openSSHText`), ядро не тронуто. Стенду на этом Mac нужен
+  `PATH=/Applications/Docker.app/Contents/Resources/bin:$PATH` (`docker-credential-desktop`).
 
 ### Task 6: экран диагностики
 
 **Файлы:** `App/State/DiagnosticsModel.swift`, `App/UI/Settings/DiagnosticsView.swift` (create),
 `App/UI/Settings/SettingsView.swift`, `AppTests/DiagnosticsModelTests.swift` (create).
 
-- [ ] `DiagnosticsModel` по решению 10: создаётся в `AppEnvironment`, одна подписка на
+- [x] `DiagnosticsModel` по решению 10: создаётся в `AppEnvironment`, одна подписка на
       `log.updates` на всё время жизни; не больше `DiagnosticsLog.defaultCapacity` событий в
       памяти модели.
-- [ ] `DiagnosticsView` по решению 11: строки новые сверху, время `HH:mm:ss`, значок по
+- [x] `DiagnosticsView` по решению 11: строки новые сверху, время `HH:mm:ss`, значок по
       `Kind`; фильтр по серверу (`Picker`, «Все»); `ShareLink(item: model.exportText())`;
       «Очистить» не делается (журнал кольцевой).
-- [ ] `DiagnosticsModelTests`: событие, записанное в журнал после создания модели,
+- [x] `DiagnosticsModelTests`: событие, записанное в журнал после создания модели,
       появляется в ней; после закрытия и повторного открытия экрана новые события по-прежнему
       приходят.
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `scripts/ios-test.sh --no-bench` проходит.
+- Заметки исполнения: модель не берёт снимок `log.events()`: `updates` буферизует события с
+  создания журнала (`bufferingNewest(capacity)`), и единственный потребитель получает их все;
+  снимок задвоил бы события, записанные до старта подписки. `exportText(server:)` и
+  «Поделиться» учитывают выбранный фильтр.
 
 ### Task 7: документация, полный прогон, завершение
 
 **Файлы:** `CLAUDE.md`, `docs/tmuxpad-spec.md` (§11 — отметки фаз 1–2; расхождения — если
 были), `docs/plans/20261020-app-foundation.md` (move).
 
-- [ ] `CLAUDE.md`: раскладка `App/`, `AppTests/`, `scripts/ios-test.sh`; инварианты
+- [x] `CLAUDE.md`: раскладка `App/`, `AppTests/`, `scripts/ios-test.sh`; инварианты
       «приложение не логирует токен и приватные ключи», «Keychain только через
       `Platform/Keychain.swift`», «ошибки ядра показываются пользователю через
       `ErrorText.userText`».
-- [ ] Спека §11: отметить сделанные пункты фазы 1 (`KeyManager` без share-экстеншенов,
+- [x] Спека §11: отметить сделанные пункты фазы 1 (`KeyManager` без share-экстеншенов,
       `HostKeyStore` + алерт, `ServerStore` + настройки + «Проверить подключение», UUID
       устройства, экран журнала) и фазы 2 (`HostBootstrap` с отчётом в UI). Там же поправить
       устаревшие ссылки «— план 3» в фазах 1 и 2: экран журнала и отчёт `doctor` — план 4,
       `NWPathMonitor` — план 7.
-- [ ] Полный прогон: Validation Commands и `TmuxPadCore/scripts/test.sh` (ядро на Mac со
+- [x] Полный прогон: Validation Commands и `TmuxPadCore/scripts/test.sh` (ядро на Mac со
       стендом); в progress-лог — число тестов и время.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
+- Заметки исполнения: инвариант про ошибки — свободная функция `userText(_:)` в
+  `App/UI/ErrorText.swift`, отдельного типа `ErrorText` нет. Пункт фазы 1 про `ConnectionPool`
+  в §11 остаётся открытым: `NWPathMonitor` — план 7. Прогон: сборка без предупреждений;
+  `scripts/ios-test.sh` — 51 прошёл, 1 пропущен (SE в симуляторе); ядро со стендом — 191 тест,
+  юнит без Docker — 154. ⚠️ `othersCountsForeignClient` ядра падает, если `TERM` терминала
+  неизвестен контейнеру (`xterm-ghostty` пробрасывается через `ssh -tt`, `tmux attach` сразу
+  выходит); с `TERM=xterm-256color` проходит. Ядро не тронуто: фикс — `TERM` в окружении
+  `Bench.foreignClient`, отдельным планом.
 
 ## Post-Completion
 

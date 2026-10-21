@@ -21,6 +21,14 @@ import Testing
         #expect(imported.publicKey == generated.privateKey.publicKey)
     }
 
+    /// Комментарий любой длины по модулю 8: `makeSSHRepresentation` Citadel давал нечитаемый
+    /// файл при длине 5 (`tmuxpad-bench`).
+    @Test(arguments: 0..<8) func generatedKeyReadsBackForEveryCommentLength(extra: Int) throws {
+        let generated = SSHKeys.generateEd25519(comment: String(repeating: "x", count: 5 + extra))
+        let imported = try SSHKeys.importOpenSSHEd25519(generated.privateKeyOpenSSH)
+        #expect(imported.publicKey == generated.privateKey.publicKey)
+    }
+
     @Test func fingerprintShape() {
         let key = SSHKeys.generateEd25519().privateKey.publicKey
         let fingerprint = SSHKeys.fingerprint(key)

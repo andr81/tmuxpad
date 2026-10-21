@@ -2,29 +2,53 @@ import Foundation
 import Observation
 import TmuxPadCore
 
-/// Открытые в приложении сессии и выделенная (§5). До плана 6 терминала нет: открытие только
-/// записывает сессию в ростер и выделяет её; план 6 меняет внутренности `open`/`close`.
+/// Открытые в приложении сессии, их терминалы и выделенная (§5). Вытесненные ростером сверх
+/// лимита закрываются (`detach`).
 @MainActor
 @Observable
 final class OpenSessionsModel {
     private(set) var roster: OpenSessionsRoster
     /// Сессия в детали.
     private(set) var selection: OpenSessionKey?
+    private(set) var terminals: [OpenSessionKey: OpenTerminal] = [:]
+    /// Терминал новой открытой сессии; ставит `AppEnvironment`. Без фабрики — только ростер.
+    @ObservationIgnored var makeTerminal: ((OpenSessionKey) -> OpenTerminal)?
+    /// `detach` закрытых терминалов, ещё не дошедший до сервера, по серверам: PTY-слот
+    /// освобождается после ответа, и новый терминал того же сервера ждёт их (лимит пула).
+    @ObservationIgnored private var closing: [UUID: [UUID: Task<Void, Never>]] = [:]
 
     init(limit: Int = OpenSessionsRoster.defaultLimit) {
         roster = OpenSessionsRoster(limit: limit)
     }
 
     /// Открывает (или активирует открытую) и выделяет. Сверх лимита самые давно неактивные
-    /// выпадают из ростера. `take` — «Забрать» (§6.1); пока терминала нет, это обычное открытие.
+    /// закрываются. `take` — «Забрать» (§6.1): у открытой — `take()`, у новой — открытие через `take`.
     func open(_ key: OpenSessionKey, take: Bool = false) {
-        _ = roster.open(key)
+        for evicted in roster.open(key) {
+            if let terminal = terminals.removeValue(forKey: evicted) {
+                closeTerminal(terminal, serverID: evicted.serverID)
+            }
+        }
+        // PTY-слоты у каждого сервера свои: чужой сервер новый терминал не держит
+        let evictions = closing[key.serverID].map { Array($0.values) } ?? []
         selection = key
+        if let terminal = terminals[key] {
+            terminal.activate()
+            if take {
+                Task { await terminal.take() }
+            }
+        } else if let terminal = makeTerminal?(key) {
+            terminals[key] = terminal
+            terminal.start(take: take, after: evictions)
+        }
     }
 
     /// Выделение переходит к последней активированной из оставшихся.
     func close(_ key: OpenSessionKey) {
         roster.close(key)
+        if let terminal = terminals.removeValue(forKey: key) {
+            closeTerminal(terminal, serverID: key.serverID)
+        }
         if selection == key {
             selection = roster.active
         }
@@ -33,9 +57,59 @@ final class OpenSessionsModel {
     /// Сервер удалили — закрываются все его сессии.
     func close(serverID: UUID) {
         roster.close(serverID: serverID)
+        for key in terminals.keys where key.serverID == serverID {
+            if let terminal = terminals.removeValue(forKey: key) {
+                closeTerminal(terminal, serverID: serverID)
+            }
+        }
         if selection?.serverID == serverID {
             selection = roster.active
         }
+    }
+
+    /// `⌘1…⌘9`; `index` 1-based.
+    func select(index: Int) {
+        if let key = roster.tab(at: index) {
+            activate(key)
+        }
+    }
+
+    /// `⌘]`, по кругу.
+    func selectNext() {
+        if let key = selection.flatMap(roster.next(after:)) ?? roster.tabs.first {
+            activate(key)
+        }
+    }
+
+    /// `⌘[`, по кругу.
+    func selectPrevious() {
+        if let key = selection.flatMap(roster.previous(before:)) ?? roster.tabs.last {
+            activate(key)
+        }
+    }
+
+    var selectedTerminal: OpenTerminal? {
+        selection.flatMap { terminals[$0] }
+    }
+
+    /// `detach` и учёт его до ответа сервера.
+    private func closeTerminal(_ terminal: OpenTerminal, serverID: UUID) {
+        let id = UUID()
+        let task = terminal.close()
+        closing[serverID, default: [:]][id] = task
+        Task { [weak self] in
+            await task.value
+            self?.closing[serverID]?[id] = nil
+            if self?.closing[serverID]?.isEmpty == true {
+                self?.closing[serverID] = nil
+            }
+        }
+    }
+
+    private func activate(_ key: OpenSessionKey) {
+        roster.activate(key)
+        selection = key
+        terminals[key]?.activate()
     }
 
     func isOpen(_ key: OpenSessionKey) -> Bool {

@@ -69,7 +69,35 @@ final class SessionActions {
         openSessions.open(key)
     }
 
+    /// «Создать заново» над терминалом: `new` с тем же именем и проектом (сессию уже создали
+    /// заново — не ошибка), перечитывание дерева и новый `attach`.
+    func recreate(_ terminal: OpenTerminal) async throws {
+        let project = try terminal.recreateProject()
+        guard let config = servers.server(id: terminal.key.serverID) else {
+            throw AppError.serverMissing
+        }
+        do {
+            try await api(for: config).new(session: terminal.key.name, project: project)
+        } catch HostError.sessionExists {
+        }
+        await tree.refreshAfterAction(serverID: terminal.key.serverID)
+        await terminal.reconnect()
+    }
+
     private func api(for config: ServerConfig) async throws -> HostAPI {
+        try await connection(for: config, ignoringConnectFailure: false).api
+    }
+
+    /// Соединение пула для терминала открытой сессии (§5). Ошибка `connect()` не мешает:
+    /// терминал сам покажет «Переподключение…» и переоткроется, когда пул подключится.
+    func terminalConnection(serverID: UUID) async throws -> ServerConnection {
+        guard let config = servers.server(id: serverID) else {
+            throw AppError.serverMissing
+        }
+        return try await connection(for: config, ignoringConnectFailure: true)
+    }
+
+    private func connection(for config: ServerConfig, ignoringConnectFailure: Bool) async throws -> ServerConnection {
         // как в `TreeRefresher`: без подтверждённого отпечатка ядро сохранило бы ключ молча (§8)
         guard config.hostKeyFingerprint != nil else {
             throw AppError.hostKeyUnconfirmed
@@ -82,14 +110,20 @@ final class SessionActions {
         let connection = await pool.connection(for: config, auth: credentials)
         // `connect()` не из `.disconnected` начал бы новую эпоху, как в `TreeRefresher`
         if await connection.state == .disconnected {
-            try await connection.connect()
+            do {
+                try await connection.connect()
+            } catch {
+                guard ignoringConnectFailure else {
+                    throw error
+                }
+            }
         }
         // удалили во время `pool.connection` или `connect()`: убрать соединение, как в `TreeRefresher`
         guard servers.server(id: config.id) != nil else {
             await pool.remove(id: config.id)
             throw AppError.serverMissing
         }
-        return await connection.api
+        return connection
     }
 
     /// Для ручного входа с Mac; без `-d`, чтобы не выкинуть iPad. Имя пришло из `list`

@@ -7,14 +7,16 @@ public enum TerminalInput: Sendable, Equatable {
     case keyboard
     /// Среди отчётов есть колесо вверх: tmux входит в copy-mode, UI показывает чип.
     case wheelUp
-    /// Прочие мышиные отчёты: идут в PTY мимо `copy-cancel`.
+    /// Прочие мышиные отчёты и отчёты о фокусе: идут в PTY мимо `copy-cancel`.
     case otherMouse
 }
 
 /// Разбор исходящих байтов терминала на мышиные отчёты xterm.
 ///
 /// Буфер мышиный, только если целиком состоит из отчётов: SGR `ESC [ < Pb ; Px ; Py (M|m)`
-/// (поля — 1–4 десятичные цифры) или X10 `ESC [ M Cb Cx Cy` (три байта ≥ 32). Всё прочее —
+/// (поля — 1–4 десятичные цифры) или X10 `ESC [ M Cb Cx Cy` (три байта ≥ 32), а также отчёты о
+/// фокусе `ESC [ I` / `ESC [ O` (режим 1004): SwiftTerm шлёт их тем же `send` при смене first
+/// responder, и `copy-cancel` из-за них вывел бы pane из copy-mode без ввода. Всё прочее —
 /// `.keyboard`: лишний `copy-cancel` лучше проглоченного ввода. X10 в режиме 1005 (UTF-8) при
 /// колонке или строке > 223 кодирует координату двумя байтами и разберётся как `.keyboard` —
 /// допустимо, tmux с `mouse on` включает SGR (1006).
@@ -23,6 +25,8 @@ public enum MouseReport {
     private static let bracket: UInt8 = 0x5B
     private static let less: UInt8 = 0x3C
     private static let upperM: UInt8 = 0x4D
+    private static let focusIn: UInt8 = 0x49
+    private static let focusOut: UInt8 = 0x4F
     private static let lowerM: UInt8 = 0x6D
     private static let semicolon: UInt8 = 0x3B
     /// Биты модификаторов shift, meta, ctrl в коде кнопки.
@@ -54,6 +58,10 @@ public enum MouseReport {
             return nil
         }
         let kind = buffer[start + 2]
+        if kind == focusIn || kind == focusOut {
+            // не кнопка: код 0 не колесо вверх
+            return (0, start + 3)
+        }
         if kind == less {
             return sgr(buffer, from: start + 3)
         }

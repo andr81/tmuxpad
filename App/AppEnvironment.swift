@@ -10,6 +10,10 @@ enum AppError: Error, Equatable {
     case serverMissing
     /// Отпечаток хост-ключа не подтверждён: подключение сохранило бы его без «Доверять» (§8).
     case hostKeyUnconfirmed
+    /// «Создать заново»: проекта сессии нет в последнем снимке сервера.
+    case projectNotFound(String)
+    /// «Создать заново»: проект сессии неизвестен — её не было в снимке, когда её открыли.
+    case projectUnknown
 }
 
 /// Composition root: неизменяемые зависимости и модели State. Создаётся один раз при запуске.
@@ -30,6 +34,8 @@ final class AppEnvironment {
     let openSessions: OpenSessionsModel
     let tree: TreeModel
     let actions: SessionActions
+    let appearance: TerminalAppearance
+    let navigation = AppNavigation()
 
     init(
         deviceID: UUID,
@@ -67,6 +73,21 @@ final class AppEnvironment {
             openSessions: openSessions,
             tree: tree
         )
+        appearance = TerminalAppearance(defaults: defaults)
+        // слабые: задача `start` терминала может пережить окружение (так бывает в `AppTests`)
+        let dependencies = OpenTerminal.Dependencies(
+            connection: { [weak actions = self.actions] in
+                guard let actions else {
+                    throw AppError.serverMissing
+                }
+                return try await actions.terminalConnection(serverID: $0)
+            },
+            snapshot: { [weak tree = self.tree] in tree?.states[$0]?.snapshot },
+            log: log,
+            defaults: defaults,
+            appearance: appearance
+        )
+        openSessions.makeTerminal = { OpenTerminal(key: $0, dependencies: dependencies) }
     }
 
     /// Keychain, Secure Enclave и JSON в Application Support. Ошибка — экран `StartupErrorView`.
@@ -127,5 +148,7 @@ extension View {
             .environment(env.diagnostics)
             .environment(env.tree)
             .environment(env.openSessions)
+            .environment(env.appearance)
+            .environment(env.navigation)
     }
 }

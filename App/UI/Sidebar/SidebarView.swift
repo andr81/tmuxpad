@@ -9,16 +9,12 @@ struct SidebarView: View {
     @Environment(ServerStore.self) private var servers
     @Environment(TreeModel.self) private var tree
     @Environment(OpenSessionsModel.self) private var openSessions
+    @Environment(AppNavigation.self) private var navigation
     /// Свёрнутые проекты, строки `serverID/project`; по умолчанию всё раскрыто.
     @SceneStorage("sidebar.collapsed") private var collapsed = ""
     @State private var checkTarget: ServerTarget?
-    @State private var pending: Pending?
+    @State private var pending: SessionConfirmation?
     @State private var errorMessage: String?
-    /// Мастер «Новая сессия»: `[+]` — пустой, «Новая сессия здесь» — с сервером и проектом.
-    @State private var newSessionTarget: NewSessionTarget?
-    @State private var showAttach = false
-    /// «Создать» из пустого мастера «Подключиться»: «Новая сессия» откроется, когда тот закроется.
-    @State private var createAfterAttach: UUID?
 
     var body: some View {
         @Bindable var tree = tree
@@ -46,16 +42,14 @@ struct SidebarView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Новая сессия", systemImage: "plus") {
-                    newSessionTarget = NewSessionTarget()
+                    navigation.newSessionTarget = NewSessionTarget()
                 }
-                .keyboardShortcut("n", modifiers: .command)
                 .disabled(servers.servers.isEmpty)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Подключиться", systemImage: "arrow.left.arrow.right") {
-                    showAttach = true
+                    navigation.showAttach = true
                 }
-                .keyboardShortcut("o", modifiers: .command)
                 .disabled(servers.servers.isEmpty)
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -63,17 +57,6 @@ struct SidebarView: View {
                     Toggle("Показывать все проекты", isOn: $tree.showEmptyProjects)
                 }
             }
-        }
-        .sheet(item: $newSessionTarget) { target in
-            NewSessionWizard(target: target, servers: servers.servers)
-        }
-        .sheet(isPresented: $showAttach, onDismiss: {
-            if let serverID = createAfterAttach {
-                createAfterAttach = nil
-                newSessionTarget = NewSessionTarget(serverID: serverID)
-            }
-        }) {
-            AttachWizard(servers: servers.servers) { createAfterAttach = $0 }
         }
         .sheet(item: $checkTarget, onDismiss: nil) { target in
             NavigationStack {
@@ -121,7 +104,7 @@ struct SidebarView: View {
                     serverID: server.id,
                     project: project,
                     isExpanded: expanded(server.id, project.name),
-                    newSession: { newSessionTarget = NewSessionTarget(serverID: server.id, project: project.name) },
+                    newSession: { navigation.newSessionTarget = NewSessionTarget(serverID: server.id, project: project.name) },
                     sessionMenu: menu
                 )
                 .foregroundStyle(ServerRow.isStale(state) ? .secondary : .primary)
@@ -183,14 +166,8 @@ struct ServerTarget: Identifiable {
     let id: UUID
 }
 
-struct NewSessionTarget: Identifiable {
-    let id = UUID()
-    var serverID: UUID?
-    var project: String?
-}
-
-/// Действие, ждущее подтверждения.
-private enum Pending {
+/// Действие над сессией, ждущее подтверждения; сайдбар и терминал.
+enum SessionConfirmation {
     case kill(OpenSessionKey)
     case take(OpenSessionKey)
 

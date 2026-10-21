@@ -19,11 +19,15 @@ public actor TerminalSession {
     private var needsCopyCancel = false
     /// Когда нас в прошлый раз выбил чужой `attach -d`.
     private var lastKick: ContinuousClock.Instant?
-    /// Ожидание `.connected` от пула в состоянии `.offline`.
+    /// Ожидание `.connected` от пула после обрыва.
     private var waitTask: Task<Void, Never>?
     /// Хвост очереди ввода: `send`, `input` и `cancelCopyMode` идут в порядке вызова, даже если
     /// ждут `copy-cancel`.
     private var sendTail: Task<Void, Never>?
+    /// `openPTY` и `close` канала в полёте и `detach`, которые ждут их конца: слот PTY пула
+    /// занят, пока канал не открылся и не закрылся.
+    private var channelOps = 0
+    private var channelOpsWaiters: [CheckedContinuation<Void, Never>] = []
 
     public init(
         server: ServerConnection,
@@ -50,10 +54,13 @@ public actor TerminalSession {
 
     /// Открывает канал `attach`. Ошибки не бросает: они видны в `state`.
     public func start() async {
-        guard pty == nil else {
+        guard pty == nil, !userDetached else {
             return
         }
         let current = await begin()
+        guard isCurrent(current) else {
+            return
+        }
         setState(.connecting)
         await open(take: false, current)
     }
@@ -98,18 +105,29 @@ public actor TerminalSession {
         try await pty?.resize(cols: cols, rows: rows)
     }
 
-    /// Закрыть терминал; tmux-сессия на сервере остаётся.
+    /// Закрыть терминал; tmux-сессия на сервере остаётся. Окончательно: `start`, `reconnect` и
+    /// `take` после него ничего не делают, иначе запоздавший «Повторить» занял бы PTY-слот.
+    /// Возвращается, когда открывавшиеся и закрывавшиеся каналы закрыты и их слоты в пуле свободны.
     public func detach() async {
         userDetached = true
         setCopyModeSuspected(false)
         _ = await begin()
         setState(.ended)
+        if channelOps > 0 {
+            await withCheckedContinuation { channelOpsWaiters.append($0) }
+        }
         await record("detached by app")
     }
 
     /// «Забрать»: `take` выкидывает всех прочих клиентов (§6.1).
     public func take() async {
+        guard !userDetached else {
+            return
+        }
         let current = await begin()
+        guard isCurrent(current) else {
+            return
+        }
         setState(.reconnecting)
         await record("take")
         await open(take: true, current)
@@ -117,7 +135,13 @@ public actor TerminalSession {
 
     /// Новый канал `attach`: возврат из фона, «Переподключить», «Повторить».
     public func reconnect() async {
+        guard !userDetached else {
+            return
+        }
         let current = await begin()
+        guard isCurrent(current) else {
+            return
+        }
         setState(.reconnecting)
         await open(take: false, current)
     }
@@ -174,20 +198,24 @@ public actor TerminalSession {
 
     // MARK: - Канал
 
-    /// Новая операция: гасит ожидание и закрывает текущий канал.
+    /// Новая операция: гасит ожидание и закрывает текущий канал; `detach`, пришедший во время
+    /// закрытия, ждёт его конца.
     private func begin() async -> Int {
         generation += 1
         let current = generation
         waitTask?.cancel()
         waitTask = nil
-        let old = pty
-        pty = nil
-        await old?.close()
+        if let old = pty {
+            pty = nil
+            channelOps += 1
+            await old.close()
+            channelOpEnded()
+        }
         return current
     }
 
-    /// Открывает канал и запускает чтение; неудача — `.offline`, при мёртвом соединении с
-    /// ожиданием пула.
+    /// Открывает канал и запускает чтение; неудача — `.offline`, при мёртвом соединении —
+    /// ожидание пула.
     private func open(take: Bool, _ current: Int) async {
         do {
             try await openChannel(take: take, current)
@@ -200,15 +228,27 @@ public actor TerminalSession {
     }
 
     private func openChannel(take: Bool, _ current: Int) async throws {
-        userDetached = false
         let api = await server.api
         let command = take ? try api.takeCommand(session: name) : try api.attachCommand(session: name)
         let size = surface.size
-        let channel = try await server.openPTY(command: command, cols: size.cols, rows: size.rows)
+        // операцию сменили, пока закрывался старый канал: новый не открывать
         guard current == generation, !userDetached else {
-            await channel.close()
             return
         }
+        channelOps += 1
+        let channel: any PTYChannel
+        do {
+            channel = try await server.openPTY(command: command, cols: size.cols, rows: size.rows)
+        } catch {
+            channelOpEnded()
+            throw error
+        }
+        guard current == generation, !userDetached else {
+            await channel.close()
+            channelOpEnded()
+            return
+        }
+        channelOpEnded()
         pty = channel
         setState(.live)
         let surface = surface
@@ -222,6 +262,19 @@ public actor TerminalSession {
                 failure = error
             }
             await self?.channelEnded(current, exitCode: channel.exitCode, error: failure)
+        }
+    }
+
+    /// Открытие или закрытие канала кончилось; последнее отпускает ждущих `detach`.
+    private func channelOpEnded() {
+        channelOps -= 1
+        guard channelOps == 0 else {
+            return
+        }
+        let waiters = channelOpsWaiters
+        channelOpsWaiters = []
+        for waiter in waiters {
+            waiter.resume()
         }
     }
 
@@ -291,7 +344,7 @@ public actor TerminalSession {
         await open(take: false, current)
     }
 
-    /// Ошибка открытия: транспортная — ждать пул, прочая — `.offline` без повторов.
+    /// Ошибка открытия: транспортная — ждать пул (`.reconnecting`), прочая — `.offline` без повторов.
     private func failed(_ error: Error, _ current: Int) async {
         if Self.isTransport(error) {
             await transportLost("\(error)", current)
@@ -301,27 +354,48 @@ public actor TerminalSession {
         }
     }
 
-    /// Соединение мертво: `.offline` и новый `attach` на каждое `.connected` пула, пока не выйдет.
+    /// Соединение мертво: новый `attach` на каждое `.connected` пула, пока не выйдет. Пока пул
+    /// переподключается — `.reconnecting` (§3.5), пул в `.failed` — `.offline` до явного запроса.
+    /// `.disconnected` — тоже `.offline`: само оно не переподключится (пул мог заменить соединение).
     private func transportLost(_ reason: String, _ current: Int) async {
-        setState(.offline(reason))
-        await record("offline: \(reason)")
-        waitTask?.cancel()
+        setState(.reconnecting)
+        await record("connection lost: \(reason)")
         let updates = await server.stateUpdates()
+        // устаревший вызов не трогает ожидание новой операции
         guard current == generation else {
             return
         }
+        waitTask?.cancel()
         waitTask = Task { [weak self] in
-            for await connectionState in updates where connectionState.isConnected {
-                guard let self, await self.retryAfterOffline(current) else {
+            for await connectionState in updates {
+                guard let self else {
                     return
+                }
+                switch connectionState {
+                case .connected:
+                    guard await self.retryAfterOffline(current) else {
+                        return
+                    }
+                case .failed, .disconnected:
+                    await self.poolChanged(.offline(reason), current)
+                case .connecting, .reconnecting:
+                    await self.poolChanged(.reconnecting, current)
                 }
             }
         }
     }
 
-    /// Попытка из `.offline`; `true` — ждать следующего `.connected`.
+    /// Плашка ожидания пула; устаревшее ожидание молчит.
+    private func poolChanged(_ new: TerminalState, _ current: Int) {
+        guard current == generation else {
+            return
+        }
+        setState(new)
+    }
+
+    /// Попытка после обрыва (`.reconnecting` или `.offline`); `true` — ждать следующего `.connected`.
     private func retryAfterOffline(_ current: Int) async -> Bool {
-        guard current == generation, case .offline = state else {
+        guard current == generation, state == .reconnecting || isOffline else {
             return false
         }
         do {
@@ -333,11 +407,25 @@ public actor TerminalSession {
             }
             if Self.isTransport(error) {
                 await record("reattach failed: \(error)")
+                // пул жив (канал не открылся по таймауту): следующего `.connected` может не быть,
+                // поэтому «Повторить», а не вечное «Переподключение…»
+                if await server.state.isConnected, current == generation {
+                    setState(.offline("\(error)"))
+                }
                 return true
             }
             setState(.offline("\(error)"))
             return false
         }
+    }
+
+    /// Операцию не сменили, пока `begin` закрывал старый канал.
+    private func isCurrent(_ current: Int) -> Bool {
+        current == generation && !userDetached
+    }
+
+    private var isOffline: Bool {
+        if case .offline = state { true } else { false }
     }
 
     private func setState(_ new: TerminalState) {

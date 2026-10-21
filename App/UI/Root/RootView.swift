@@ -4,12 +4,15 @@ struct RootView: View {
     @Environment(ServerStore.self) private var servers
     @Environment(TreeModel.self) private var tree
     @Environment(OpenSessionsModel.self) private var openSessions
+    @Environment(AppNavigation.self) private var navigation
     @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    /// «Создать» из пустого мастера «Подключиться»: «Новая сессия» откроется, когда тот закроется.
+    @State private var createAfterAttach: UUID?
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        @Bindable var navigation = navigation
+        NavigationSplitView(columnVisibility: columnVisibility) {
             SidebarView(openSettings: { showSettings = true })
                 .safeAreaInset(edge: .bottom) {
                     Button {
@@ -24,8 +27,8 @@ struct RootView: View {
                 }
         } detail: {
             Group {
-                if let key = openSessions.selection {
-                    SessionPlaceholderView(key: key)
+                if let terminal = openSessions.selectedTerminal {
+                    TerminalScreen(terminal: terminal)
                 } else {
                     Text("Выберите сессию")
                         .foregroundStyle(.secondary)
@@ -33,15 +36,27 @@ struct RootView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
+                    // `⌘0` — в `SessionCommands`
                     Button("Сайдбар", systemImage: "sidebar.left") {
-                        columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                        navigation.sidebarHidden.toggle()
                     }
-                    .keyboardShortcut("0", modifiers: .command)
                 }
             }
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
+        }
+        // мастера — здесь, а не в сайдбаре: `⌘N` и `⌘O` открывают их и при скрытом сайдбаре
+        .sheet(item: $navigation.newSessionTarget) { target in
+            NewSessionWizard(target: target, servers: servers.servers)
+        }
+        .sheet(isPresented: $navigation.showAttach, onDismiss: {
+            if let serverID = createAfterAttach {
+                createAfterAttach = nil
+                navigation.newSessionTarget = NewSessionTarget(serverID: serverID)
+            }
+        }) {
+            AttachWizard(servers: servers.servers) { createAfterAttach = $0 }
         }
         .onChange(of: servers.servers, initial: true) { _, list in
             tree.setServers(list)
@@ -54,6 +69,13 @@ struct RootView: View {
                 tree.stop()
             }
         }
+    }
+
+    private var columnVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding(
+            get: { navigation.sidebarHidden ? .detailOnly : .all },
+            set: { navigation.sidebarHidden = $0 == .detailOnly }
+        )
     }
 }
 

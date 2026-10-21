@@ -207,13 +207,13 @@ swift test --package-path TmuxPadCore --skip IntegrationTests
 InputPump}.swift` (create), `AppTests/{EchoTests,SwiftTermSurfaceTests,InputPumpTests}.swift`
 (create).
 
-- [ ] `project.yml`: пакет `SwiftTerm` — `url: https://github.com/migueldeicaza/SwiftTerm`,
+- [x] `project.yml`: пакет `SwiftTerm` — `url: https://github.com/migueldeicaza/SwiftTerm`,
       `exactVersion: 1.99.0` (точная версия: поведение колеса — часть контракта §3.5, его не
       должно менять обновление); зависимость таргета `TmuxPad`. Сборка проходит.
-- [ ] `SwiftTermSurface` по решению 1, `InputPump` (поток ввода и потребитель) по решению 2,
+- [x] `SwiftTermSurface` по решению 1, `InputPump` (поток ввода и потребитель) по решению 2,
       `TmuxTerminalView` по решению 5, `TerminalDelegate` по решению 6.
-- [ ] `EchoTests`, `SwiftTermSurfaceTests`, `InputPumpTests` по решению 12.
-- [ ] `scripts/ios-test.sh --no-bench` проходит.
+- [x] `EchoTests`, `SwiftTermSurfaceTests`, `InputPumpTests` по решению 12.
+- [x] `scripts/ios-test.sh --no-bench` проходит.
 
 ### Task 2: открытые терминалы и экран терминала
 
@@ -222,12 +222,12 @@ InputPump}.swift` (create), `AppTests/{EchoTests,SwiftTermSurfaceTests,InputPump
 `App/UI/Root/RootView.swift`, `App/UI/Root/SessionPlaceholderView.swift` (delete),
 `AppTests/OpenSessionsModelTests.swift`, `AppTests/TerminalBenchTests.swift` (create).
 
-- [ ] `OpenTerminal` по решению 3; `OpenSessionsModel` по решению 4.
-- [ ] `TerminalScreen`, `TerminalContainerView`, `TerminalHeader` по решению 8; `RootView`
+- [x] `OpenTerminal` по решению 3; `OpenSessionsModel` по решению 4.
+- [x] `TerminalScreen`, `TerminalContainerView`, `TerminalHeader` по решению 8; `RootView`
       показывает `TerminalScreen` для выделения.
-- [ ] Тесты вытеснения в `OpenSessionsModelTests`; в `TerminalBenchTests` — «открытие даёт
+- [x] Тесты вытеснения в `OpenSessionsModelTests`; в `TerminalBenchTests` — «открытие даёт
       `.live` и приглашение», «ввод `echo hi`».
-- [ ] `scripts/ios-test.sh` проходит.
+- [x] `scripts/ios-test.sh` проходит.
 
 ### Task 3: скролл, чип, плашки, меню, шорткаты, шрифт
 
@@ -236,29 +236,30 @@ InputPump}.swift` (create), `AppTests/{EchoTests,SwiftTermSurfaceTests,InputPump
 `App/UI/Terminal/TerminalScreen.swift`, `App/TmuxPadApp.swift`,
 `AppTests/TerminalBenchTests.swift`, `AppTests/TerminalAppearanceTests.swift` (create).
 
-- [ ] Чип «Прокрутка ✕» по решению 8 и плашки по решению 9; блокировка ввода при плашке.
-- [ ] Меню `[⋯]` по решению 10; «Создать заново» — `OpenTerminal.recreate()`.
-- [ ] `TerminalAppearance` и pinch по решению 7; `TerminalAppearanceTests` — изменение размера
+- [x] Чип «Прокрутка ✕» по решению 8 и плашки по решению 9; блокировка ввода при плашке.
+- [x] Меню `[⋯]` по решению 10; «Создать заново» — `OpenTerminal.recreate()`.
+- [x] `TerminalAppearance` и pinch по решению 7; `TerminalAppearanceTests` — изменение размера
       доходит до всех открытых `TmuxTerminalView` и сохраняется в `UserDefaults` (тестовый
       `suiteName`).
-- [ ] Шорткаты по решению 11 (без автотеста: проверка — Post-Completion).
-- [ ] В `TerminalBenchTests` — колесо и чип, `kill` извне → `.ended`, двойной `take` чужим
+- [x] Шорткаты по решению 11 (без автотеста: проверка — Post-Completion; состояние мастеров и
+      сайдбара — в `AppNavigation`, листы мастеров — в `RootView`).
+- [x] В `TerminalBenchTests` — колесо и чип, `kill` извне → `.ended`, двойной `take` чужим
       UUID → `.disconnectedByOther`.
-- [ ] `scripts/ios-test.sh` проходит.
+- [x] `scripts/ios-test.sh` проходит.
 
 ### Task 4: документация, полный прогон, завершение
 
 **Файлы:** `CLAUDE.md`, `docs/tmuxpad-spec.md` (§11 — отметки фаз 0 и 4), `docs/plans/
 20261020-app-terminal.md` (move).
 
-- [ ] `CLAUDE.md`: раскладка `App/Terminal`, `App/UI/Terminal`; инварианты «ввод из SwiftTerm
+- [x] `CLAUDE.md`: раскладка `App/Terminal`, `App/UI/Terminal`; инварианты «ввод из SwiftTerm
       идёт в ядро только через `InputPump` → `TerminalSession.input`, не через `send`», «один
       `TmuxTerminalView` на открытый терминал, не пересоздаётся при переключении», «SwiftTerm
       закреплён точной версией: при обновлении перепроверить колесо и `MouseReport`».
-- [ ] Спека §11: фаза 4 — отметить сделанное; фаза 0 — эхо-тест и PTY с `tmux attach` к
+- [x] Спека §11: фаза 4 — отметить сделанное; фаза 0 — эхо-тест и PTY с `tmux attach` к
       тестовой сессии с resize. Расхождения со спекой — правкой спеки.
-- [ ] Полный прогон Validation Commands; в progress-лог — число тестов.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Полный прогон Validation Commands; в progress-лог — число тестов.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
 
 ## Post-Completion
 

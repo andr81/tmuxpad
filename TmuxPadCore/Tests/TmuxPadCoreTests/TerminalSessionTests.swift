@@ -329,8 +329,8 @@ struct TerminalSessionTests {
         let dropped = try #require(transport.lastConnection)
         transport.failNextConnects(1)
         transport.dropConnection()
-        // бэкофф 20 мс: `.offline` может смениться `.live` раньше, чем тест посмотрит
-        #expect(try await Bench.eventually { surface.states.contains { if case .offline = $0 { true } else { false } } })
+        // пока пул в бэкоффе — «Переподключение…», а не офлайн (§3.5)
+        #expect(try await Bench.eventually { surface.states.contains(.reconnecting) })
         #expect(try await Bench.eventually { transport.connections.count == 2 })
         #expect(transport.connectAttempts == 3)
         let fresh = try #require(transport.lastConnection)
@@ -339,6 +339,65 @@ struct TerminalSessionTests {
         #expect(try await surface.waitFor(.live))
         #expect(await server.state.isConnected)
         #expect(fresh.openedPTYs[0].command.contains("attach 'api'"))
+    }
+
+    @Test func failedPoolAfterDropIsOfflineUntilReconnect() async throws {
+        let transport = FakeTransport()
+        let (server, session, surface) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        transport.failNextConnects(10)
+        transport.dropConnection()
+        #expect(try await Bench.eventually { if case .offline = surface.states.last { true } else { false } })
+        // офлайн — только когда пул сдался, до того «Переподключение…»
+        #expect(surface.states.dropLast() == [.connecting, .live, .reconnecting])
+        guard case .failed = await server.state else {
+            Issue.record("expected failed pool")
+            return
+        }
+        transport.failNextConnects(0)
+        await server.reconnectNow()
+        #expect(try await surface.waitFor(.live))
+        #expect(transport.lastConnection?.openedPTYs.count == 1)
+    }
+
+    @Test func disconnectedPoolAfterDropIsOffline() async throws {
+        let transport = FakeTransport()
+        let (server, session, surface) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        // так заканчивается соединение, которое пул заменил: само оно не переподключится
+        await server.disconnect()
+        #expect(try await Bench.eventually { if case .offline = surface.states.last { true } else { false } })
+        try await server.connect()
+        #expect(try await surface.waitFor(.live))
+    }
+
+    /// Канал не открылся по таймауту, а пул жив: следующего `.connected` не будет, поэтому
+    /// «Повторить», а не вечное «Переподключение…».
+    @Test func ptyTimeoutWithLivePoolIsOffline() async throws {
+        let transport = FakeTransport()
+        let (_, session, surface) = try await Self.make(transport)
+        try #require(transport.lastConnection).failNextPTYs(2, with: SSHError.timeout)
+        await session.start()
+        #expect(try await Bench.eventually { if case .offline = surface.states.last { true } else { false } })
+        #expect(surface.states.dropLast() == [.connecting, .reconnecting])
+        await session.reconnect()
+        #expect(try await surface.waitFor(.live))
+    }
+
+    @Test func detachIsFinal() async throws {
+        let transport = FakeTransport()
+        let (_, session, surface) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        await session.detach()
+        await session.reconnect()
+        await session.take()
+        await session.start()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(surface.states.last == .ended)
+        #expect(transport.lastConnection?.openedPTYs.count == 1)
     }
 
     @Test func refusedChannelIsOfflineWithoutRetry() async throws {
@@ -365,5 +424,39 @@ struct TerminalSessionTests {
         try await Task.sleep(for: .milliseconds(300))
         #expect(surface.states.last == .ended)
         #expect(connection.openedPTYs.count == 1)
+    }
+
+    @Test func detachWaitsForPendingReconnect() async throws {
+        let transport = FakeTransport()
+        let (_, session, _) = try await Self.make(transport)
+        await session.start()
+        _ = try await Self.pty(transport)
+        let connection = try #require(transport.lastConnection)
+        connection.ptyDelay = .milliseconds(200)
+        let reconnect = Task { await session.reconnect() }
+        try await Task.sleep(for: .milliseconds(50))
+        await session.detach()
+        // канал «Переподключить» открылся после `detach` и уже закрыт: слот свободен
+        #expect(connection.openedPTYs.count == 2)
+        #expect(connection.openPTYCount == 0)
+        await reconnect.value
+    }
+
+    @Test func detachWaitsForClosingChannel() async throws {
+        let transport = FakeTransport()
+        let (_, session, _) = try await Self.make(transport)
+        await session.start()
+        let pty = try await Self.pty(transport)
+        let connection = try #require(transport.lastConnection)
+        pty.closeDelay = .milliseconds(200)
+        let reconnect = Task { await session.reconnect() }
+        try await Task.sleep(for: .milliseconds(50))
+        await session.detach()
+        // старый канал закрыт, вытесненный «Переподключить» нового не открыл
+        #expect(pty.isClosed)
+        #expect(connection.openedPTYs.count == 1)
+        await reconnect.value
+        #expect(connection.openedPTYs.count == 1)
+        #expect(await session.state == .ended)
     }
 }

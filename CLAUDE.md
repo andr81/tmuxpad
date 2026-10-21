@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Состояние репозитория
 
-Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2) вместе с логикой для State без view (план 3). Приложение `TmuxPad` (только на Mac) после планов 4 `app-foundation` и 5 `app-sidebar` умеет ключи, серверы, проверку и подготовку сервера, передачу токена, журнал диагностики, живое дерево сайдбара, мастера «Новая сессия» и «Подключиться» и kill; вместо терминала деталь показывает заглушку `SessionPlaceholderView` (терминал — план 6).
+Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2) вместе с логикой для State без view (план 3). Приложение `TmuxPad` (только на Mac) после планов 4 `app-foundation`, 5 `app-sidebar` и 6 `app-terminal` умеет ключи, серверы, проверку и подготовку сервера, передачу токена, журнал диагностики, живое дерево сайдбара, мастера «Новая сессия» и «Подключиться», kill и живой терминал SwiftTerm: открытые терминалы с переключением `⌘1…⌘9`, скролл с чипом «Прокрутка ✕», плашки состояний, меню `[⋯]`, pinch-шрифт. Фон, смена сети, восстановление открытых после перезапуска, онбординг и настройки терминала — план 7.
 
 Раскладка `host/`:
 - `host/tmuxpad-host.sh` — сам скрипт; `host/README.md` — подкоманды, коды выхода, форматы, файлы состояния;
@@ -43,16 +43,17 @@ shellcheck -s bash host/tests/bench.sh TmuxPadCore/scripts/test.sh
 - `project.yml` — XcodeGen, единственный источник настроек проекта;
 - `App/TmuxPadApp.swift` (`@main`), `App/AppEnvironment.swift` — composition root: пул, хранилища, журнал, модели;
 - `App/Platform/` — Keychain (`Keychain.swift`), протокол `AppKeyStore` (создание и импорт ключей; `KeychainKeyStore` в приложении, `InMemoryKeyStore` в тестах), `KeychainKeyStore` (Secure Enclave P-256 и Ed25519), `KeychainHostKeyStore`, `JSONFileStore` (`servers.json`, `keys.json` в Application Support), `DeviceIdentity`;
-- `App/State/` — `@MainActor @Observable` модели: `ServerStore`, `KeyLibrary`, `ServerCheckModel`, `DiagnosticsModel`, `TreeModel` (обёртка над `TreeRefresher` ядра), `OpenSessionsModel` (ростер открытых и выделение), `SessionActions` (open/take/detach/kill/new, `tmux attach` для копирования); машины шагов мастеров без SwiftUI — `NewSessionFlow`, `AttachFlow`;
-- `App/UI/` — SwiftUI: `Root/` (`RootView`, `SessionPlaceholderView`), `Sidebar/` (`SidebarView`, строки сервера, проекта и сессии, подтверждения), `Wizards/` (`NewSessionWizard` с шагами `ServerPickStep`/`ProjectPickStep`/`NameStep`, `AttachWizard`), `Settings/` (ключи, серверы, проверка, токен, диагностика), `ErrorText.swift` (`userText(_:)`), `ErrorAlert.swift` (`errorAlert(_:message:)`), `DoctorText.swift`;
-- `AppTests/` — Swift Testing в симуляторе, хост — приложение; `ServerCheckBenchTests` и `SidebarBenchTests` против стенда, без него пропускаются; `AppTests/Support/` — хелперы;
+- `App/State/` — `@MainActor @Observable` модели: `ServerStore`, `KeyLibrary`, `ServerCheckModel`, `DiagnosticsModel`, `TreeModel` (обёртка над `TreeRefresher` ядра), `OpenSessionsModel` (ростер, выделение и открытые терминалы), `OpenTerminal` (один открытый терминал: `TerminalSession` ядра, view, состояние, чип), `TerminalAppearance` (размер шрифта на устройство), `AppNavigation` (листы мастеров и видимость сайдбара для шорткатов), `SessionActions` (open/take/detach/kill/new, `tmux attach` для копирования); машины шагов мастеров без SwiftUI — `NewSessionFlow`, `AttachFlow`;
+- `App/Terminal/` — UIKit-обвязка SwiftTerm: `SwiftTermSurface` (`TerminalSurface` ядра), `TmuxTerminalView` (подкласс `TerminalView`: шрифт, Option = Meta, мышь, pinch), `TerminalDelegate` (OSC 52, ссылки, bell, resize), `InputPump` (очередь ввода в `TerminalSession.input`);
+- `App/UI/` — SwiftUI: `Root/` (`RootView`, `SessionCommands` — меню «Сессии» с ⌘-шорткатами, `StartupErrorView`), `Terminal/` (`TerminalScreen`, `TerminalContainerView`, `TerminalHeader`, `TerminalOverlay` — плашки, `ScrollChip`, `TerminalMenu` — `[⋯]`), `Sidebar/` (`SidebarView`, строки сервера, проекта и сессии, подтверждения), `Wizards/` (`NewSessionWizard` с шагами `ServerPickStep`/`ProjectPickStep`/`NameStep`, `AttachWizard`), `Settings/` (ключи, серверы, проверка, токен, диагностика), `ErrorText.swift` (`userText(_:)`), `ErrorAlert.swift` (`errorAlert(_:message:)`), `DoctorText.swift`;
+- `AppTests/` — Swift Testing в симуляторе, хост — приложение; `ServerCheckBenchTests`, `SidebarBenchTests` и `TerminalBenchTests` против стенда, без него пропускаются; `AppTests/Support/` — хелперы;
 - `scripts/ios-test.sh` — `xcodegen generate` → стенд → `xcodebuild test`.
 
 Приложение собирается и тестируется только на Mac: Xcode 26, `brew install xcodegen coreutils`, Docker Desktop или OrbStack (для стенда), симулятор iPad с iOS 17+. `TmuxPad.xcodeproj` генерирует `xcodegen generate` из `project.yml` и не коммитится (он в `.gitignore`, как и `App/Info.plist`); правки проекта — только в `project.yml`. `scripts/ios-test.sh` сам вызывает `xcodegen generate`, выбирает симулятор (`TMUXPAD_SIM` — UDID или имя, иначе первый iPad), поднимает стенд, если не передан `--no-bench`, и передаёт лишние аргументы в `xcodebuild test`; результат — `build/TestResults.xcresult`. `AppTests` не зависит от `TmuxPadCore` напрямую (модуль виден через приложение-хост): прямая зависимость ломает линковку пакетных фреймворков.
 
 ```
 xcodegen generate
-xcodebuild build -project TmuxPad.xcodeproj -scheme TmuxPad -destination 'generic/platform=iOS Simulator' -quiet
+xcodebuild build -project TmuxPad.xcodeproj -scheme TmuxPad -destination 'generic/platform=iOS Simulator' -skipPackagePluginValidation -quiet  # флаг — build-плагин SwiftTerm
 scripts/ios-test.sh                                   # стенд + все AppTests в симуляторе
 scripts/ios-test.sh --no-bench                        # только юнит, без Docker
 scripts/ios-test.sh -only-testing:AppTests/ServerStoreTests
@@ -62,6 +63,8 @@ shellcheck -s bash scripts/ios-test.sh
 Стенд с Docker Desktop падает на `docker-credential-desktop: executable file not found`, если в `PATH` нет `/Applications/Docker.app/Contents/Resources/bin` (так бывает в неинтерактивном шелле): добавь его перед `ios-test.sh` и `bench.sh`.
 
 `scripts/ios-test.sh` тоже идёт под bash 3.2 macOS (те же ограничения, что у `bench.sh`). Предупреждения сборки в коде приложения — ошибка; предупреждения внутри зависимостей (`… is missing a dependency on …` у NIO) не считаются.
+
+`xcodebuild` переписывает `TmuxPadCore/Package.resolved` пинами графа приложения (SwiftTerm и его зависимости); ядру они не нужны — такие правки не коммить, верни файл `git checkout TmuxPadCore/Package.resolved`.
 
 Решения, которые меняют поведение, сначала вносятся в спеку, потом в код.
 
@@ -80,7 +83,7 @@ TmuxPad — iPad-клиент (iPadOS 17+, Swift 6, SwiftUI) для работы
 - **Keepalive — прикладной exec-пинг `true`.** В swift-nio-ssh/Citadel встроенного keepalive нет.
 - **`attach` без `-d`.** Приложение выкидывает только собственных зависших клиентов (`detach-client` по файлам `~/.tmuxpad/clients/<pid>` с тем же `TMUXPAD_CLIENT`); чужих выкидывает только `take` по явной кнопке «Забрать» (§6.1). Размер окна решает `window-size latest`, отсюда порог tmux ≥ 3.1. `list` отдаёт число чужих (`others`), а не `session_attached`.
 - **Ввод в copy-mode tmux глотается.** Перед первым вводом после скролла приложение вызывает `copy-cancel NAME` через exec и ждёт его (§3.5). Биндинги tmux и глобальный `mouse on` в `~/.tmux.conf` не трогаем: `mouse` ставится на сессию в `new`/`attach`.
-- **Мышиные отчёты SwiftTerm идут в PTY мимо `copy-cancel`** (`TerminalSession.input`, разбор — `MouseReport`), иначе второй шаг прокрутки выводит pane из copy-mode. Клавиатура и мышь приходят из SwiftTerm одним делегатным `send`.
+- **Мышиные отчёты и focus-отчёты (`ESC [ I`/`ESC [ O`) SwiftTerm идут в PTY мимо `copy-cancel`** (`TerminalSession.input`, разбор — `MouseReport`), иначе второй шаг прокрутки выводит pane из copy-mode. Клавиатура и мышь приходят из SwiftTerm одним делегатным `send`.
 - **Таргеты tmux в скрипте**: для pane/окна (`send-keys -X`, `set`/`show` любых опций, включая session-опцию `mouse`) — `=NAME:`, голый `=NAME` даёт `can't find pane` или `no such session`; для session-команд — `=NAME`.
 - **Агент запускается через `send-keys` во внутренний шелл tmux-сессии**, а не как её команда: выход из claude не должен убивать сессию.
 - **Имя Claude-сессии = имя tmux-сессии** (`claude -n NAME --session-id <uuid>`); после ребута сервера — `--resume <uuid>`, UUID в `~/.tmuxpad/NAME.claude`.
@@ -88,11 +91,14 @@ TmuxPad — iPad-клиент (iPadOS 17+, Swift 6, SwiftUI) для работы
 - **Каналы SSH ядро открывает через NIOSSH напрямую** (`SessionChannel`, `NIOSSHHandler.createChannel`), не через `executeCommand`/`withPTY` Citadel: те теряют stderr, не дают stdin с EOF и открывают shell вместо exec.
 - **`SSHTransport` — единственная точка контакта с сетью**; пул и терминал тестируются на фейке (`FakeTransport`).
 - **Терминал — за протоколом `TerminalSurface`**, чтобы SwiftTerm можно было заменить на libghostty.
+- **Ввод из SwiftTerm идёт в ядро только через `InputPump` → `TerminalSession.input`**, не через `send`: делегат зовётся на main синхронно, `Task` на каждый вызов перемешал бы байты, а `send` мимо `input` пропустил бы `copy-cancel` и разбор мышиных отчётов.
+- **Один `TmuxTerminalView` на открытый терминал** (`OpenTerminal.view`), он не пересоздаётся при переключении: `TerminalContainerView` только снимает старый view и ставит текущий. Иначе теряется экран и переключение перестаёт быть мгновенным.
+- **SwiftTerm закреплён точной версией** (`exactVersion` в `project.yml`): колесо от drag пальцем — часть контракта §3.5. При обновлении перепроверить, что SwiftTerm шлёт колесо в той форме, которую разбирает `MouseReport` ядра (`TerminalBenchTests.wheelUpEntersCopyModeAndTypingLeavesIt`).
 - **Приложение не логирует токен Claude и приватные ключи**: ни в `DiagnosticsLog`, ни в `print`/`os_log`, ни в тексты ошибок.
 - **Keychain — только через `App/Platform/Keychain.swift`** (`SecItem*` больше нигде): там `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` и сервисы `dev.tmuxpad.*`.
 - **Вопрос «Доверять» — по несовпадению отпечатка с `ServerConfig.hostKeyFingerprint`, а не по `hostKeyFirstSeen`** (`ServerCheckModel.connectTrusted`): ядро пишет ключ в `HostKeyStore` до ответа пользователя. Без вопроса конфиг догоняет только копия сервера, у которой этот отпечаток уже подтверждён для того же `host:port`. Смена адреса в `ServerStore.update` очищает отпечаток. Несовпадение с непустым отпечатком в конфиге (у копии без своего — в конфиге другого сервера с тем же адресом) — не вопрос, а блокировка `hostKeyChanged` с возвратом подтверждённого отпечатка в `HostKeyStore`; поэтому «Сбросить» очищает отпечаток у всех серверов с этим адресом.
 - **OpenSSH-текст Ed25519 пишет `SSHKeys.openSSHEd25519` ядра** (им пользуются `SSHKeys.generateEd25519` и `KeychainKeyStore`), не `makeSSHRepresentation` Citadel: при комментарии длиной 5 по модулю 8 тот даёт файл, который Citadel не читает (`invalidPadding`). Комментарий ключа (`KeychainKeyStore.comment(for:)`) — только `[A-Za-z0-9._-]`: он попадает в shell-команду `authorizedKeysCommand`.
-- **Действия над сессией — только через `SessionActions`** (`App/State/SessionActions.swift`): контекст-меню, свайп, мастера и (план 6) меню над терминалом зовут одни и те же `open`/`take`/`detach`/`kill`/`create`, а не `HostAPI` или `OpenSessionsModel` напрямую; подтверждения — в UI. `take` — только из «Забрать».
+- **Действия над сессией — только через `SessionActions`** (`App/State/SessionActions.swift`): контекст-меню, свайп, мастера, плашки и меню `[⋯]` над терминалом зовут одни и те же `open`/`take`/`detach`/`kill`/`create`, а не `HostAPI` или `OpenSessionsModel` напрямую; подтверждения — в UI. `take` — только из «Забрать».
 - **Ошибки ядра показываются пользователю через `userText(_:)`** из `App/UI/ErrorText.swift`: у `SSHError`/`HostError` английские `description`, новый случай в ядре — новый русский текст и строка в `ErrorTextTests`.
 - iPadOS рвёт сокеты в фоне; устойчивость даёт tmux, приложение переподключается по `scenePhase` и `NWPathMonitor` (§6).
 

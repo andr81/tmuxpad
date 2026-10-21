@@ -30,18 +30,8 @@ final class SidebarBenchTests {
         await env.pool.disconnectAll()
     }
 
-    /// Сервер стенда с подтверждённым отпечатком и установленным скриптом.
     private func preparedServer() async throws -> ServerConfig {
-        let server = try await Bench.addServer(to: env)
-        let model = ServerCheckModel(serverID: server.id, environment: env)
-        await model.check().value
-        await model.trust().value
-        await model.prepare().value
-        guard case .done(.ready, _) = model.state else {
-            Issue.record("expected done(.ready), got \(model.state)")
-            throw CancellationError()
-        }
-        return try #require(env.servers.server(id: server.id))
+        try await Bench.preparedServer(in: env)
     }
 
     @Test func benchOnlineWithProjects() async throws {

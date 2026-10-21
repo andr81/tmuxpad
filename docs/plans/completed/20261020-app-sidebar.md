@@ -224,12 +224,12 @@ ServerPickStep,ProjectPickStep,NameStep}.swift` (create), `App/UI/Sidebar/Sideba
 **Файлы:** `CLAUDE.md`, `docs/tmuxpad-spec.md` (§11 — отметки фазы 3), `docs/plans/
 20261020-app-sidebar.md` (move).
 
-- [ ] `CLAUDE.md`: раскладка `App/UI/Sidebar`, `App/UI/Wizards`, `App/State`; инвариант
+- [x] `CLAUDE.md`: раскладка `App/UI/Sidebar`, `App/UI/Wizards`, `App/State`; инвариант
       «действия над сессией — только через `SessionActions`».
-- [ ] Спека §11: отметить пункты фазы 3; расхождения поведения со спекой (если были) — правкой
+- [x] Спека §11: отметить пункты фазы 3; расхождения поведения со спекой (если были) — правкой
       спеки в этом же коммите.
-- [ ] Полный прогон Validation Commands; в progress-лог — число тестов.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Полный прогон Validation Commands; в progress-лог — число тестов.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
 
 ## Post-Completion
 

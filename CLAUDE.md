@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Состояние репозитория
 
-Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2) вместе с логикой для State без view (план 3). Приложение `TmuxPad` (только на Mac) после плана 4 `app-foundation` умеет ключи, серверы, проверку и подготовку сервера, передачу токена и журнал диагностики; сайдбар — заглушка (план 5), терминала ещё нет (план 6).
+Спецификация `docs/tmuxpad-spec.md` — источник правды по требованиям, архитектуре и плану (фазы 0–7, §11). Готовы host-скрипт с его Docker-стендом и SwiftPM-пакет ядра `TmuxPadCore` (§5.2) вместе с логикой для State без view (план 3). Приложение `TmuxPad` (только на Mac) после планов 4 `app-foundation` и 5 `app-sidebar` умеет ключи, серверы, проверку и подготовку сервера, передачу токена, журнал диагностики, живое дерево сайдбара, мастера «Новая сессия» и «Подключиться» и kill; вместо терминала деталь показывает заглушку `SessionPlaceholderView` (терминал — план 6).
 
 Раскладка `host/`:
 - `host/tmuxpad-host.sh` — сам скрипт; `host/README.md` — подкоманды, коды выхода, форматы, файлы состояния;
@@ -43,8 +43,8 @@ shellcheck -s bash host/tests/bench.sh TmuxPadCore/scripts/test.sh
 - `project.yml` — XcodeGen, единственный источник настроек проекта;
 - `App/TmuxPadApp.swift` (`@main`), `App/AppEnvironment.swift` — composition root: пул, хранилища, журнал, модели;
 - `App/Platform/` — Keychain (`Keychain.swift`), протокол `AppKeyStore` (создание и импорт ключей; `KeychainKeyStore` в приложении, `InMemoryKeyStore` в тестах), `KeychainKeyStore` (Secure Enclave P-256 и Ed25519), `KeychainHostKeyStore`, `JSONFileStore` (`servers.json`, `keys.json` в Application Support), `DeviceIdentity`;
-- `App/State/` — `@MainActor @Observable` модели: `ServerStore`, `KeyLibrary`, `ServerCheckModel`, `DiagnosticsModel`;
-- `App/UI/` — SwiftUI: `Root/`, `Settings/` (ключи, серверы, проверка, токен, диагностика), `ErrorText.swift` (`userText(_:)`), `ErrorAlert.swift` (`errorAlert(_:message:)`), `DoctorText.swift`;
+- `App/State/` — `@MainActor @Observable` модели: `ServerStore`, `KeyLibrary`, `ServerCheckModel`, `DiagnosticsModel`, `TreeModel` (обёртка над `TreeRefresher` ядра), `OpenSessionsModel` (ростер открытых и выделение), `SessionActions` (open/take/detach/kill/new, `tmux attach` для копирования); машины шагов мастеров без SwiftUI — `NewSessionFlow`, `AttachFlow`;
+- `App/UI/` — SwiftUI: `Root/` (`RootView`, `SessionPlaceholderView`), `Sidebar/` (`SidebarView`, строки сервера, проекта и сессии, подтверждения), `Wizards/` (`NewSessionWizard` с шагами `ServerPickStep`/`ProjectPickStep`/`NameStep`, `AttachWizard`), `Settings/` (ключи, серверы, проверка, токен, диагностика), `ErrorText.swift` (`userText(_:)`), `ErrorAlert.swift` (`errorAlert(_:message:)`), `DoctorText.swift`;
 - `AppTests/` — Swift Testing в симуляторе, хост — приложение; `ServerCheckBenchTests` против стенда, без него пропускаются; `AppTests/Support/` — хелперы;
 - `scripts/ios-test.sh` — `xcodegen generate` → стенд → `xcodebuild test`.
 
@@ -92,6 +92,7 @@ TmuxPad — iPad-клиент (iPadOS 17+, Swift 6, SwiftUI) для работы
 - **Keychain — только через `App/Platform/Keychain.swift`** (`SecItem*` больше нигде): там `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` и сервисы `dev.tmuxpad.*`.
 - **Вопрос «Доверять» — по несовпадению отпечатка с `ServerConfig.hostKeyFingerprint`, а не по `hostKeyFirstSeen`** (`ServerCheckModel.connectTrusted`): ядро пишет ключ в `HostKeyStore` до ответа пользователя. Без вопроса конфиг догоняет только копия сервера, у которой этот отпечаток уже подтверждён для того же `host:port`. Смена адреса в `ServerStore.update` очищает отпечаток. Несовпадение с непустым отпечатком в конфиге (у копии без своего — в конфиге другого сервера с тем же адресом) — не вопрос, а блокировка `hostKeyChanged` с возвратом подтверждённого отпечатка в `HostKeyStore`; поэтому «Сбросить» очищает отпечаток у всех серверов с этим адресом.
 - **OpenSSH-текст Ed25519 пишет `SSHKeys.openSSHEd25519` ядра** (им пользуются `SSHKeys.generateEd25519` и `KeychainKeyStore`), не `makeSSHRepresentation` Citadel: при комментарии длиной 5 по модулю 8 тот даёт файл, который Citadel не читает (`invalidPadding`). Комментарий ключа (`KeychainKeyStore.comment(for:)`) — только `[A-Za-z0-9._-]`: он попадает в shell-команду `authorizedKeysCommand`.
+- **Действия над сессией — только через `SessionActions`** (`App/State/SessionActions.swift`): контекст-меню, свайп, мастера и (план 6) меню над терминалом зовут одни и те же `open`/`take`/`detach`/`kill`/`create`, а не `HostAPI` или `OpenSessionsModel` напрямую; подтверждения — в UI. `take` — только из «Забрать».
 - **Ошибки ядра показываются пользователю через `userText(_:)`** из `App/UI/ErrorText.swift`: у `SSHError`/`HostError` английские `description`, новый случай в ядре — новый русский текст и строка в `ErrorTextTests`.
 - iPadOS рвёт сокеты в фоне; устойчивость даёт tmux, приложение переподключается по `scenePhase` и `NWPathMonitor` (§6).
 

@@ -215,6 +215,19 @@ final class ServerCheckModel {
         if env.servers.isConfirmedElsewhere(fingerprint, for: config) {
             return await store(fingerprint: fingerprint) ? connection : nil
         }
+        // подтверждённый ключ сменился, а `HostKeyStore` его не знал (бэкап на новом iPad,
+        // доверие по адресу сбросили у другого сервера): это смена ключа, а не первый коннект
+        if let expected = config.hostKeyFingerprint {
+            await connection.disconnect()
+            do {
+                try await env.hostKeys.save(expected, for: config.host, port: config.port)
+            } catch {
+                fail(error)
+                return nil
+            }
+            state = .hostKeyChanged(expected: expected, actual: fingerprint)
+            return nil
+        }
         pending = next
         state = .trustPrompt(fingerprint: fingerprint)
         return nil

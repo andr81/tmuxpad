@@ -88,6 +88,33 @@ final class ServerCheckBenchTests {
         await finish()
     }
 
+    /// Отпечаток подтверждён в конфиге, а `HostKeyStore` пуст (бэкап восстановлен на новом
+    /// iPad): другой ключ — это смена ключа, а не первый коннект.
+    @Test func confirmedKeyMismatchBlocksWithoutStoredKey() async throws {
+        let server = try await Bench.addServer(to: env)
+        let model = ServerCheckModel(serverID: server.id, environment: env)
+        let fingerprint = try await checkTrusted(model)
+
+        await env.pool.existing(id: server.id)?.disconnect()
+        var config = try #require(env.servers.server(id: server.id))
+        config.hostKeyFingerprint = "SHA256:confirmed"
+        try env.servers.update(config)
+        try await env.hostKeys.reset(host: server.host, port: server.port)
+
+        await model.check().value
+        #expect(model.state == .hostKeyChanged(expected: "SHA256:confirmed", actual: fingerprint))
+        #expect(try await env.hostKeys.fingerprint(for: server.host, port: server.port) == "SHA256:confirmed")
+        #expect(await env.pool.existing(id: server.id)?.state == .disconnected)
+
+        // повторная проверка упирается в ту же блокировку уже в ядре
+        await model.check().value
+        #expect(model.state == .hostKeyChanged(expected: "SHA256:confirmed", actual: fingerprint))
+
+        await model.resetHostKey().value
+        #expect(model.state == .trustPrompt(fingerprint: fingerprint))
+        await finish()
+    }
+
     @Test func rejectForgetsHostKey() async throws {
         let server = try await Bench.addServer(to: env)
         let model = ServerCheckModel(serverID: server.id, environment: env)

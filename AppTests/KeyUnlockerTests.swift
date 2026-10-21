@@ -174,6 +174,25 @@ struct KeyUnlockerTests {
         try await unlocker.authenticate()
         #expect(prompt.calls == 2)
     }
+
+    @Test func backgroundDuringOnUnlockDenies() async throws {
+        let unlocks = Flag(false)
+        let release = Flag(false)
+        let unlocker = KeyUnlocker(prompt: prompt, isRequired: { true }, onUnlock: {
+            unlocks.locked()
+            while !release.value {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+        })
+        let first = Task { try await unlocker.authenticate() }
+        // `onUnlock` в приложении уходит на main: `lock` успевает между ним и возвратом
+        try await waitUntil { unlocks.locks == 1 }
+        await unlocker.lock()
+        release.value = true
+        await #expect(throws: AppError.biometricsDenied) { try await first.value }
+        try await unlocker.authenticate()
+        #expect(prompt.calls == 2)
+    }
 }
 
 @MainActor

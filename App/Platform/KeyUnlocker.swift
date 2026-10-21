@@ -98,6 +98,10 @@ actor KeyUnlocker: KeyUnlocking {
             denied = false
             await onUnlock()
         }
+        // `onUnlock` уходит на main: `lock` за это время закрыл ключ снова
+        guard generation == started else {
+            throw AppError.biometricsDenied
+        }
     }
 
     /// Реконнект пула (`reconnectGate`) идёт с сохранённым `SSHAuth`, мимо `authenticate`: он

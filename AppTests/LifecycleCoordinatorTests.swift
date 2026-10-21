@@ -20,14 +20,23 @@ final class RecordingTargets: LifecycleTargets {
     var calls: [Call] = []
     /// Задержка `reconnectAll`: медленная сеть.
     var reconnectDelay: Duration = .zero
+    /// Задержка `disconnectAll`: закрытие в фоне не успевает до возврата.
+    var disconnectDelay: Duration = .zero
 
-    func disconnectAll() async { calls.append(.disconnectAll) }
+    func disconnectAll() async {
+        calls.append(.disconnectAll)
+        try? await Task.sleep(for: disconnectDelay)
+    }
 
     func reconnectAll(force: Bool) async {
         calls.append(.reconnectAll(force: force))
         try? await Task.sleep(for: reconnectDelay)
     }
 
+    /// Не в `calls`: идёт перед каждым `startTree`.
+    var terminalStarts = 0
+
+    func startTerminals() { terminalStarts += 1 }
     func startTree() { calls.append(.startTree) }
     func stopTree() { calls.append(.stopTree) }
     func refreshTree() async { calls.append(.refreshTree) }
@@ -306,9 +315,12 @@ struct LifecycleUnlockTests {
         #expect(targets.calls == [.authenticate])
         // «Повторить» у терминала: снова отказ, потом успех
         #expect(await coordinator.unlock() == false)
+        #expect(targets.terminalStarts == 0)
         unlocker.granted = true
         #expect(await coordinator.unlock())
         #expect(!coordinator.locked)
+        // восстановленные терминалы упали на отказе Face ID: без сессии они пробуют снова
+        #expect(targets.terminalStarts == 1)
         #expect(targets.calls == [
             .authenticate, .authenticate, .authenticate,
             .reconnectAll(force: false), .startTree, .refreshTree,
@@ -351,6 +363,25 @@ struct LifecycleUnlockTests {
         try await waitUntil { targets.calls.contains(.lock) }
         #expect(targets.calls == [.authenticate, .startTree, .reconnectAll(force: true), .stopTree, .lock])
         reconnect?.cancel()
+    }
+
+    @Test func backgroundWhileWaitingForCloseDoesNotReconnect() async throws {
+        targets.disconnectDelay = .milliseconds(200)
+        coordinator.scenePhaseChanged(.background)
+        try await waitUntil { coordinator.closed && targets.calls.contains(.disconnectAll) }
+        targets.calls = []
+        // возврат ждёт `disconnectAll`, а приложение снова уходит в фон и закрывает ключ
+        let active = coordinator.scenePhaseChanged(.active)
+        try await waitUntil { targets.calls.contains(.authenticate) }
+        coordinator.scenePhaseChanged(.background)
+        await active?.value
+        #expect(!targets.calls.contains(.reconnectAll(force: false)))
+        targets.disconnectDelay = .zero
+        try await waitUntil { targets.calls.contains(.lock) }
+        targets.calls = []
+        // реконнект не потерян: его делает следующий возврат
+        await coordinator.scenePhaseChanged(.active)?.value
+        #expect(targets.calls.contains(.reconnectAll(force: false)))
     }
 
     @Test func unlockWithoutDenialOnlyAsks() async {

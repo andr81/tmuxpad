@@ -104,7 +104,7 @@ final class AppEnvironment {
             tree: tree
         )
         appearance = TerminalAppearance(defaults: defaults)
-        lifecycle = LifecycleCoordinator(targets: AppLifecycleTargets(pool: pool, tree: tree), log: log, unlocker: unlocker)
+        lifecycle = LifecycleCoordinator(targets: AppLifecycleTargets(pool: pool, tree: tree, openSessions: openSessions), log: log, unlocker: unlocker)
         relay.coordinator = lifecycle
         // слабые: задача `start` терминала может пережить окружение (так бывает в `AppTests`)
         let dependencies = OpenTerminal.Dependencies(

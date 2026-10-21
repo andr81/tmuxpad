@@ -15,7 +15,7 @@ final class LifecycleBenchTests {
     init() async throws {
         env = try AppEnvironment.inMemory(directory: directory)
         coordinator = LifecycleCoordinator(
-            targets: AppLifecycleTargets(pool: env.pool, tree: env.tree),
+            targets: AppLifecycleTargets(pool: env.pool, tree: env.tree, openSessions: env.openSessions),
             log: env.log,
             backgroundTasks: FakeBackgroundTasks(),
             closeDelay: .milliseconds(50)

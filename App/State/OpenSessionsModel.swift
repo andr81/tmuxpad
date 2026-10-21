@@ -49,6 +49,14 @@ final class OpenSessionsModel {
         }
     }
 
+    /// Подъём после Face ID или фона: терминалы без сессии (восстановленные до отказа Face ID,
+    /// упавшие на ошибке соединения) пробуют снова; у остальных `start` ничего не делает.
+    func startIdle() {
+        for (key, terminal) in terminals {
+            terminal.start(after: closing[key.serverID].map { Array($0.values) } ?? [])
+        }
+    }
+
     /// Выделение переходит к последней активированной из оставшихся.
     func close(_ key: OpenSessionKey) {
         roster.close(key)

@@ -9,6 +9,8 @@ import UIKit
 protocol LifecycleTargets: AnyObject {
     func disconnectAll() async
     func reconnectAll(force: Bool) async
+    /// Открытые терминалы без сессии (восстановленные до Face ID, упавшие на отказе) пробуют снова.
+    func startTerminals()
     func startTree()
     func stopTree()
     func refreshTree() async
@@ -132,6 +134,11 @@ final class LifecycleCoordinator {
                 return
             }
             await disconnectTask?.value
+            // ушли в фон, пока ждали закрытия: переподключит возврат
+            guard isCurrent(current) else {
+                needsReconnect = true
+                return
+            }
             await targets.reconnectAll(force: true)
             guard await settled(current) else {
                 return
@@ -260,19 +267,26 @@ final class LifecycleCoordinator {
     }
 
     private func resume(_ targets: any LifecycleTargets, _ current: Int) async {
-        guard needsReconnect else {
-            targets.startTree()
-            return
+        let reconnect = needsReconnect
+        if reconnect {
+            // сбрасывается до вызова: закрытие в фоне во время реконнекта ставит его снова
+            needsReconnect = false
+            await disconnectTask?.value
+            // ушли в фон, пока ждали закрытия: ключ уже закрыт, переподключит следующий возврат
+            guard isCurrent(current) else {
+                needsReconnect = true
+                return
+            }
+            await targets.reconnectAll(force: false)
+            guard await settled(current) else {
+                return
+            }
         }
-        // сбрасывается до вызова: закрытие в фоне во время реконнекта ставит его снова
-        needsReconnect = false
-        await disconnectTask?.value
-        await targets.reconnectAll(force: false)
-        guard await settled(current) else {
-            return
-        }
+        targets.startTerminals()
         targets.startTree()
-        await targets.refreshTree()
+        if reconnect {
+            await targets.refreshTree()
+        }
     }
 
     /// Шаг очереди поставлен в текущем `.active`, ухода в фон после него не было.
@@ -346,10 +360,16 @@ final class LifecycleCoordinator {
 final class AppLifecycleTargets: LifecycleTargets {
     private let pool: ConnectionPool
     private let tree: TreeModel
+    private let openSessions: OpenSessionsModel
 
-    init(pool: ConnectionPool, tree: TreeModel) {
+    init(pool: ConnectionPool, tree: TreeModel, openSessions: OpenSessionsModel) {
         self.pool = pool
         self.tree = tree
+        self.openSessions = openSessions
+    }
+
+    func startTerminals() {
+        openSessions.startIdle()
     }
 
     func disconnectAll() async {

@@ -283,6 +283,8 @@ final class ServerCheckModel {
         state = .running(.preparing)
         do {
             let report = try await env.bootstrap.prepare(api: await connection.api)
+            // дерево держит прежний статус скрипта, пока ему не сказать, откуда бы ни шла подготовка
+            await env.tree.markPrepared(serverID)
             state = .done(.ready(version: env.bootstrap.bundledVersion), report)
         } catch {
             fail(error)

@@ -156,15 +156,15 @@ swift test --package-path TmuxPadCore --skip IntegrationTests
 `App/AppEnvironment.swift`, `App/UI/Root/RootView.swift`,
 `AppTests/{OpenSessionsModelTests,SidebarBenchTests}.swift` (create).
 
-- [ ] `AppEnvironment`: `refresher: TreeRefresher` (`auth` — `environment.auth(for:)`,
+- [x] `AppEnvironment`: `refresher: TreeRefresher` (`auth` — `environment.auth(for:)`,
       `bootstrap` — тот же `HostBootstrap`), модели `tree: TreeModel`, `openSessions:
       OpenSessionsModel`.
-- [ ] `TreeModel` по решению 1; `OpenSessionsModel` по решению 2.
-- [ ] `RootView`: `start()`/`stop()` по `scenePhase`; `setServers` при изменении списка
+- [x] `TreeModel` по решению 1; `OpenSessionsModel` по решению 2.
+- [x] `RootView`: `start()`/`stop()` по `scenePhase`; `setServers` при изменении списка
       серверов.
-- [ ] `OpenSessionsModelTests`; в `SidebarBenchTests` — тесты «стенд онлайн с проектами» и
+- [x] `OpenSessionsModelTests`; в `SidebarBenchTests` — тесты «стенд онлайн с проектами» и
       «неверный порт офлайн, стенд онлайн».
-- [ ] `scripts/ios-test.sh` проходит.
+- [x] `scripts/ios-test.sh` проходит.
 
 ### Task 2: сайдбар
 
@@ -173,20 +173,20 @@ swift test --package-path TmuxPadCore --skip IntegrationTests
 `App/UI/Root/SessionPlaceholderView.swift` (create), `AppTests/SessionActionsTests.swift`
 (create).
 
-- [ ] `SidebarView` по решению 3: секции серверов в порядке `ServerStore`, `.refreshable` →
+- [x] `SidebarView` по решению 3: секции серверов в порядке `ServerStore`, `.refreshable` →
       `tree.refresh(force: true)` всех; меню сайдбара (кнопка `…` в тулбаре) с `Toggle` «Показывать все
       проекты»; пустое состояние по решению 7.
-- [ ] `ServerRow`, `ProjectRow`, `SessionRow` по решению 3; контекст-меню проекта — «Новая
+- [x] `ServerRow`, `ProjectRow`, `SessionRow` по решению 3; контекст-меню проекта — «Новая
       сессия здесь»; контекст-меню сессии — по §3.2 через `SessionActions` (решение 4);
       `.swipeActions` — «Завершить» с `role: .destructive`; подтверждения — `
       .confirmationDialog` с именем сессии («Завершить сессию `X`? Процессы в ней будут
       убиты.», «Забрать сессию `X`? Другие клиенты будут отключены.»).
-- [ ] `SessionActions` по решению 4; «Скопировать `tmux attach`» кладёт строку в
+- [x] `SessionActions` по решению 4; «Скопировать `tmux attach`» кладёт строку в
       `UIPasteboard`.
-- [ ] `RootView`: деталь — `SessionPlaceholderView` для `openSessions.selection` (решение 9),
+- [x] `RootView`: деталь — `SessionPlaceholderView` для `openSessions.selection` (решение 9),
       иначе «Выберите сессию»; кнопка `⌘0` по решению 8.
-- [ ] `SessionActionsTests`; тест `kill` в `SidebarBenchTests`.
-- [ ] `scripts/ios-test.sh` проходит.
+- [x] `SessionActionsTests`; тест `kill` в `SidebarBenchTests`.
+- [x] `scripts/ios-test.sh` проходит.
 
 ### Task 3: мастер «Новая сессия»
 
@@ -194,42 +194,42 @@ swift test --package-path TmuxPadCore --skip IntegrationTests
 ServerPickStep,ProjectPickStep,NameStep}.swift` (create), `App/UI/Sidebar/SidebarView.swift`,
 `AppTests/NewSessionFlowTests.swift` (create), `AppTests/SidebarBenchTests.swift`.
 
-- [ ] `NewSessionFlow` по решению 5; создание и обработка ошибок — по решению 6 (метод
+- [x] `NewSessionFlow` по решению 5; создание и обработка ошибок — по решению 6 (метод
       `create(using:) async -> CreateOutcome` с `.created(OpenSessionKey)`, `.conflict`,
       `.invalid(String)`, `.failed(String)`).
-- [ ] Шаги мастера: сервер (список с состоянием доступности, недоступные — неактивны с
+- [x] Шаги мастера: сервер (список с состоянием доступности, недоступные — неактивны с
       причиной), проект (`.searchable`, пустое состояние по решению 7), имя (`TextField` с
       автофокусом, без автокоррекции и автозаглавных, подсказка «Допустимы латинские буквы,
       цифры, `_` и `-`, до 64 символов» под полем при `invalid`, экран конфликта по решению 6).
-- [ ] Вызовы: `[+]` и `⌘N` в тулбаре сайдбара; «Новая сессия здесь» — с предзаполненными
+- [x] Вызовы: `[+]` и `⌘N` в тулбаре сайдбара; «Новая сессия здесь» — с предзаполненными
       сервером и проектом (шаги пропускаются).
-- [ ] `NewSessionFlowTests`; в `SidebarBenchTests` — «создание видно в дереве» и «повторное
+- [x] `NewSessionFlowTests`; в `SidebarBenchTests` — «создание видно в дереве» и «повторное
       имя — конфликт».
-- [ ] `scripts/ios-test.sh` проходит.
+- [x] `scripts/ios-test.sh` проходит.
 
 ### Task 4: мастер «Подключиться»
 
 **Файлы:** `App/State/AttachFlow.swift` (create), `App/UI/Wizards/AttachWizard.swift` (create),
 `App/UI/Sidebar/SidebarView.swift`, `AppTests/AttachFlowTests.swift` (create).
 
-- [ ] `AttachFlow` по решению 5; шаг сервера пропускается при одном сервере.
-- [ ] `AttachWizard`: секции по проектам в порядке `byActivity`, строка — имя, `attached`,
+- [x] `AttachFlow` по решению 5; шаг сервера пропускается при одном сервере.
+- [x] `AttachWizard`: секции по проектам в порядке `byActivity`, строка — имя, `attached`,
       «N мин назад»; тап → `openSessions.open(key)` и закрытие sheet. Пусто — «На сервере нет
       сессий» с кнопкой «Создать» (переход в мастер «Новая сессия» с выбранным сервером).
-- [ ] Вызовы: `[⇄]` и `⌘O`.
-- [ ] `AttachFlowTests`; `scripts/ios-test.sh` проходит.
+- [x] Вызовы: `[⇄]` и `⌘O`.
+- [x] `AttachFlowTests`; `scripts/ios-test.sh` проходит.
 
 ### Task 5: документация, полный прогон, завершение
 
 **Файлы:** `CLAUDE.md`, `docs/tmuxpad-spec.md` (§11 — отметки фазы 3), `docs/plans/
 20261020-app-sidebar.md` (move).
 
-- [ ] `CLAUDE.md`: раскладка `App/UI/Sidebar`, `App/UI/Wizards`, `App/State`; инвариант
+- [x] `CLAUDE.md`: раскладка `App/UI/Sidebar`, `App/UI/Wizards`, `App/State`; инвариант
       «действия над сессией — только через `SessionActions`».
-- [ ] Спека §11: отметить пункты фазы 3; расхождения поведения со спекой (если были) — правкой
+- [x] Спека §11: отметить пункты фазы 3; расхождения поведения со спекой (если были) — правкой
       спеки в этом же коммите.
-- [ ] Полный прогон Validation Commands; в progress-лог — число тестов.
-- [ ] Move this plan to `docs/plans/completed/`; коммит.
+- [x] Полный прогон Validation Commands; в progress-лог — число тестов.
+- [x] Move this plan to `docs/plans/completed/`; коммит.
 
 ## Post-Completion
 

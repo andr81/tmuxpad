@@ -291,6 +291,17 @@ struct ServerConnectionTests {
         #expect(transport.connectAttempts == 1)
     }
 
+    @Test func gateErrorFails() async throws {
+        let transport = FakeTransport()
+        let connection = try Self.make(transport) {
+            throw SSHError.connectFailed("key locked")
+        }
+        try await connection.connect()
+        transport.dropConnection()
+        #expect(try await Bench.eventually { if case .failed = await connection.state { true } else { false } })
+        #expect(transport.connectAttempts == 1)
+    }
+
     @Test func backoffThenFailed() async throws {
         let transport = FakeTransport()
         transport.failNextConnects(10)

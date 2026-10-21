@@ -229,10 +229,19 @@ public actor ServerConnection: ExecRunner {
             await log.record(server: config.label, kind: .reconnect, "attempt \(index + 1) in \(delay): \(lastError)")
             do {
                 try await Task.sleep(for: delay)
+            } catch {
+                return
+            }
+            do {
                 // попытка идёт с сохранённым `auth`: приложение держит её, пока ключ закрыт (Face ID, §8)
                 try await reconnectGate?()
             } catch {
-                return
+                // отказ приложения — `.failed`: ждать дальше нечего, повтор — `reconnectNow`
+                guard current == epoch, !(error is CancellationError) else {
+                    return
+                }
+                lastError = "\(error)"
+                break
             }
             guard current == epoch else {
                 return

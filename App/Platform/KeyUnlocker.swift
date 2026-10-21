@@ -39,6 +39,8 @@ actor KeyUnlocker: KeyUnlocking {
     private let onLock: @Sendable () async -> Void
     private let onUnlock: @Sendable () async -> Void
     private var unlocked = false
+    /// Последний запрос отклонён: ждущий реконнект пула сдаётся, а не висит до `lock`.
+    private var denied = false
     private var pending: Task<Bool, Error>?
     /// Растёт на каждый `lock`: запрос, начатый до ухода в фон, не открывает доступ после него.
     private var generation = 0
@@ -82,19 +84,28 @@ actor KeyUnlocker: KeyUnlocking {
             pending = nil
         }
         guard granted else {
+            if generation == started, !unlocked {
+                denied = true
+            }
             throw AppError.biometricsDenied
         }
         if generation == started, !unlocked {
             unlocked = true
+            denied = false
             await onUnlock()
         }
     }
 
     /// Реконнект пула (`reconnectGate`) идёт с сохранённым `SSHAuth`, мимо `authenticate`: он
     /// ждёт здесь, пока ключ закрыт, и не показывает запрос сам — его покажет координатор,
-    /// «Повторить» или действие с ключом. Отмена задачи — `CancellationError`.
+    /// «Повторить» или действие с ключом. Отмена задачи — `CancellationError`; отказ в запросе
+    /// (уже прошедшем или во время ожидания) — `AppError.biometricsDenied`: соединение уходит в
+    /// `.failed`, у терминала «Повторить», а не вечное «Переподключение…».
     func waitUntilUnlocked() async throws {
         while isRequired(), !unlocked {
+            if denied {
+                throw AppError.biometricsDenied
+            }
             try await Task.sleep(for: .milliseconds(250))
         }
     }
@@ -102,6 +113,7 @@ actor KeyUnlocker: KeyUnlocking {
     func lock() async {
         generation += 1
         unlocked = false
+        denied = false
         pending = nil
         if isRequired() {
             await onLock()

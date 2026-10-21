@@ -77,6 +77,23 @@ struct KeyUnlockerTests {
         #expect(prompt.calls == 1)
     }
 
+    /// Отказ во время ожидания отпускает реконнект ошибкой, а `lock` снова даёт ждать.
+    @Test func waitUntilUnlockedThrowsAfterDenial() async throws {
+        let unlocker = unlocker()
+        let waiter = Task { try await unlocker.waitUntilUnlocked() }
+        try await Task.sleep(for: .milliseconds(100))
+        prompt.granted = false
+        await #expect(throws: AppError.biometricsDenied) { try await unlocker.authenticate() }
+        await #expect(throws: AppError.biometricsDenied) { try await waiter.value }
+        await #expect(throws: AppError.biometricsDenied) { try await unlocker.waitUntilUnlocked() }
+        await unlocker.lock()
+        prompt.granted = true
+        let next = Task { try await unlocker.waitUntilUnlocked() }
+        try await Task.sleep(for: .milliseconds(300))
+        try await unlocker.authenticate()
+        try await next.value
+    }
+
     @Test func asksAgainAfterBackground() async throws {
         let unlocker = unlocker()
         try await unlocker.authenticate()

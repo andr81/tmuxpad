@@ -36,6 +36,10 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: TmuxPad
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # только стандартное шифрование SSH: TestFlight не спрашивает про экспорт на каждой сборке
+        ITSAppUsesNonExemptEncryption: false
         NSFaceIDUsageDescription: Face ID защищает доступ к SSH-ключам, если это включено в настройках.
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
@@ -49,6 +53,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.tmuxpad.app
+        MARKETING_VERSION: "1.0"
+        # номер сборки для TestFlight растёт с каждой загрузкой: `xcodebuild … CURRENT_PROJECT_VERSION=N`
+        CURRENT_PROJECT_VERSION: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
   AppTests:

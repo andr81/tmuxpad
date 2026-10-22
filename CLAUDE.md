@@ -64,6 +64,8 @@ shellcheck -s bash scripts/ios-test.sh
 
 Стенд с Docker Desktop падает на `docker-credential-desktop: executable file not found`, если в `PATH` нет `/Applications/Docker.app/Contents/Resources/bin` (так бывает в неинтерактивном шелле): добавь его перед `ios-test.sh` и `bench.sh`.
 
+Сборка в TestFlight — `scripts/testflight.sh N` (N — номер сборки, больше всех загруженных для текущей `MARKETING_VERSION`); приложение в App Store Connect называется «TmuxPad SSH», подробности в README.
+
 `scripts/ios-test.sh` тоже идёт под bash 3.2 macOS (те же ограничения, что у `bench.sh`). Предупреждения сборки в коде приложения — ошибка; предупреждения внутри зависимостей (`… is missing a dependency on …` у NIO) не считаются.
 
 `xcodebuild` переписывает `TmuxPadCore/Package.resolved` пинами графа приложения (SwiftTerm и его зависимости); ядру они не нужны — такие правки не коммить, верни файл `git checkout TmuxPadCore/Package.resolved`.

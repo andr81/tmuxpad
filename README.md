@@ -91,6 +91,20 @@ xcodebuild build -project TmuxPad.xcodeproj -scheme TmuxPad -destination 'generi
 С бесплатным Apple ID подпись действует 7 дней, потом приложение нужно переустановить из Xcode.
 С Apple Developer Program сборку можно раздавать через TestFlight.
 
+### TestFlight
+
+Приложение заведено в App Store Connect под именем «TmuxPad SSH» (имя «TmuxPad» занято; на
+iPad под иконкой — «TmuxPad»), bundle id `dev.tmuxpad.app`, команда `Z5SCY74SMF`, Apple ID
+приложения 6825827228. Сборка уходит во внутреннее тестирование:
+
+```
+scripts/testflight.sh 2      # номер сборки больше всех загруженных для этой версии
+```
+
+Скрипт собирает архив и загружает его через Apple ID, под которым залогинен Xcode (Settings →
+Accounts). Версия — `MARKETING_VERSION` в `project.yml`; после её смены номера сборок можно
+начинать с 1. Обработка в App Store Connect — 10–30 минут, потом сборка появляется в TestFlight.
+
 ## Тесты
 
 Ядро `TmuxPadCore` и host-скрипт тестируются и на Linux, и на Mac; приложение тестируется

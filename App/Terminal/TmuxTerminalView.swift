@@ -10,6 +10,7 @@ enum TerminalSettings {
     static let themeKey = "terminal.theme"
     static let optionAsMetaKey = "terminal.optionAsMeta"
     static let bellKey = "terminal.bell"
+    static let keyBarKey = "terminal.keyBar"
 
     static let defaultFontSize = 14
     static let fontSizeRange = 9...32
@@ -38,13 +39,18 @@ enum TerminalSettings {
         defaults.string(forKey: bellKey).map { $0 != "off" } ?? TerminalStyle.standard.bell
     }
 
+    static func keyBar(_ defaults: UserDefaults) -> KeyBarMode {
+        defaults.string(forKey: keyBarKey).flatMap(KeyBarMode.init(rawValue:)) ?? TerminalStyle.standard.keyBar
+    }
+
     static func style(_ defaults: UserDefaults) -> TerminalStyle {
         TerminalStyle(
             font: fontName(defaults),
             fontSize: fontSize(defaults),
             theme: theme(defaults),
             optionAsMeta: optionAsMeta(defaults),
-            bell: bellEnabled(defaults)
+            bell: bellEnabled(defaults),
+            keyBar: keyBar(defaults)
         )
     }
 }
@@ -74,6 +80,25 @@ enum TerminalFont: String, CaseIterable, Identifiable {
         case .courierNew: "CourierNewPSMT"
         }
         return name.flatMap { UIFont(name: $0, size: size) } ?? UIFont.monospacedSystemFont(ofSize: size, weight: .regular)
+    }
+}
+
+/// Панель клавиш над клавиатурой (§3.5).
+enum KeyBarMode: String, CaseIterable, Identifiable {
+    /// Встроенный `TerminalAccessory` SwiftTerm.
+    case full
+    /// `CompactKeyBar`: Esc, Ctrl, Tab и стрелки.
+    case compact
+    case hidden
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .full: "Полная"
+        case .compact: "Компактная"
+        case .hidden: "Скрыта"
+        }
     }
 }
 
@@ -138,6 +163,7 @@ struct TerminalStyle: Equatable {
     var theme: AppTheme
     var optionAsMeta: Bool
     var bell: Bool
+    var keyBar: KeyBarMode
 
     /// Значения, когда в `UserDefaults` ничего нет.
     static let standard = TerminalStyle(
@@ -145,13 +171,15 @@ struct TerminalStyle: Equatable {
         fontSize: TerminalSettings.defaultFontSize,
         theme: .system,
         optionAsMeta: true,
-        bell: true
+        bell: true,
+        keyBar: .full
     )
 }
 
 /// `TerminalView` открытой сессии: создаётся один раз и живёт, пока терминал открыт (§5).
 /// ⌘-клавиши SwiftTerm 1.99.0 в `pressesBegan` пропускает, поэтому шорткаты приложения работают
-/// без своего `pressesBegan`. Экранная панель — встроенный `TerminalAccessory`.
+/// без своего `pressesBegan`. Панель клавиш — по настройке: встроенный `TerminalAccessory`,
+/// `CompactKeyBar` или никакой.
 final class TmuxTerminalView: TerminalView {
     /// Порог накопленного масштаба pinch на шаг шрифта.
     static let pinchThreshold: CGFloat = 0.12
@@ -163,6 +191,9 @@ final class TmuxTerminalView: TerminalView {
 
     /// Последний применённый стиль; до первого `apply` — по умолчанию.
     private(set) var style = TerminalStyle.standard
+
+    /// Стоящая панель клавиш; `TerminalAccessory` ставит SwiftTerm при создании view.
+    private(set) var keyBar = KeyBarMode.full
 
     override init(frame: CGRect = .zero) {
         super.init(frame: frame, font: TerminalStyle.standard.font.uiFont(size: TerminalStyle.standard.fontSize))
@@ -193,9 +224,34 @@ final class TmuxTerminalView: TerminalView {
     private func applyNonFont() {
         optionAsMetaKey = style.optionAsMeta
         bellStyle = style.bell ? .sound : .none
+        applyKeyBar()
         // явная тема — своя у view, иначе от окна; палитру выбирает итоговый стиль
         overrideUserInterfaceStyle = style.theme.interfaceStyle
         applyPalette()
+    }
+
+    /// Панель меняется, только если сменилась настройка: иначе пересоздание сбросило бы залипший Ctrl.
+    private func applyKeyBar() {
+        guard style.keyBar != keyBar else {
+            return
+        }
+        keyBar = style.keyBar
+        switch keyBar {
+        case .full:
+            let accessory = TerminalAccessory(
+                frame: CGRect(x: 0, y: 0, width: bounds.width, height: 48), inputViewStyle: .keyboard, container: self
+            )
+            accessory.sizeToFit()
+            inputAccessoryView = accessory
+        case .compact:
+            inputAccessoryView = CompactKeyBar(terminal: self)
+        case .hidden:
+            inputAccessoryView = nil
+        }
+        controlModifier = false
+        if isFirstResponder {
+            reloadInputViews()
+        }
     }
 
     /// Палитра по теме; «как система» — по стилю окна.

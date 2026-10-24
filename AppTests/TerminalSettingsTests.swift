@@ -31,6 +31,7 @@ struct TerminalSettingsTests {
         #expect(TerminalSettings.fontSize(defaults) == TerminalSettings.defaultFontSize)
         #expect(TerminalSettings.optionAsMeta(defaults))
         #expect(TerminalSettings.bellEnabled(defaults))
+        #expect(TerminalSettings.keyBar(defaults) == .full)
     }
 
     @Test(arguments: [(100, 32), (1, 9), (20, 20)])
@@ -57,12 +58,14 @@ struct TerminalSettingsTests {
         defaults.set("dark", forKey: TerminalSettings.themeKey)
         defaults.set(false, forKey: TerminalSettings.optionAsMetaKey)
         defaults.set("off", forKey: TerminalSettings.bellKey)
+        defaults.set("compact", forKey: TerminalSettings.keyBarKey)
         let view = try #require(open(TerminalAppearance(defaults: defaults), ["api"]).first)
         #expect(view.font.fontName == "Menlo-Regular")
         #expect(view.font.pointSize == 18)
         #expect(view.palette == .dark)
         #expect(!view.optionAsMetaKey)
         #expect(view.bellStyle == .none)
+        #expect(view.inputAccessoryView is CompactKeyBar)
     }
 
     @Test func fontReachesOpenTerminals() {
@@ -120,6 +123,30 @@ struct TerminalSettingsTests {
         #expect(defaults.string(forKey: TerminalSettings.bellKey) == "off")
         appearance.bell = true
         #expect(views.allSatisfy { $0.bellStyle == .sound })
+    }
+
+    @Test func keyBarReachesOpenTerminals() {
+        let appearance = TerminalAppearance(defaults: defaults)
+        let views = open(appearance)
+        #expect(views.allSatisfy { $0.inputAccessoryView is TerminalAccessory })
+        appearance.keyBar = .compact
+        #expect(views.allSatisfy { $0.inputAccessoryView is CompactKeyBar })
+        #expect(defaults.string(forKey: TerminalSettings.keyBarKey) == "compact")
+        appearance.keyBar = .hidden
+        #expect(views.allSatisfy { $0.inputAccessoryView == nil })
+        appearance.keyBar = .full
+        #expect(views.allSatisfy { $0.inputAccessoryView is TerminalAccessory })
+    }
+
+    @Test func sameKeyBarKeepsAccessoryAndControl() throws {
+        let appearance = TerminalAppearance(defaults: defaults)
+        let view = try #require(open(appearance, ["api"]).first)
+        appearance.keyBar = .compact
+        let bar = view.inputAccessoryView
+        view.controlModifier = true
+        appearance.bell = false
+        #expect(view.inputAccessoryView === bar)
+        #expect(view.controlModifier)
     }
 
     @Test func applyKeepsViewInstanceAndSkipsSameFont() {

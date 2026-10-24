@@ -39,14 +39,7 @@ struct RootView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    // `⌘0` — в `SessionCommands`
-                    Button("Сайдбар", systemImage: "sidebar.left") {
-                        navigation.sidebarHidden.toggle()
-                    }
-                }
-            }
+            // кнопку сайдбара ставит сам `NavigationSplitView`; `⌘0` — в `SessionCommands`
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()

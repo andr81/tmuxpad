@@ -21,9 +21,12 @@ final class TerminalAppearance {
     var bell: Bool {
         didSet { changed(TerminalSettings.bellKey, bell ? "sound" : "off") }
     }
+    var keyBar: KeyBarMode {
+        didSet { changed(TerminalSettings.keyBarKey, keyBar.rawValue) }
+    }
 
     var style: TerminalStyle {
-        TerminalStyle(font: font, fontSize: fontSize, theme: theme, optionAsMeta: optionAsMeta, bell: bell)
+        TerminalStyle(font: font, fontSize: fontSize, theme: theme, optionAsMeta: optionAsMeta, bell: bell, keyBar: keyBar)
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -37,6 +40,7 @@ final class TerminalAppearance {
         theme = style.theme
         optionAsMeta = style.optionAsMeta
         bell = style.bell
+        keyBar = style.keyBar
     }
 
     /// Терминал открыт: текущие настройки и pinch. Закрытый уходит сам — ссылка слабая.

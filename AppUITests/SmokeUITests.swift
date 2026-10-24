@@ -8,7 +8,7 @@ final class SmokeUITests: XCTestCase {
     @MainActor
     override func setUp() async throws {
         continueAfterFailure = false
-        // настройки — внизу сайдбара; в ландшафте он виден без кнопки «Сайдбар»
+        // настройки — внизу сайдбара; в ландшафте он виден без кнопки сайдбара
         XCUIDevice.shared.orientation = .landscapeLeft
         app = XCUIApplication()
         app.launchArguments = ["-uitest-inmemory"]

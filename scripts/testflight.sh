@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Archive the app and upload it to TestFlight (internal testing) under team Z5SCY74SMF.
+# Archive the app and upload it to TestFlight under team Z5SCY74SMF; the build can go to
+# internal and external testers.
 #
 #   scripts/testflight.sh BUILD_NUMBER      # e.g. scripts/testflight.sh 2
 #

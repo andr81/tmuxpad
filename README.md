@@ -95,7 +95,7 @@ xcodebuild build -project TmuxPad.xcodeproj -scheme TmuxPad -destination 'generi
 
 Приложение заведено в App Store Connect под именем «TmuxPad SSH» (имя «TmuxPad» занято; на
 iPad под иконкой — «TmuxPad»), bundle id `dev.tmuxpad.app`, команда `Z5SCY74SMF`, Apple ID
-приложения 6825827228. Сборка уходит во внутреннее тестирование:
+приложения 6825827228. Сборку можно отдать внутренним и внешним тестерам:
 
 ```
 scripts/testflight.sh 2      # номер сборки больше всех загруженных для этой версии
@@ -104,6 +104,8 @@ scripts/testflight.sh 2      # номер сборки больше всех з�
 Скрипт собирает архив и загружает его через Apple ID, под которым залогинен Xcode (Settings →
 Accounts). Версия — `MARKETING_VERSION` в `project.yml`; после её смены номера сборок можно
 начинать с 1. Обработка в App Store Connect — 10–30 минут, потом сборка появляется в TestFlight.
+Внешние тестеры — отдельная группа в TestFlight; новая версия для них проходит Beta App Review,
+следующие сборки той же версии обычно без ревью.
 
 ## Тесты
 

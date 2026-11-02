@@ -12,7 +12,5 @@
 	<string>automatic</string>
 	<key>manageAppVersionAndBuildNumber</key>
 	<false/>
-	<key>testFlightInternalTestingOnly</key>
-	<true/>
 </dict>
 </plist>

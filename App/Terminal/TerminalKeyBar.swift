@@ -1,10 +1,10 @@
 import SwiftTerm
 import UIKit
 
-/// Компактная панель клавиш (§3.5): Esc, Ctrl, Tab и стрелки одной узкой полосой — для
-/// аппаратной клавиатуры без Esc. Клавиши идут через `TerminalView.send`, как у встроенного
-/// `TerminalAccessory`, а значит через делегат в `InputPump`.
-final class CompactKeyBar: UIInputView, UIInputViewAudioFeedback {
+/// Панель клавиш над системной клавиатурой (§3.5): один узкий ряд того, чего нет ни на экранной
+/// клавиатуре iPad, ни на чехлах — Esc, Ctrl, Tab, ⇧Tab, перевод строки и стрелки. Клавиши идут
+/// через `TerminalView.send`, а значит через делегат в `InputPump`.
+final class TerminalKeyBar: UIInputView, UIInputViewAudioFeedback {
     static let height: CGFloat = 32
 
     /// Задержка перед автоповтором стрелки и его шаг.
@@ -24,13 +24,17 @@ final class CompactKeyBar: UIInputView, UIInputViewAudioFeedback {
         controlButton = makeButton(title: "ctrl", label: "Control")
         controlButton.addAction(UIAction { [weak self] _ in self?.toggleControl() }, for: .touchDown)
         let tab = key(symbol: "arrow.right.to.line.compact", label: "Tab") { $0.send([0x09]) }
+        // ⇧Tab в Claude Code переключает режимы (auto-accept, plan)
+        let backTab = key(symbol: "arrow.left.to.line.compact", label: "Shift-Tab") { $0.send(EscapeSequences.cmdBackTab) }
+        // Ctrl-J — новая строка в поле ввода Claude Code; Shift-Enter экранная клавиатура не даёт
+        let newline = key(symbol: "return", label: "Новая строка") { $0.send([0x0a]) }
         let arrows = [
             repeatingKey(symbol: "arrow.left", label: "Влево") { $0.sendKeyLeft() },
             repeatingKey(symbol: "arrow.down", label: "Вниз") { $0.sendKeyDown() },
             repeatingKey(symbol: "arrow.up", label: "Вверх") { $0.sendKeyUp() },
             repeatingKey(symbol: "arrow.right", label: "Вправо") { $0.sendKeyRight() },
         ]
-        let row = UIStackView(arrangedSubviews: [escape, controlButton, tab, UIView()] + arrows)
+        let row = UIStackView(arrangedSubviews: [escape, controlButton, tab, backTab, newline, UIView()] + arrows)
         row.spacing = 6
         row.translatesAutoresizingMaskIntoConstraints = false
         addSubview(row)
@@ -128,7 +132,7 @@ final class CompactKeyBar: UIInputView, UIInputViewAudioFeedback {
         config.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12)
         let button = UIButton(configuration: config)
         button.accessibilityLabel = label
-        // выбранный Ctrl — залитый, как у `TerminalAccessory`
+        // выбранный Ctrl — залитый
         button.configurationUpdateHandler = { button in
             var config = button.configuration
             config?.baseBackgroundColor = button.isSelected ? .tintColor : nil

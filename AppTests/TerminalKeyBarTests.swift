@@ -5,7 +5,7 @@ import UIKit
 @testable import TmuxPad
 
 @MainActor
-struct CompactKeyBarTests {
+struct TerminalKeyBarTests {
     let view = TmuxTerminalView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
     let recorder = SentRecorder()
 
@@ -14,14 +14,14 @@ struct CompactKeyBarTests {
     }
 
     /// Панель стоит у view, как после `TerminalAppearance`: SwiftTerm читает Ctrl у view, только
-    /// когда панель не `TerminalAccessory`.
-    private func installed() -> CompactKeyBar {
-        let bar = CompactKeyBar(terminal: view)
+    /// когда панель не его `TerminalAccessory`.
+    private func installed() -> TerminalKeyBar {
+        let bar = TerminalKeyBar(terminal: view)
         view.inputAccessoryView = bar
         return bar
     }
 
-    private func button(_ bar: CompactKeyBar, _ label: String) throws -> UIButton {
+    private func button(_ bar: TerminalKeyBar, _ label: String) throws -> UIButton {
         let buttons = bar.subviews.flatMap(\.subviews).compactMap { $0 as? UIButton }
         return try #require(buttons.first { $0.accessibilityLabel == label })
     }
@@ -30,9 +30,11 @@ struct CompactKeyBarTests {
         let bar = installed()
         try button(bar, "Escape").sendActions(for: .touchDown)
         try button(bar, "Tab").sendActions(for: .touchDown)
+        try button(bar, "Shift-Tab").sendActions(for: .touchDown)
+        try button(bar, "Новая строка").sendActions(for: .touchDown)
         try button(bar, "Вверх").sendActions(for: .touchDown)
         try button(bar, "Вверх").sendActions(for: .touchUpInside)
-        #expect(recorder.sent == [[0x1b], [0x09], EscapeSequences.moveUpNormal])
+        #expect(recorder.sent == [[0x1b], [0x09], [0x1b, 0x5b, 0x5a], [0x0a], EscapeSequences.moveUpNormal])
     }
 
     @Test func controlIsStickyUntilNextKey() throws {
@@ -48,8 +50,8 @@ struct CompactKeyBarTests {
         #expect(!control.isSelected)
     }
 
-    @Test func compactBarIsShorterThanFull() {
-        #expect(CompactKeyBar(terminal: view).intrinsicContentSize.height < 48)
+    @Test func barIsOneNarrowRow() {
+        #expect(TerminalKeyBar(terminal: view).intrinsicContentSize.height == TerminalKeyBar.height)
     }
 }
 

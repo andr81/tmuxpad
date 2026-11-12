@@ -2,7 +2,7 @@ import UIKit
 
 /// Держит `TmuxTerminalView` выделенной сессии: при смене выделения снимает старый и ставит
 /// новый, сам `TerminalView` не пересоздаётся (§5). Низ — по клавиатуре: экранная клавиатура и
-/// `TerminalAccessory` не закрывают нижние строки.
+/// панель клавиш не закрывают нижние строки.
 final class TerminalContainerView: UIView {
     private(set) weak var current: TmuxTerminalView?
 

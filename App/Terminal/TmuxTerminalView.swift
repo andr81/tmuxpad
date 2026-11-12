@@ -83,23 +83,14 @@ enum TerminalFont: String, CaseIterable, Identifiable {
     }
 }
 
-/// Панель клавиш над клавиатурой (§3.5).
+/// Панель клавиш над клавиатурой (§3.5). Хранимые значения прежних сборок: `compact` — та же
+/// панель, `full` (встроенный `TerminalAccessory`, убран) не разбирается и даёт умолчание.
 enum KeyBarMode: String, CaseIterable, Identifiable {
-    /// Встроенный `TerminalAccessory` SwiftTerm.
-    case full
-    /// `CompactKeyBar`: Esc, Ctrl, Tab и стрелки.
-    case compact
+    /// `TerminalKeyBar`.
+    case shown = "compact"
     case hidden
 
     var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .full: "Полная"
-        case .compact: "Компактная"
-        case .hidden: "Скрыта"
-        }
-    }
 }
 
 /// Тема приложения и терминала.
@@ -172,14 +163,14 @@ struct TerminalStyle: Equatable {
         theme: .system,
         optionAsMeta: true,
         bell: true,
-        keyBar: .full
+        keyBar: .shown
     )
 }
 
 /// `TerminalView` открытой сессии: создаётся один раз и живёт, пока терминал открыт (§5).
 /// ⌘-клавиши SwiftTerm 1.99.0 в `pressesBegan` пропускает, поэтому шорткаты приложения работают
-/// без своего `pressesBegan`. Панель клавиш — по настройке: встроенный `TerminalAccessory`,
-/// `CompactKeyBar` или никакой.
+/// без своего `pressesBegan`. Панель клавиш — по настройке `TerminalKeyBar` или никакой;
+/// встроенный `TerminalAccessory` SwiftTerm с его своей клавиатурой не остаётся (§3.5).
 final class TmuxTerminalView: TerminalView {
     /// Порог накопленного масштаба pinch на шаг шрифта.
     static let pinchThreshold: CGFloat = 0.12
@@ -192,8 +183,9 @@ final class TmuxTerminalView: TerminalView {
     /// Последний применённый стиль; до первого `apply` — по умолчанию.
     private(set) var style = TerminalStyle.standard
 
-    /// Стоящая панель клавиш; `TerminalAccessory` ставит SwiftTerm при создании view.
-    private(set) var keyBar = KeyBarMode.full
+    /// Стоящая панель клавиш; `nil` — ещё `TerminalAccessory`, который SwiftTerm ставит при
+    /// создании view, до первого `applyKeyBar` в `init`.
+    private(set) var keyBar: KeyBarMode?
 
     override init(frame: CGRect = .zero) {
         super.init(frame: frame, font: TerminalStyle.standard.font.uiFont(size: TerminalStyle.standard.fontSize))
@@ -236,15 +228,9 @@ final class TmuxTerminalView: TerminalView {
             return
         }
         keyBar = style.keyBar
-        switch keyBar {
-        case .full:
-            let accessory = TerminalAccessory(
-                frame: CGRect(x: 0, y: 0, width: bounds.width, height: 48), inputViewStyle: .keyboard, container: self
-            )
-            accessory.sizeToFit()
-            inputAccessoryView = accessory
-        case .compact:
-            inputAccessoryView = CompactKeyBar(terminal: self)
+        switch style.keyBar {
+        case .shown:
+            inputAccessoryView = TerminalKeyBar(terminal: self)
         case .hidden:
             inputAccessoryView = nil
         }

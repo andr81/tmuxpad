@@ -24,6 +24,11 @@ final class TerminalAppearance {
     var keyBar: KeyBarMode {
         didSet { changed(TerminalSettings.keyBarKey, keyBar.rawValue) }
     }
+    /// Для переключателя в настройках.
+    var keyBarShown: Bool {
+        get { keyBar == .shown }
+        set { keyBar = newValue ? .shown : .hidden }
+    }
 
     var style: TerminalStyle {
         TerminalStyle(font: font, fontSize: fontSize, theme: theme, optionAsMeta: optionAsMeta, bell: bell, keyBar: keyBar)

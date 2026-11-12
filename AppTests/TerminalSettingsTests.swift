@@ -31,7 +31,7 @@ struct TerminalSettingsTests {
         #expect(TerminalSettings.fontSize(defaults) == TerminalSettings.defaultFontSize)
         #expect(TerminalSettings.optionAsMeta(defaults))
         #expect(TerminalSettings.bellEnabled(defaults))
-        #expect(TerminalSettings.keyBar(defaults) == .full)
+        #expect(TerminalSettings.keyBar(defaults) == .shown)
     }
 
     @Test(arguments: [(100, 32), (1, 9), (20, 20)])
@@ -58,14 +58,14 @@ struct TerminalSettingsTests {
         defaults.set("dark", forKey: TerminalSettings.themeKey)
         defaults.set(false, forKey: TerminalSettings.optionAsMetaKey)
         defaults.set("off", forKey: TerminalSettings.bellKey)
-        defaults.set("compact", forKey: TerminalSettings.keyBarKey)
+        defaults.set("hidden", forKey: TerminalSettings.keyBarKey)
         let view = try #require(open(TerminalAppearance(defaults: defaults), ["api"]).first)
         #expect(view.font.fontName == "Menlo-Regular")
         #expect(view.font.pointSize == 18)
         #expect(view.palette == .dark)
         #expect(!view.optionAsMetaKey)
         #expect(view.bellStyle == .none)
-        #expect(view.inputAccessoryView is CompactKeyBar)
+        #expect(view.inputAccessoryView == nil)
     }
 
     @Test func fontReachesOpenTerminals() {
@@ -128,20 +128,24 @@ struct TerminalSettingsTests {
     @Test func keyBarReachesOpenTerminals() {
         let appearance = TerminalAppearance(defaults: defaults)
         let views = open(appearance)
-        #expect(views.allSatisfy { $0.inputAccessoryView is TerminalAccessory })
-        appearance.keyBar = .compact
-        #expect(views.allSatisfy { $0.inputAccessoryView is CompactKeyBar })
-        #expect(defaults.string(forKey: TerminalSettings.keyBarKey) == "compact")
+        #expect(views.allSatisfy { $0.inputAccessoryView is TerminalKeyBar })
         appearance.keyBar = .hidden
         #expect(views.allSatisfy { $0.inputAccessoryView == nil })
-        appearance.keyBar = .full
-        #expect(views.allSatisfy { $0.inputAccessoryView is TerminalAccessory })
+        #expect(defaults.string(forKey: TerminalSettings.keyBarKey) == "hidden")
+        appearance.keyBar = .shown
+        #expect(views.allSatisfy { $0.inputAccessoryView is TerminalKeyBar })
+    }
+
+    /// Прежние сборки: `compact` — та же панель, `full` (`TerminalAccessory`) — умолчание.
+    @Test(arguments: ["compact", "full"])
+    func storedKeyBarOfOldBuildsShowsBar(_ stored: String) {
+        defaults.set(stored, forKey: TerminalSettings.keyBarKey)
+        #expect(TerminalSettings.keyBar(defaults) == .shown)
     }
 
     @Test func sameKeyBarKeepsAccessoryAndControl() throws {
         let appearance = TerminalAppearance(defaults: defaults)
         let view = try #require(open(appearance, ["api"]).first)
-        appearance.keyBar = .compact
         let bar = view.inputAccessoryView
         view.controlModifier = true
         appearance.bell = false

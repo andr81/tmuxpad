@@ -39,13 +39,9 @@ struct TerminalSettingsView: View {
                 Text("Option на аппаратной клавиатуре отправляет Esc-префикс, как Alt в терминале.")
             }
             Section {
-                Picker("Панель клавиш", selection: $appearance.keyBar) {
-                    ForEach(KeyBarMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
+                Toggle("Панель клавиш", isOn: $appearance.keyBarShown)
             } footer: {
-                Text("Полная — для экранной клавиатуры. Компактная — Esc, Ctrl, Tab и стрелки, для клавиатуры без Esc. Скрыта — для полной аппаратной клавиатуры.")
+                Text("Ряд над клавиатурой: Esc, Ctrl, Tab, ⇧Tab, новая строка и стрелки. Выключите для полной аппаратной клавиатуры.")
             }
         }
         .navigationTitle("Терминал")

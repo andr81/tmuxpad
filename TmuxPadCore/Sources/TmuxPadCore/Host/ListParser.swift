@@ -26,7 +26,8 @@ public enum ListParser {
                 }
                 sessions.append(RemoteSession(
                     name: String(fields[1]),
-                    project: String(fields[3]),
+                    // пустое поле — сессия вне корня проектов (скрипт версии 2)
+                    project: fields[3].isEmpty ? nil : String(fields[3]),
                     otherClients: others,
                     lastActivity: Date(timeIntervalSince1970: TimeInterval(activity))
                 ))

@@ -4,7 +4,7 @@ test_basic_version() {
 	local out
 	out=$(h version)
 	assert_eq 0 $? "exit code"
-	assert_eq 'tmuxpad-host 1' "$out" "version"
+	assert_eq 'tmuxpad-host 2' "$out" "version"
 }
 
 test_basic_usage() {

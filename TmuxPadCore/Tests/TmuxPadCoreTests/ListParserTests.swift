@@ -30,6 +30,14 @@ import Testing
         ])
     }
 
+    @Test func emptyProjectIsNil() throws {
+        let snapshot = try ListParser.parse("V\t1\nS\thome\t1\t\t1760990000\n", fetchedAt: now)
+        #expect(snapshot.sessions == [
+            RemoteSession(name: "home", project: nil, otherClients: 1,
+                          lastActivity: Date(timeIntervalSince1970: 1_760_990_000)),
+        ])
+    }
+
     @Test func emptyList() throws {
         let snapshot = try ListParser.parse("V\t1\n", fetchedAt: now)
         #expect(snapshot.sessions.isEmpty)

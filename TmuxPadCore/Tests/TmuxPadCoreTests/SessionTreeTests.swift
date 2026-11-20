@@ -3,7 +3,7 @@ import Testing
 @testable import TmuxPadCore
 
 @Suite struct SessionTreeTests {
-    private func session(_ name: String, _ project: String, at seconds: TimeInterval = 0, others: Int = 0) -> RemoteSession {
+    private func session(_ name: String, _ project: String?, at seconds: TimeInterval = 0, others: Int = 0) -> RemoteSession {
         RemoteSession(name: name, project: project, otherClients: others, lastActivity: Date(timeIntervalSince1970: seconds))
     }
 
@@ -39,6 +39,20 @@ import Testing
         #expect(tree[0].path == "/p/app")
         #expect(tree[1].path == nil)
         #expect(tree[1].sessions.map(\.session) == [session("ghost", "gone")])
+    }
+
+    @Test func sessionsWithoutProjectGoLastInOneNode() {
+        let snap = snapshot(projects: ["app", "zed"], sessions: [session("s1", "app"), session("b", nil), session("A", nil)])
+        for showEmpty in [false, true] {
+            let tree = SessionTree.build(snapshot: snap, openSessions: ["b"], showEmptyProjects: showEmpty)
+            #expect(tree.map(\.name) == (showEmpty ? ["app", "zed", nil] : ["app", nil]))
+            #expect(tree.last?.id == "")
+            #expect(tree.last?.path == nil)
+            #expect(tree.last?.sessions.map(\.id) == ["A", "b"])
+            #expect(tree.last?.sessions.map(\.isOpen) == [false, true])
+        }
+        let none = SessionTree.build(snapshot: snapshot(projects: ["app"], sessions: []), openSessions: [], showEmptyProjects: true)
+        #expect(none.map(\.name) == ["app"])
     }
 
     @Test func showEmptyProjectsTogglesEmptyNodes() {
@@ -83,5 +97,18 @@ import Testing
         ))
         #expect(groups.map(\.project) == ["p1", "p2"])
         #expect(groups[0].sessions.map(\.name) == ["a", "B"])
+    }
+
+    @Test func byActivityGroupsSessionsWithoutProject() {
+        let groups = SessionTree.byActivity(snapshot: snapshot(
+            projects: ["p"],
+            sessions: [session("h", nil, at: 5), session("p1", "p", at: 5), session("h2", nil, at: 9), session("q", "p", at: 1)]
+        ))
+        #expect(groups.map(\.project) == [nil, "p"])
+        #expect(groups[0].sessions.map(\.name) == ["h2", "h"])
+        let tie = SessionTree.byActivity(snapshot: snapshot(
+            projects: [], sessions: [session("h", nil, at: 5), session("z", "zz", at: 5)]
+        ))
+        #expect(tie.map(\.project) == ["zz", nil])
     }
 }

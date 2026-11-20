@@ -61,7 +61,7 @@ test_doctor_ok() {
 	assert_contains "$out" $'ok\tclaude_name\t'
 	# README.md is a file, not a project
 	assert_contains "$out" $'ok\tprojects\t3 projects in /home/dev/projects'
-	assert_contains "$out" $'ok\tscript\ttmuxpad-host 1'
+	assert_contains "$out" $'ok\tscript\ttmuxpad-host 2'
 }
 
 test_doctor_no_projects_root() {

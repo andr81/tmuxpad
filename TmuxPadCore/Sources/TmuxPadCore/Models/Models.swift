@@ -79,12 +79,13 @@ public struct RemoteProject: Sendable, Codable, Hashable {
 
 public struct RemoteSession: Sendable, Codable, Hashable {
     public var name: String
-    public var project: String
+    /// `nil` — сессия создана не прямо в корне проектов (группа «Без проекта», §3.1).
+    public var project: String?
     /// Клиенты не с этого устройства; > 0 → подпись `attached`.
     public var otherClients: Int
     public var lastActivity: Date
 
-    public init(name: String, project: String, otherClients: Int, lastActivity: Date) {
+    public init(name: String, project: String?, otherClients: Int, lastActivity: Date) {
         self.name = name
         self.project = project
         self.otherClients = otherClients

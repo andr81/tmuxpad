@@ -103,7 +103,7 @@ struct SidebarView: View {
                 ProjectRow(
                     serverID: server.id,
                     project: project,
-                    isExpanded: expanded(server.id, project.name),
+                    isExpanded: expanded(server.id, project.id),
                     newSession: { navigation.newSessionTarget = NewSessionTarget(serverID: server.id, project: project.name) },
                     sessionMenu: menu
                 )

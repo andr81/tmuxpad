@@ -1,8 +1,10 @@
 import SwiftUI
 import TmuxPadCore
 
-/// Проект с сессиями, раскрываемый (§3.1).
+/// Проект с сессиями, раскрываемый (§3.1); узел без имени — группа «Без проекта».
 struct ProjectRow: View {
+    static let unassignedTitle = "Без проекта"
+
     let serverID: UUID
     let project: ProjectNode
     @Binding var isExpanded: Bool
@@ -23,13 +25,22 @@ struct ProjectRow: View {
             }
         } label: {
             Label {
-                Text(project.name)
+                Text(verbatim: project.name ?? Self.unassignedTitle)
             } icon: {
-                Image(systemName: project.path == nil ? "folder.badge.questionmark" : "folder")
+                Image(systemName: icon)
             }
             .contextMenu {
-                Button("Новая сессия здесь", systemImage: "plus", action: newSession)
+                if project.name != nil {
+                    Button("Новая сессия здесь", systemImage: "plus", action: newSession)
+                }
             }
         }
+    }
+
+    private var icon: String {
+        if project.name == nil {
+            return "tray"
+        }
+        return project.path == nil ? "folder.badge.questionmark" : "folder"
     }
 }

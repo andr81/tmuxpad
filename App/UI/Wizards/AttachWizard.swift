@@ -54,7 +54,7 @@ struct AttachWizard: View {
         let groups = flow.groups(snapshot: snapshot)
         return List {
             ForEach(groups, id: \.project) { group in
-                Section(group.project) {
+                Section(group.project ?? ProjectRow.unassignedTitle) {
                     ForEach(group.sessions, id: \.name) { session in
                         Button {
                             attach(session.name)

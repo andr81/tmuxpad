@@ -16,8 +16,8 @@ import Testing
     }
 
     @Test func bundledVersion() throws {
-        #expect(try HostScript.version == 1)
-        #expect(try HostBootstrap().bundledVersion == 1)
+        #expect(try HostScript.version == 2)
+        #expect(try HostBootstrap().bundledVersion == 2)
     }
 
     @Test func versionLineIsRequired() {

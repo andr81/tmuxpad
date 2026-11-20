@@ -18,16 +18,17 @@ P	web	/home/dev/projects/web" "$(grep '^P' <<<"$out")" "projects"
 	assert_eq 0 "$(grep -c '^S' <<<"$out")" "no sessions without a tmux server"
 }
 
-test_list_filters_foreign_sessions() {
+test_list_sessions_outside_projects() {
 	local out
 	session home ''
 	r 'mkdir -p ~/projects/api/sub' && session deep projects/api/sub
 	session zz projects/web
 	session api projects/api
+	r 'mkdir -p ~/elsewhere/web' && session out elsewhere/web
 	out=$(h list)
-	assert_eq "api web" "$(awk -F '\t' '$1 == "S" { printf "%s%s", s, $4; s = " " }' <<<"$out")" "projects of S lines"
-	assert_eq "api zz" "$(awk -F '\t' '$1 == "S" { printf "%s%s", s, $2; s = " " }' <<<"$out")" "names, sorted"
-	assert_eq 2 "$(grep -c '^S' <<<"$out")" "S lines: home and deep are not under the root"
+	assert_eq "api deep home out zz" "$(awk -F '\t' '$1 == "S" { printf "%s%s", s, $2; s = " " }' <<<"$out")" "names, sorted"
+	assert_eq "api,,,,web" "$(awk -F '\t' '$1 == "S" { printf "%s%s", s, $4; s = "," }' <<<"$out")" "projects: empty when not right under the root"
+	assert_eq 5 "$(awk -F '\t' '$1 == "S" && NF == 5' <<<"$out" | wc -l)" "S lines keep five fields"
 }
 
 test_list_activity_is_epoch() {

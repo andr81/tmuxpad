@@ -20,7 +20,7 @@ struct HostBootstrapIntegrationTests {
             try await bootstrap.install(api: api)
             let check = try await connection.exec("test -x ~/.local/bin/tmuxpad-host.sh")
             #expect(check.exitCode == 0)
-            #expect(await bootstrap.status(api: api) == .ready(version: 1))
+            #expect(await bootstrap.status(api: api) == .ready(version: 2))
         }
     }
 
@@ -28,9 +28,9 @@ struct HostBootstrapIntegrationTests {
         try await withoutScript { connection, api in
             let bootstrap = try HostBootstrap()
             try await bootstrap.install(api: api)
-            let sed = try await connection.exec("sed -i 's/^VERSION=1/VERSION=0/' ~/.local/bin/tmuxpad-host.sh")
+            let sed = try await connection.exec("sed -i 's/^VERSION=2/VERSION=0/' ~/.local/bin/tmuxpad-host.sh")
             #expect(sed.exitCode == 0)
-            #expect(await bootstrap.status(api: api) == .outdated(installed: 0, bundled: 1))
+            #expect(await bootstrap.status(api: api) == .outdated(installed: 0, bundled: 2))
         }
     }
 
@@ -43,7 +43,7 @@ struct HostBootstrapIntegrationTests {
             await #expect(throws: (any Error).self) {
                 try await api.run(.install(bytes: bootstrap.script.count), stdin: Data(half))
             }
-            #expect(await bootstrap.status(api: api) == .ready(version: 1))
+            #expect(await bootstrap.status(api: api) == .ready(version: 2))
         }
     }
 
@@ -51,9 +51,9 @@ struct HostBootstrapIntegrationTests {
         try await withoutScript { connection, api in
             let bootstrap = try HostBootstrap()
             try await bootstrap.install(api: api)
-            _ = try await connection.exec("sed -i 's/^VERSION=1/VERSION=0/' ~/.local/bin/tmuxpad-host.sh")
+            _ = try await connection.exec("sed -i 's/^VERSION=2/VERSION=0/' ~/.local/bin/tmuxpad-host.sh")
             let report = try await bootstrap.prepare(api: api)
-            #expect(await bootstrap.status(api: api) == .ready(version: 1))
+            #expect(await bootstrap.status(api: api) == .ready(version: 2))
             #expect(report.ok)
             for key in ["tmux", "projects", "script"] {
                 #expect(report.lines.first { $0.key == key }?.level == .ok, "\(key): \(report.lines)")

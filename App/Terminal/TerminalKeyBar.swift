@@ -2,10 +2,14 @@ import SwiftTerm
 import UIKit
 
 /// Панель клавиш над системной клавиатурой (§3.5): один узкий ряд того, чего нет ни на экранной
-/// клавиатуре iPad, ни на чехлах — Esc, Ctrl, Tab, ⇧Tab, перевод строки и стрелки. Клавиши идут
-/// через `TerminalView.send`, а значит через делегат в `InputPump`.
+/// клавиатуре iPad, ни на чехлах — Esc, Ctrl, Tab, ⇧Tab, перевод строки и стрелки, и последней
+/// кнопка «скрыть клавиатуру»: на iPhone своей такой нет. Клавиши идут через `TerminalView.send`,
+/// а значит через делегат в `InputPump`.
 final class TerminalKeyBar: UIInputView, UIInputViewAudioFeedback {
     static let height: CGFloat = 32
+
+    /// Уже этой ширины (iPhone в портрете) кнопки делят ряд поровну и без пустого промежутка.
+    static let compactWidth: CGFloat = 500
 
     /// Задержка перед автоповтором стрелки и его шаг.
     static let repeatDelay: TimeInterval = 0.5
@@ -14,6 +18,11 @@ final class TerminalKeyBar: UIInputView, UIInputViewAudioFeedback {
     private weak var terminal: TerminalView?
     private var repeatTimer: Timer?
     private(set) var controlButton: UIButton!
+    private let row = UIStackView()
+    private let spacer = UIView()
+    private var buttons: [UIButton] = []
+    /// Применённая раскладка; `nil` — ещё ни одной.
+    private var compact: Bool?
 
     init(terminal: TerminalView) {
         self.terminal = terminal
@@ -21,8 +30,9 @@ final class TerminalKeyBar: UIInputView, UIInputViewAudioFeedback {
         allowsSelfSizing = true
 
         let escape = key(title: "esc", label: "Escape") { $0.send([0x1b]) }
-        controlButton = makeButton(title: "ctrl", label: "Control")
-        controlButton.addAction(UIAction { [weak self] _ in self?.toggleControl() }, for: .touchDown)
+        let control = makeButton(title: "ctrl", label: "Control")
+        controlButton = control
+        control.addAction(UIAction { [weak self] _ in self?.toggleControl() }, for: .touchDown)
         let tab = key(symbol: "arrow.right.to.line.compact", label: "Tab") { $0.send([0x09]) }
         // ⇧Tab в Claude Code переключает режимы (auto-accept, plan)
         let backTab = key(symbol: "arrow.left.to.line.compact", label: "Shift-Tab") { $0.send(EscapeSequences.cmdBackTab) }
@@ -34,8 +44,12 @@ final class TerminalKeyBar: UIInputView, UIInputViewAudioFeedback {
             repeatingKey(symbol: "arrow.up", label: "Вверх") { $0.sendKeyUp() },
             repeatingKey(symbol: "arrow.right", label: "Вправо") { $0.sendKeyRight() },
         ]
-        let row = UIStackView(arrangedSubviews: [escape, controlButton, tab, backTab, newline, UIView()] + arrows)
-        row.spacing = 6
+        let hide = makeButton(symbol: "keyboard.chevron.compact.down", label: "Скрыть клавиатуру")
+        hide.addAction(UIAction { [weak self] _ in self?.hideKeyboard() }, for: .touchUpInside)
+        buttons = [escape, control, tab, backTab, newline] + arrows + [hide]
+        for view in [escape, control, tab, backTab, newline, spacer] + arrows + [hide] {
+            row.addArrangedSubview(view)
+        }
         row.translatesAutoresizingMaskIntoConstraints = false
         addSubview(row)
         NSLayoutConstraint.activate([
@@ -60,6 +74,34 @@ final class TerminalKeyBar: UIInputView, UIInputViewAudioFeedback {
     }
 
     var enableInputClicksWhenVisible: Bool { true }
+
+    override func layoutSubviews() {
+        applyLayout(compact: bounds.width < Self.compactWidth)
+        super.layoutSubviews()
+    }
+
+    /// Узкий экран: кнопки поровну на всю ширину, узкие отступы; иначе — свой размер и слева
+    /// Esc…перевод строки, справа стрелки.
+    private func applyLayout(compact: Bool) {
+        guard compact != self.compact else {
+            return
+        }
+        self.compact = compact
+        row.distribution = compact ? .fillEqually : .fill
+        row.spacing = compact ? 4 : 6
+        spacer.isHidden = compact
+        directionalLayoutMargins.leading = compact ? 4 : 8
+        directionalLayoutMargins.trailing = compact ? 4 : 8
+        let inset: CGFloat = compact ? 0 : 12
+        for button in buttons {
+            button.configuration?.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: inset, bottom: 2, trailing: inset)
+        }
+    }
+
+    private func hideKeyboard() {
+        stopRepeat()
+        _ = terminal?.resignFirstResponder()
+    }
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
@@ -129,7 +171,6 @@ final class TerminalKeyBar: UIInputView, UIInputViewAudioFeedback {
         config.title = title
         config.image = symbol.flatMap { UIImage(systemName: $0) }
         config.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 13)
-        config.contentInsets = NSDirectionalEdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12)
         let button = UIButton(configuration: config)
         button.accessibilityLabel = label
         // выбранный Ctrl — залитый

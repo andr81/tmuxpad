@@ -50,6 +50,40 @@ struct TerminalKeyBarTests {
         #expect(!control.isSelected)
     }
 
+    /// iPhone 12 mini в портрете: все кнопки, включая «скрыть клавиатуру», влезают в ширину.
+    @Test func keysFitNarrowPhone() throws {
+        let bar = TerminalKeyBar(terminal: view)
+        bar.frame = CGRect(x: 0, y: 0, width: 375, height: TerminalKeyBar.height)
+        bar.layoutIfNeeded()
+        let buttons = bar.subviews.flatMap(\.subviews).compactMap { $0 as? UIButton }
+        #expect(buttons.count == 10)
+        let frames = buttons.map { $0.convert($0.bounds, to: bar) }.sorted { $0.minX < $1.minX }
+        for (frame, next) in zip(frames, frames.dropFirst()) {
+            #expect(frame.maxX <= next.minX)
+        }
+        #expect(try #require(frames.first).minX >= 0)
+        #expect(try #require(frames.last).maxX <= 375)
+        // «ctrl» не обрезан: кнопка не уже своего текста
+        let control = try button(bar, "Control")
+        let title = try #require(control.titleLabel)
+        #expect(control.bounds.width >= title.intrinsicContentSize.width)
+    }
+
+    @Test func hideButtonDismissesKeyboard() throws {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
+        window.addSubview(view)
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        let bar = installed()
+        #expect(view.becomeFirstResponder())
+        try button(bar, "Скрыть клавиатуру").sendActions(for: .touchUpInside)
+        #expect(!view.isFirstResponder)
+        view.toggleKeyboard()
+        #expect(view.isFirstResponder)
+        view.toggleKeyboard()
+        #expect(!view.isFirstResponder)
+    }
+
     @Test func barIsOneNarrowRow() {
         #expect(TerminalKeyBar(terminal: view).intrinsicContentSize.height == TerminalKeyBar.height)
     }

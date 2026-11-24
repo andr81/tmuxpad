@@ -240,6 +240,16 @@ final class TmuxTerminalView: TerminalView {
         }
     }
 
+    /// Кнопка клавиатуры в шапке: убрать её или вернуть. Вернуть тапом по терминалу нельзя, если
+    /// в tmux включена мышь (`mouse on`): SwiftTerm отдаёт такой тап в tmux как клик.
+    func toggleKeyboard() {
+        if isFirstResponder {
+            _ = resignFirstResponder()
+        } else {
+            _ = becomeFirstResponder()
+        }
+    }
+
     /// Палитра по теме; «как система» — по стилю окна.
     private func applyPalette() {
         let interface = style.theme == .system ? traitCollection.userInterfaceStyle : style.theme.interfaceStyle

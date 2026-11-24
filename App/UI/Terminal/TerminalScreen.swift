@@ -1,7 +1,7 @@
 import SwiftUI
 import TmuxPadCore
 
-/// Деталь открытой сессии: заголовок с `[⋯]`, терминал выделенной сессии, поверх — плашка
+/// Деталь открытой сессии: заголовок с кнопкой клавиатуры и `[⋯]`, терминал выделенной сессии, поверх — плашка
 /// состояния и чип «Прокрутка ✕».
 struct TerminalScreen: View {
     let terminal: OpenTerminal
@@ -13,6 +13,11 @@ struct TerminalScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             TerminalHeader(key: terminal.key, project: terminal.project) {
+                Button("Клавиатура", systemImage: "keyboard") {
+                    terminal.view.toggleKeyboard()
+                }
+                .labelStyle(.iconOnly)
+                .disabled(terminal.state != .live)
                 TerminalMenu(terminal: terminal) { pending = $0 }
             }
             Divider()

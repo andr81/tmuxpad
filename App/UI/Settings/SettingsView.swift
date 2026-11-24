@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ServerStore.self) private var servers
     @Environment(KeyLibrary.self) private var keys
+    @Environment(AppLock.self) private var lock
 
     var body: some View {
         NavigationStack {
@@ -29,6 +30,15 @@ struct SettingsView: View {
                     }
                 }
                 .accessibilityIdentifier("settings.keys")
+                NavigationLink {
+                    AppLockSettingsView()
+                } label: {
+                    LabeledContent {
+                        Text(lock.enabled ? lock.title(of: lock.method) : "Выкл.")
+                    } label: {
+                        Label("Безопасный режим", systemImage: "lock")
+                    }
+                }
                 NavigationLink {
                     TerminalSettingsView()
                 } label: {

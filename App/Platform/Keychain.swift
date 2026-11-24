@@ -12,6 +12,8 @@ struct Keychain: Sendable {
     static let keys = Keychain(service: "dev.tmuxpad.key")
     static let hostKeys = Keychain(service: "dev.tmuxpad.hostkey")
     static let device = Keychain(service: "dev.tmuxpad.device")
+    /// Хеш PIN или пароля безопасного режима (§3.8).
+    static let lock = Keychain(service: "dev.tmuxpad.lock")
 
     let service: String
 

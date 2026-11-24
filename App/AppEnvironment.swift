@@ -38,6 +38,8 @@ final class AppEnvironment {
     let actions: SessionActions
     let appearance: TerminalAppearance
     let security: SecurityPreferences
+    /// Безопасный режим (§3.8).
+    let lock: AppLock
     let unlocker: any KeyUnlocking
     let navigation = AppNavigation()
     let lifecycle: LifecycleCoordinator
@@ -53,7 +55,8 @@ final class AppEnvironment {
         defaults: UserDefaults,
         serversFile: JSONFileStore<[ServerConfig]>,
         treeInterval: Duration = .seconds(10),
-        biometricPrompt: any BiometricPrompt = DeviceOwnerPrompt()
+        biometricPrompt: any BiometricPrompt = DeviceOwnerPrompt(),
+        lockSecrets: any LockSecretStore = InMemoryLockSecretStore()
     ) throws {
         self.deviceID = deviceID
         self.keyStore = keyStore
@@ -64,6 +67,7 @@ final class AppEnvironment {
         diagnostics = DiagnosticsModel(log: log)
         bootstrap = try HostBootstrap()
         security = SecurityPreferences(defaults: defaults)
+        lock = AppLock(defaults: defaults, secrets: lockSecrets, prompt: biometricPrompt)
         let cache = KeyCache()
         // `UserDefaults` потокобезопасен, но не помечен `Sendable`
         nonisolated(unsafe) let settings = defaults
@@ -135,7 +139,8 @@ final class AppEnvironment {
             secureEnclaveAvailable: SecureEnclave.isAvailable,
             hostKeys: KeychainHostKeyStore(),
             defaults: .standard,
-            serversFile: JSONFileStore(fileName: "servers.json")
+            serversFile: JSONFileStore(fileName: "servers.json"),
+            lockSecrets: KeychainLockSecretStore()
         )
         env.network.start()
         let persistence = OpenSessionsPersistence(defaults: env.defaults)
@@ -221,6 +226,7 @@ extension View {
             .environment(env.openSessions)
             .environment(env.appearance)
             .environment(env.security)
+            .environment(env.lock)
             .environment(env.navigation)
     }
 }

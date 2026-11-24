@@ -9,6 +9,9 @@ struct RootView: View {
     @Environment(TerminalAppearance.self) private var appearance
     @Environment(\.appEnvironment) private var env
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(AppLock.self) private var lock
+    /// Экран блокировки и шторка — в своём окне над листами (§3.8).
+    @State private var lockOverlay: LockOverlayWindow?
     @State private var showSettings = false
     @State private var showOnboarding = false
     /// «Создать» из пустого мастера «Подключиться»: «Новая сессия» откроется, когда тот закроется.
@@ -71,10 +74,34 @@ struct RootView: View {
             tree.setServers(list)
         }
         .preferredColorScheme(appearance.theme.colorScheme)
-        // фон и возврат: опрос дерева и соединения ведёт координатор
+        .background(WindowSceneReader { scene in
+            if lockOverlay == nil, let env {
+                lockOverlay = LockOverlayWindow(lock: env.lock, appearance: env.appearance)
+            }
+            lockOverlay?.attach(to: scene)
+        })
+        // фон и возврат: блокировку решает `AppLock`, опрос дерева и соединения ведёт координатор
         .onChange(of: scenePhase, initial: true) { _, phase in
-            env?.lifecycle.scenePhaseChanged(phase)
+            lock.scenePhaseChanged(phase)
+            lockOverlay?.phaseChanged(phase)
+            forwardToLifecycle(phase)
         }
+        // разблокировали: возврат, который координатор ещё не видел (§3.8)
+        .onChange(of: lock.isLocked) { _, locked in
+            lockOverlay?.update()
+            if !locked {
+                forwardToLifecycle(scenePhase)
+            }
+        }
+    }
+
+    /// Пока приложение заблокировано, координатор не получает `.active`: ни восстановления
+    /// сессий, ни опроса дерева, ни SSH до разблокировки. Уход в фон идёт как обычно.
+    private func forwardToLifecycle(_ phase: ScenePhase) {
+        if phase == .active, lock.isLocked {
+            return
+        }
+        env?.lifecycle.scenePhaseChanged(phase)
     }
 
     private var columnVisibility: Binding<NavigationSplitViewVisibility> {

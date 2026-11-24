@@ -40,10 +40,10 @@ public enum Validation {
 
     /// Адрес репозитория для `clone` (§7, §8), правила те же, что `valid_url` в скрипте: только
     /// `https`/`http`/`ssh`/`git` или scp-форма `user@host:path`, символы `[A-Za-z0-9._~:/@%+=-]`,
-    /// до 2048 знаков, без пароля в адресе и без пользователя в `http(s)` (туда вставляют токен).
+    /// до 2048 знаков, не с `-`, без пароля в адресе и без пользователя в `http(s)` (туда вставляют токен).
     /// `file://`, локальные пути и `ext::` не проходят.
     public static func isValidRepositoryURL(_ url: String) -> Bool {
-        guard url.utf8.count <= 2048, url.wholeMatch(of: /[A-Za-z0-9._~:\/@%+=-]+/) != nil else {
+        guard url.utf8.count <= 2048, !url.hasPrefix("-"), url.wholeMatch(of: /[A-Za-z0-9._~:\/@%+=-]+/) != nil else {
             return false
         }
         let schemed = url.wholeMatch(of: /(https?|ssh|git):\/\/[^\/]+(\/.*)?/) != nil

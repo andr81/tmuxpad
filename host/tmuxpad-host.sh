@@ -46,7 +46,7 @@ valid_project() { [[ $1 =~ ^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$ ]]; }
 # leading `-`; the same rules as Validation.isValidRepositoryURL in the app
 valid_url() {
 	local u=$1
-	((${#u} <= 2048)) && [[ $u =~ ^[A-Za-z0-9._~:/@%+=-]+$ ]] || return 1
+	((${#u} <= 2048)) && [[ $u =~ ^[A-Za-z0-9._~:/@%+=-]+$ && $u != -* ]] || return 1
 	[[ $u =~ ^(https?|ssh|git)://[^/]+(/.*)?$ || $u =~ ^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:.+$ ]] || return 1
 	# user:password@ anywhere, and any user@ in http(s) (a token passed as the
 	# user name): it would stay in .git/config and in git's error text

@@ -86,7 +86,7 @@ import Testing
         "-uhack", "--upload-pack=touch", "https://user:secret@example.com/a.git", "https://example.com/a'b.git",
         "https://example.com/a b.git", "ftp://example.com/a.git", "https://", "dev@localhost:",
         "https://user@example.com/a.git", "https://ghp_token@github.com/a/b.git", "http://x@example.com/a",
-        "https://example.com/a\nb", "https://example.com/" + String(repeating: "a", count: 2048),
+        "-oProxyCommand=touch@example.com:a", "https://example.com/a\nb", "https://example.com/" + String(repeating: "a", count: 2048),
     ])
     func invalidRepositoryURLs(url: String) {
         #expect(!Validation.isValidRepositoryURL(url))

@@ -109,7 +109,8 @@ test_clone_bad_urls() {
 		'ext::sh -c touch% /tmp/pwned' 'ext::ssh://x' '-uhack' '--upload-pack=touch' \
 		'https://user:secret@example.com/a.git' "https://example.com/a'b.git" 'https://example.com/a b.git' \
 		'ftp://example.com/a.git' 'https://' 'dev@localhost:' 'https://user@example.com/a.git' \
-		'https://ghp_token@github.com/a/b.git' 'http://x@example.com/a.git'; do
+		'https://ghp_token@github.com/a/b.git' 'http://x@example.com/a.git' \
+		'-oProxyCommand=touch@localhost:a'; do
 		assert_exit 2 h clone x "$u"
 	done
 	assert_eq no "$(r '[ -e ~/projects/x ] && echo yes || echo no')" "no project"

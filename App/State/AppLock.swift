@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Способ разблокировки безопасного режима (§3.8).
 enum LockMethod: String, CaseIterable, Sendable {
-    /// Face ID, Touch ID или Optic ID с запасным кодом-паролем iPad.
+    /// Face ID, Touch ID или Optic ID с запасным кодом-паролем устройства.
     case biometrics
     case pin
     case password
@@ -41,7 +41,7 @@ enum CodeCheck: Equatable {
     case rejected
     /// Слишком много ошибок: до этого момента код не проверяется.
     case paused(until: Date)
-    /// Хеша нет в Keychain (бэкап на новом iPad): помогает только «Забыли код?».
+    /// Хеша нет в Keychain (бэкап на новом устройстве): помогает только «Забыли код?».
     case missing
 }
 
@@ -49,7 +49,7 @@ enum LockSetupError: Error, Equatable {
     /// Режим включён, а текущий способ не проверен (`authorizeChange`).
     case notAuthorized
     case invalidCode
-    /// Нет кода-пароля на iPad.
+    /// Нет кода-пароля на устройстве.
     case biometricsUnavailable
     case biometricsDenied
     case storeFailed
@@ -121,7 +121,7 @@ final class AppLock {
     /// Название способа для UI: у биометрии — имя по устройству.
     func title(of method: LockMethod) -> String {
         switch method {
-        case .biometrics: device.biometryName ?? "Код-пароль iPad"
+        case .biometrics: device.biometryName ?? "Код-пароль \(device.deviceName)"
         case .pin: "PIN"
         case .password: "Пароль"
         }
@@ -157,7 +157,7 @@ final class AppLock {
 
     // MARK: - Разблокировка
 
-    /// Способ «Face ID»: системный запрос с запасным кодом-паролем iPad.
+    /// Способ «Face ID»: системный запрос с запасным кодом-паролем устройства.
     @discardableResult
     func unlockWithBiometrics() async -> Bool {
         guard isLocked else {
@@ -181,7 +181,7 @@ final class AppLock {
         return result
     }
 
-    /// «Забыли код?»: код-пароль iPad разрешает задать новый код или выключить режим
+    /// «Забыли код?»: код-пароль устройства разрешает задать новый код или выключить режим
     /// (`configure`, `disable`); блокировка снимается только ими.
     func authorizeWithDevicePasscode() async -> Bool {
         guard device.canUseDeviceOwnerAuth, await evaluate(Self.resetReason) else {

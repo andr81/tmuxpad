@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Экран блокировки (§3.8): Face ID, PIN или пароль; «Забыли код?» — код-пароль iPad и новый код.
+/// Экран блокировки (§3.8): Face ID, PIN или пароль; «Забыли код?» — код-пароль устройства и новый код.
 struct AppLockView: View {
     let phase: ScenePhase
     @Environment(AppLock.self) private var lock
@@ -96,7 +96,7 @@ struct AppLockView: View {
                     }
                     .buttonStyle(.borderless)
                 } else {
-                    Text("Без кода-пароля iPad забытый код сбрасывается только переустановкой приложения")
+                    Text("Без кода-пароля \(lock.device.deviceName) забытый код сбрасывается только переустановкой приложения")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

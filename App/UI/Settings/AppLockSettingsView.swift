@@ -67,7 +67,7 @@ struct AppLockSettingsView: View {
     }
 }
 
-/// Проверка текущим способом; «Забыли код?» — код-пароль iPad.
+/// Проверка текущим способом; «Забыли код?» — код-пароль устройства.
 struct LockVerifyView: View {
     let lock: AppLock
     let onVerified: () -> Void

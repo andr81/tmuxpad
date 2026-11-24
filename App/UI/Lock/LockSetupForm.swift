@@ -100,7 +100,7 @@ struct LockSetupForm: View {
         }
     }
 
-    /// «Face ID» — только при коде-пароле на iPad: без него запросу не на что отступить.
+    /// «Face ID» — только при коде-пароле на устройстве: без него запросу не на что отступить.
     static func methods(device: any DeviceAuthInfo) -> [LockMethod] {
         device.canUseDeviceOwnerAuth ? LockMethod.allCases : [.pin, .password]
     }
@@ -108,11 +108,11 @@ struct LockSetupForm: View {
     static func footer(method: LockMethod, device: any DeviceAuthInfo) -> String {
         switch method {
         case .biometrics:
-            return "Если \(device.biometryName ?? "биометрия") не пройдёт, iPad спросит свой код-пароль."
+            return "Если \(device.biometryName ?? "биометрия") не пройдёт, \(device.deviceName) спросит свой код-пароль."
         case .pin, .password:
             return device.canUseDeviceOwnerAuth
-                ? "Забытый код можно сбросить кодом-паролем iPad."
-                : "На iPad нет кода-пароля: забытый код сбрасывается только переустановкой приложения."
+                ? "Забытый код можно сбросить кодом-паролем \(device.deviceName)."
+                : "На \(device.deviceName) нет кода-пароля: забытый код сбрасывается только переустановкой приложения."
         }
     }
 
@@ -131,7 +131,7 @@ struct LockSetupForm: View {
         switch error {
         case .notAuthorized: "Сначала подтвердите текущий способ"
         case .invalidCode: "Код не подходит"
-        case .biometricsUnavailable: "На iPad не задан код-пароль"
+        case .biometricsUnavailable: "На устройстве не задан код-пароль"
         case .biometricsDenied: "Проверка не пройдена"
         case .storeFailed: "Не удалось сохранить код в Keychain"
         }

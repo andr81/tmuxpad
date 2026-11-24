@@ -4,6 +4,7 @@ import Testing
 @testable import TmuxPad
 
 struct FakeDeviceAuth: DeviceAuthInfo {
+    var deviceName = "iPad"
     var canUseDeviceOwnerAuth = true
     var biometryName: String? = "Face ID"
 }
@@ -194,7 +195,7 @@ struct AppLockTests {
         #expect(!makeLock().isLocked)
     }
 
-    /// «Забыли код?»: код-пароль iPad, затем новый код снимает блокировку.
+    /// «Забыли код?»: код-пароль устройства, затем новый код снимает блокировку.
     @Test func forgotCodeWithDevicePasscode() async throws {
         let lock = makeLock()
         try await lock.configure(method: .pin, code: "1234")
@@ -215,7 +216,7 @@ struct AppLockTests {
         #expect(prompt.calls == 0)
     }
 
-    /// Бэкап на новом iPad: настройки приехали, хеша в Keychain нет.
+    /// Бэкап на новом устройстве: настройки приехали, хеша в Keychain нет.
     @Test func missingSecretAsksForReset() async throws {
         let lock = makeLock()
         try await lock.configure(method: .pin, code: "1234")
@@ -241,6 +242,10 @@ struct AppLockTests {
         let lock = makeLock(device: FakeDeviceAuth(biometryName: "Touch ID"))
         #expect(lock.title(of: .biometrics) == "Touch ID")
         #expect(makeLock(device: FakeDeviceAuth(biometryName: nil)).title(of: .biometrics) == "Код-пароль iPad")
+        let phone = FakeDeviceAuth(deviceName: "iPhone", biometryName: nil)
+        #expect(makeLock(device: phone).title(of: .biometrics) == "Код-пароль iPhone")
+        #expect(LockSetupForm.footer(method: .pin, device: phone) == "Забытый код можно сбросить кодом-паролем iPhone.")
+        #expect(LockSetupForm.footer(method: .biometrics, device: FakeDeviceAuth(deviceName: "iPhone")) == "Если Face ID не пройдёт, iPhone спросит свой код-пароль.")
         #expect(AppLockView.message(for: .rejected, method: .pin) == "Неверный PIN")
         #expect(AppLockView.message(for: .rejected, method: .password) == "Неверный пароль")
         #expect(AppLockView.message(for: .accepted, method: .pin) == nil)

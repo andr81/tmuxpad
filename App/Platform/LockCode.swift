@@ -2,6 +2,7 @@ import CommonCrypto
 import Foundation
 import LocalAuthentication
 import Security
+import UIKit
 
 /// PIN или пароль безопасного режима (§3.8): хранится не код, а PBKDF2-HMAC-SHA256 от него.
 /// Формат записи: версия (1 байт) · число итераций (4 байта, big-endian) · соль (16) · хеш (32).
@@ -119,13 +120,23 @@ final class InMemoryLockSecretStore: LockSecretStore, @unchecked Sendable {
 
 /// Что умеет устройство для способа «Face ID» и «Забыли код?».
 protocol DeviceAuthInfo: Sendable {
-    /// Есть код-пароль iPad: политика `deviceOwnerAuthentication` доступна.
+    /// «iPhone» или «iPad» — в текстах про код-пароль устройства.
+    var deviceName: String { get }
+    /// Есть код-пароль устройства: политика `deviceOwnerAuthentication` доступна.
     var canUseDeviceOwnerAuth: Bool { get }
     /// «Face ID», «Touch ID», «Optic ID»; `nil` — биометрии нет, остаётся код-пароль.
     var biometryName: String? { get }
 }
 
 struct SystemDeviceAuthInfo: DeviceAuthInfo {
+    let deviceName: String
+
+    /// `UIDevice` — только на main; название устройства за время жизни приложения не меняется.
+    @MainActor
+    init() {
+        deviceName = UIDevice.current.userInterfaceIdiom == .phone ? "iPhone" : "iPad"
+    }
+
     var canUseDeviceOwnerAuth: Bool {
         LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
     }

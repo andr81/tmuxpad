@@ -108,7 +108,8 @@ test_clone_bad_urls() {
 	for u in '' 'file:///home/dev/repos/demo.git' '/home/dev/repos/demo.git' 'repos/demo.git' \
 		'ext::sh -c touch% /tmp/pwned' 'ext::ssh://x' '-uhack' '--upload-pack=touch' \
 		'https://user:secret@example.com/a.git' "https://example.com/a'b.git" 'https://example.com/a b.git' \
-		'ftp://example.com/a.git' 'https://' 'dev@localhost:'; do
+		'ftp://example.com/a.git' 'https://' 'dev@localhost:' 'https://user@example.com/a.git' \
+		'https://ghp_token@github.com/a/b.git' 'http://x@example.com/a.git'; do
 		assert_exit 2 h clone x "$u"
 	done
 	assert_eq no "$(r '[ -e ~/projects/x ] && echo yes || echo no')" "no project"
@@ -118,7 +119,7 @@ test_clone_good_url_forms() {
 	# fail on the network (exit 1), not on validation (exit 2)
 	local u
 	for u in 'https://127.0.0.1:1/a/b.git' 'http://127.0.0.1:1/a' 'git://127.0.0.1:1/a.git' \
-		'ssh://git@127.0.0.1:1/a/b.git' 'https://user@127.0.0.1:1/a.git'; do
+		'ssh://git@127.0.0.1:1/a/b.git'; do
 		assert_exit 1 h clone x "$u"
 	done
 }
@@ -126,4 +127,45 @@ test_clone_good_url_forms() {
 test_clone_bad_name() {
 	assert_exit 2 h clone .hidden 'https://example.com/a.git'
 	assert_exit 2 h clone '' 'https://example.com/a.git'
+}
+
+# fake_git BODY - a `git` first in PATH for one call of the script; BODY runs
+# instead of the real clone with $4 = the URL and $5 = the target folder
+fake_git() {
+	r "mkdir -p ~/fakebin && cat >~/fakebin/git <<'EOS'
+#!/bin/bash
+[ \"\$1\" = clone ] || exec /usr/bin/git \"\$@\"
+$1
+EOS
+chmod +x ~/fakebin/git"
+}
+
+# hfake SUB ARGS... - h, with the fake git first in PATH
+hfake() { r "PATH=\$HOME/fakebin:\$PATH $(hostcmd "$@")"; }
+
+test_clone_does_not_replace_parallel_project() {
+	# a parallel mkproject makes the folder while git is still running
+	# shellcheck disable=SC2016 # expands in the fake git, not here
+	fake_git 'mkdir -p "$5" && echo x >"$5/README" && mkdir ~/projects/race'
+	assert_exit 5 hfake clone race 'https://example.com/a/race.git'
+	assert_eq 0 "$(r 'ls -A ~/projects/race | wc -l')" "the other project stays empty"
+	assert_eq 0 "$(leftovers)" "temporary folders"
+	r 'rm -rf ~/fakebin'
+}
+
+test_clone_moves_dotfiles() {
+	# shellcheck disable=SC2016 # expands in the fake git, not here
+	fake_git 'mkdir -p "$5/.git" "$5/src" && touch "$5/.gitignore" "$5/src/a"'
+	assert_exit 0 hfake clone dots 'https://example.com/a/dots.git'
+	assert_eq '.git .gitignore src' "$(r 'cd ~/projects/dots && ls -A | tr "\n" " " | sed "s/ $//"')" "entries"
+	assert_eq 0 "$(leftovers)" "temporary folders"
+	r 'rm -rf ~/fakebin'
+}
+
+test_clone_askpass_is_disabled() {
+	# shellcheck disable=SC2016 # expands in the fake git, not here
+	fake_git 'echo "askpass=$GIT_ASKPASS ssh=$SSH_ASKPASS_REQUIRE prompt=$GIT_TERMINAL_PROMPT" >~/clone-env; exit 1'
+	assert_exit 1 hfake clone ask 'https://example.com/a/ask.git'
+	assert_eq 'askpass=false ssh=never prompt=0' "$(r 'cat ~/clone-env')" "environment"
+	r 'rm -rf ~/fakebin ~/clone-env'
 }

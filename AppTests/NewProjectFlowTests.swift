@@ -56,7 +56,7 @@ struct NewProjectFlowTests {
 
     @Test func badURLsAreFlagged() {
         var flow = NewProjectFlow(serverID: serverID)
-        for url in ["file:///srv/a.git", "/srv/a.git", "https://u:secret@example.com/a.git", "ext::sh"] {
+        for url in ["file:///srv/a.git", "/srv/a.git", "https://u:secret@example.com/a.git", "https://ghp_token@github.com/a/b.git", "ext::sh"] {
             flow.editURL(url)
             #expect(flow.urlIssue == .invalid, "\(url)")
         }

@@ -40,7 +40,8 @@ public enum Validation {
 
     /// Адрес репозитория для `clone` (§7, §8), правила те же, что `valid_url` в скрипте: только
     /// `https`/`http`/`ssh`/`git` или scp-форма `user@host:path`, символы `[A-Za-z0-9._~:/@%+=-]`,
-    /// до 2048 знаков, без пароля в адресе. `file://`, локальные пути и `ext::` не проходят.
+    /// до 2048 знаков, без пароля в адресе и без пользователя в `http(s)` (туда вставляют токен).
+    /// `file://`, локальные пути и `ext::` не проходят.
     public static func isValidRepositoryURL(_ url: String) -> Bool {
         guard url.utf8.count <= 2048, url.wholeMatch(of: /[A-Za-z0-9._~:\/@%+=-]+/) != nil else {
             return false
@@ -50,8 +51,8 @@ public enum Validation {
         guard schemed || scp else {
             return false
         }
-        // user:password@ в адресе
-        return url.prefixMatch(of: /[a-z]+:\/\/[^\/@]*:[^\/@]*@/) == nil
+        // user:password@ в любом адресе и user@ в http(s): остались бы в `.git/config` и тексте ошибок git
+        return url.prefixMatch(of: /[a-z]+:\/\/[^\/@]*:[^\/@]*@/) == nil && url.prefixMatch(of: /https?:\/\/[^\/]*@/) == nil
     }
 
     /// Имя проекта по адресу репозитория (§3.3): последний компонент пути без `.git` и `/` в

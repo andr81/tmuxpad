@@ -74,7 +74,7 @@ import Testing
     @Test(arguments: [
         "https://github.com/andr81/tmuxpad.git", "https://github.com/a/b", "http://10.0.0.1:8080/a/b.git",
         "ssh://git@github.com:22/a/b.git", "git://example.com/a.git", "git@github.com:a/b.git",
-        "dev@localhost:/srv/repo.git", "https://user@example.com/a.git", "https://example.com/a%20b.git",
+        "dev@localhost:/srv/repo.git", "https://example.com/a%20b.git",
         "https://example.com/~u/r+x=y.git",
     ])
     func validRepositoryURLs(url: String) {
@@ -85,6 +85,7 @@ import Testing
         "", "file:///srv/a.git", "/srv/a.git", "repos/a.git", "ext::sh -c touch% x", "ext::ssh://x",
         "-uhack", "--upload-pack=touch", "https://user:secret@example.com/a.git", "https://example.com/a'b.git",
         "https://example.com/a b.git", "ftp://example.com/a.git", "https://", "dev@localhost:",
+        "https://user@example.com/a.git", "https://ghp_token@github.com/a/b.git", "http://x@example.com/a",
         "https://example.com/a\nb", "https://example.com/" + String(repeating: "a", count: 2048),
     ])
     func invalidRepositoryURLs(url: String) {

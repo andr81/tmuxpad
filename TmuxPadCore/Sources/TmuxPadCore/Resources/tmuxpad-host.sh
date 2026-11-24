@@ -48,8 +48,9 @@ valid_url() {
 	local u=$1
 	((${#u} <= 2048)) && [[ $u =~ ^[A-Za-z0-9._~:/@%+=-]+$ ]] || return 1
 	[[ $u =~ ^(https?|ssh|git)://[^/]+(/.*)?$ || $u =~ ^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:.+$ ]] || return 1
-	# user:password@ in the authority
-	[[ ! $u =~ ^[a-z]+://[^/@]*:[^/@]*@ ]]
+	# user:password@ anywhere, and any user@ in http(s) (a token passed as the
+	# user name): it would stay in .git/config and in git's error text
+	[[ ! $u =~ ^[a-z]+://[^/@]*:[^/@]*@ && ! $u =~ ^https?://[^/]*@ ]]
 }
 need_client() { [[ -n $CLIENT ]] || die "TMUXPAD_CLIENT is required" 2; }
 
@@ -322,7 +323,11 @@ mkproject() {
 CLONE_TMP=''
 clone_cleanup() { [[ -z $CLONE_TMP ]] || rm -rf -- "$CLONE_TMP"; }
 
-# clone PROJECT URL - into a temporary dot folder list does not see, renamed
+# git gets this long on the server: the app stops waiting after 10 minutes,
+# a clone it left behind must not run forever
+CLONE_LIMIT=1800
+
+# clone PROJECT URL - into a temporary dot folder list does not see, moved
 # into place only on success; nothing may ask a question, there is no terminal
 clone() {
 	local project=${1:-} url=${2:-} dir
@@ -336,18 +341,32 @@ clone() {
 	trap '' PIPE
 	trap clone_cleanup EXIT
 	CLONE_TMP=$(mktemp -d "$PROJECTS/.tmuxpad-clone.XXXXXX") || die "cannot create a folder in $PROJECTS" 1
-	export GIT_TERMINAL_PROMPT=0 GIT_ALLOW_PROTOCOL=https:http:ssh:git
+	# credential helpers (gh auth) still answer; askpass programs would wait for
+	# a user who is not there, so they fail at once
+	export GIT_TERMINAL_PROMPT=0 GIT_ALLOW_PROTOCOL=https:http:ssh:git GIT_ASKPASS=false SSH_ASKPASS_REQUIRE=never
 	# the user's own ssh command (a key, a proxy) wins; ours only refuses to ask
 	if [[ -z ${GIT_SSH_COMMAND:-} && -z ${GIT_SSH:-} && -z $(git config --get core.sshCommand 2>/dev/null) ]]; then
 		export GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new'
 	fi
-	if ! git clone --quiet -- "$url" "$CLONE_TMP/repo" </dev/null >/dev/null 2>"$CLONE_TMP/err"; then
+	local rc=0
+	timeout -k 10 "$CLONE_LIMIT" git clone --quiet -- "$url" "$CLONE_TMP/repo" \
+		</dev/null >/dev/null 2>"$CLONE_TMP/err" || rc=$?
+	if ((rc == 124 || rc == 137)); then
+		die "git clone took longer than $((CLONE_LIMIT / 60)) minutes" 1
+	elif ((rc != 0)); then
 		tail -c 400 "$CLONE_TMP/err" >&2
 		exit 1
 	fi
-	# a parallel mkproject or clone with the same name got there first
-	[[ -e $dir || -L $dir ]] && die "project $project exists" 5
-	mv -T -- "$CLONE_TMP/repo" "$dir" || die "cannot move the clone to $dir" 1
+	# mkdir is the atomic claim: a rename could replace an empty folder that a
+	# parallel mkproject made after the check above
+	if ! mkdir -- "$dir" 2>/dev/null; then
+		[[ -e $dir || -L $dir ]] && die "project $project exists" 5
+		die "cannot create $dir" 1
+	fi
+	if ! find "$CLONE_TMP/repo" -mindepth 1 -maxdepth 1 -exec mv -t "$dir" -- {} +; then
+		rm -rf -- "$dir"
+		die "cannot move the clone to $dir" 1
+	fi
 }
 
 # ---------------------------------------------------------------- attach, take, copy-cancel, kill

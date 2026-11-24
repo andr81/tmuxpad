@@ -34,7 +34,7 @@ env TMUXPAD_CLIENT=<uuid> TMUXPAD_PROJECTS=<root> TMUXPAD_CMD=<cmd> "$HOME"/.loc
 | `copy-cancel NAME` | `send-keys -X cancel`, выход из copy-mode | 0, в том числе вне режима; 2 — неверное имя |
 | `kill NAME` | убивает сессию и `NAME.claude` | 0, в том числе если сессии нет; 2 — неверное имя |
 | `mkproject PROJECT` | пустая папка в корне проектов, без `git init` | 0; 2 — неверное имя или корня проектов нет; 5 — папка, файл или симлинк с этим именем уже есть; 1 — не удалось создать |
-| `clone PROJECT URL` | `git clone` во временную `.tmuxpad-clone.*` в корне, затем `mv` в `PROJECT`; без вопросов git и ssh | 0; 2 — неверное имя, адрес, нет корня проектов или `git`; 5 — проект уже есть; 1 — ошибка git (в stderr — хвост stderr git, временная папка удалена) |
+| `clone PROJECT URL` | `git clone` во временную `.tmuxpad-clone.*` в корне, затем `mkdir PROJECT` и перенос содержимого; без вопросов git и ssh, не дольше 30 минут | 0; 2 — неверное имя, адрес, нет корня проектов или `git`; 5 — проект уже есть; 1 — ошибка git (в stderr — хвост stderr git, временная папка удалена) |
 | `setup` | `~/.tmuxpad/`, корень проектов, блок в `~/.tmux.conf`; идемпотентно, запущенному tmux-серверу опции ставит сразу; в конце `doctor` | как у `doctor` |
 | `doctor` | проверки сервера | 0; 1 — есть хоть один `fail` |
 | `auth` | токен Claude из stdin в `~/.tmuxpad/env` (0600) | 0; 2 — нет годного токена; 1 — не удалось записать |
@@ -44,8 +44,10 @@ env TMUXPAD_CLIENT=<uuid> TMUXPAD_PROJECTS=<root> TMUXPAD_CMD=<cmd> "$HOME"/.loc
 Имена: сессия `^[A-Za-z0-9_-]{1,64}$`, проект `^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$`.
 
 Адрес для `clone`: `https://`, `http://`, `ssh://`, `git://` или `user@host:path`, символы
-`[A-Za-z0-9._~:/@%+=-]`, до 2048 знаков; пароль в адресе (`://user:pass@`) не принимается.
-Клон идёт с `GIT_TERMINAL_PROMPT=0` и `GIT_ALLOW_PROTOCOL=https:http:ssh:git`. Если у
+`[A-Za-z0-9._~:/@%+=-]`, до 2048 знаков; пароль в адресе (`://user:pass@`) и пользователь в
+`http(s)://user@` (место для токена) не принимаются. Клон идёт не дольше 30 минут, с
+`GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS=false`, `SSH_ASKPASS_REQUIRE=never` и
+`GIT_ALLOW_PROTOCOL=https:http:ssh:git`; credential helper (`gh auth`) при этом работает. Если у
 пользователя нет своих `GIT_SSH_COMMAND`, `GIT_SSH` или `core.sshCommand`, ssh запускается с
 `BatchMode=yes` и `StrictHostKeyChecking=accept-new`: новый ключ git-хоста попадает в
 `~/.ssh/known_hosts`, сменившийся — отказ. Доступ к приватным репозиториям — ключами сервера

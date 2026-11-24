@@ -46,7 +46,7 @@ struct NewProjectStep: View {
                     Text("Адрес репозитория")
                 } footer: {
                     if flow.urlIssue == .invalid {
-                        Text("Нужен адрес https://, ssh://, git:// или user@host:path, без пароля и пробелов")
+                        Text("Нужен адрес https://, ssh://, git:// или user@host:path, без пароля, токена и пробелов")
                             .foregroundStyle(.red)
                     } else {
                         Text("Клонирует сервер своими ключами или gh auth; вопросы git и ssh задать нельзя")

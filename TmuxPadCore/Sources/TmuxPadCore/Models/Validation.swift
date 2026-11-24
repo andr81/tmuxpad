@@ -38,6 +38,50 @@ public enum Validation {
         String(value.drop { $0 == "-" }.reversed().drop { $0 == "-" }.reversed())
     }
 
+    /// Адрес репозитория для `clone` (§7, §8), правила те же, что `valid_url` в скрипте: только
+    /// `https`/`http`/`ssh`/`git` или scp-форма `user@host:path`, символы `[A-Za-z0-9._~:/@%+=-]`,
+    /// до 2048 знаков, без пароля в адресе. `file://`, локальные пути и `ext::` не проходят.
+    public static func isValidRepositoryURL(_ url: String) -> Bool {
+        guard url.utf8.count <= 2048, url.wholeMatch(of: /[A-Za-z0-9._~:\/@%+=-]+/) != nil else {
+            return false
+        }
+        let schemed = url.wholeMatch(of: /(https?|ssh|git):\/\/[^\/]+(\/.*)?/) != nil
+        let scp = url.prefixMatch(of: /[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:./) != nil
+        guard schemed || scp else {
+            return false
+        }
+        // user:password@ в адресе
+        return url.prefixMatch(of: /[a-z]+:\/\/[^\/@]*:[^\/@]*@/) == nil
+    }
+
+    /// Имя проекта по адресу репозитория (§3.3): последний компонент пути без `.git` и `/` в
+    /// конце; символы вне `[A-Za-z0-9._-]` становятся `-`, `-` схлопываются, точки и `-` в начале
+    /// срезаются, длина — до 128. Пусто или не проходит `isValidProjectName` — `""`.
+    public static func suggestedProjectName(fromRepositoryURL url: String) -> String {
+        var path = Substring(url)
+        while path.hasSuffix("/") {
+            path = path.dropLast()
+        }
+        if path.hasSuffix(".git") {
+            path = path.dropLast(4)
+        }
+        let last = path.split(whereSeparator: { $0 == "/" || $0 == ":" }).last ?? ""
+        var name = ""
+        for scalar in last.unicodeScalars {
+            let mapped: Character
+            switch scalar {
+            case "a"..."z", "A"..."Z", "0"..."9", "_", "-", ".":
+                mapped = Character(scalar)
+            default:
+                mapped = "-"
+            }
+            if mapped == "-" && name.last == "-" { continue }
+            name.append(mapped)
+        }
+        name = String(name.drop { $0 == "." || $0 == "-" }.prefix(128))
+        return isValidProjectName(name) ? name : ""
+    }
+
     /// Значение можно положить в одинарные кавычки: не пусто, без `'`, без управляющих символов.
     public static func isSafeShellValue(_ value: String) -> Bool {
         !value.isEmpty && !value.unicodeScalars.contains { scalar in

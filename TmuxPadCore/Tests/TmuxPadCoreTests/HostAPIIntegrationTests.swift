@@ -96,4 +96,51 @@ struct HostAPIIntegrationTests {
             #expect(mode == "600\n")
         }
     }
+
+    @Test func createProjectThenList() async throws {
+        try await withAPI { _, api in
+            try await api.createProject("fresh")
+            #expect(try await api.list().projects.contains { $0.name == "fresh" })
+            await #expect(throws: HostError.projectExists) {
+                try await api.createProject("fresh")
+            }
+        }
+    }
+
+    @Test func cloneOverSSHIntoProject() async throws {
+        try await withAPI { connection, api in
+            // свой ключ dev и голый репозиторий в контейнере: клон идёт по настоящему ssh
+            let seed = """
+            set -e
+            [ -f ~/.ssh/id_ed25519 ] || ssh-keygen -q -t ed25519 -N '' -f ~/.ssh/id_ed25519
+            grep -qxF "$(cat ~/.ssh/id_ed25519.pub)" ~/.ssh/authorized_keys || cat ~/.ssh/id_ed25519.pub >>~/.ssh/authorized_keys
+            rm -f ~/.ssh/known_hosts; rm -rf ~/repos/core.git /tmp/seed-core; mkdir -p ~/repos
+            git init -q --bare ~/repos/core.git
+            git init -q /tmp/seed-core && cd /tmp/seed-core && echo hi >README
+            git add README && git -c user.email=t@t -c user.name=t commit -q -m init
+            git push -q ~/repos/core.git HEAD:refs/heads/main 2>/dev/null
+            git --git-dir ~/repos/core.git symbolic-ref HEAD refs/heads/main
+            """
+            #expect(try await connection.exec(seed).exitCode == 0)
+            try await api.cloneProject("core", url: "dev@localhost:repos/core.git")
+            #expect(try await connection.exec("cat ~/projects/core/README").stdoutText == "hi\n")
+            #expect(try await api.list().projects.contains { $0.name == "core" })
+            await #expect(throws: HostError.projectExists) {
+                try await api.cloneProject("core", url: "dev@localhost:repos/core.git")
+            }
+        }
+    }
+
+    @Test func cloneFailureLeavesNothing() async throws {
+        try await withAPI { connection, api in
+            do {
+                try await api.cloneProject("gone", url: "https://127.0.0.1:1/nothing.git")
+                Issue.record("clone succeeded")
+            } catch let HostError.failed(code, stderr) {
+                #expect(code == 1)
+                #expect(stderr.contains("fatal"))
+            }
+            #expect(try await connection.exec("ls -A ~/projects").stdoutText.split(separator: "\n").sorted() == ["README.md", "api", "my.app", "web"])
+        }
+    }
 }

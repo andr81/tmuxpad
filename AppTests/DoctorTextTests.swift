@@ -8,6 +8,7 @@ struct DoctorTextTests {
         #expect(doctorTitle("claude") == "claude в login PATH")
         #expect(doctorTitle("claude_name") == "claude поддерживает --name")
         #expect(doctorTitle("projects") == "Корень проектов")
+        #expect(doctorTitle("git") == "git для клонирования")
         #expect(doctorTitle("script") == "host-скрипт")
     }
 

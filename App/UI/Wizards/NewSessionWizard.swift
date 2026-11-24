@@ -10,6 +10,9 @@ struct NewSessionWizard: View {
     @State private var flow: NewSessionFlow
     @State private var path: [NewSessionFlow.Step] = []
     @State private var creating = false
+    /// Экран «Новый проект»; `nil`, пока его не открывали.
+    @State private var projectFlow: NewProjectFlow?
+    @State private var creatingProject = false
     @State private var errorMessage: String?
 
     init(target: NewSessionTarget, servers: [ServerConfig]) {
@@ -21,7 +24,8 @@ struct NewSessionWizard: View {
             step(flow.steps[0])
                 .navigationDestination(for: NewSessionFlow.Step.self) { step($0) }
         }
-        .interactiveDismissDisabled(creating)
+        // клон идёт минуты: закрытый свайпом лист оставил бы его без ответа
+        .interactiveDismissDisabled(creating || creatingProject)
         .errorAlert(message: $errorMessage)
     }
 
@@ -43,6 +47,33 @@ struct NewSessionWizard: View {
                 ) { name in
                     flow.selectProject(name)
                     advance(from: .project)
+                } newProject: {
+                    openNewProject()
+                }
+            case .newProject:
+                if let projectFlow {
+                    NewProjectStep(
+                        flow: projectFlow,
+                        snapshot: snapshot,
+                        unavailable: unavailable,
+                        creating: creatingProject,
+                        mode: Binding(get: { self.projectFlow?.mode ?? .clone }, set: { self.projectFlow?.selectMode($0) }),
+                        url: Binding(get: { self.projectFlow?.url ?? "" }, set: { self.projectFlow?.editURL($0) }),
+                        name: Binding(get: { self.projectFlow?.name ?? "" }, set: { self.projectFlow?.editName($0) }),
+                        submit: createProject
+                    )
+                    // ответ сервера относится к отправленным имени и адресу
+                    .disabled(creatingProject)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            if creatingProject {
+                                ProgressView()
+                            } else {
+                                Button("Создать", action: createProject)
+                                    .disabled(!canCreateProject)
+                            }
+                        }
+                    }
                 }
             case .name:
                 NameStep(
@@ -68,12 +99,12 @@ struct NewSessionWizard: View {
             }
         }
         // назад во время `new` нельзя: ответ относится к отправленным серверу, проекту и имени
-        .navigationBarBackButtonHidden(creating)
+        .navigationBarBackButtonHidden(creating || creatingProject)
         .toolbar {
             if step == flow.steps[0] {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Отмена") { dismiss() }
-                        .disabled(creating)
+                        .disabled(creating || creatingProject)
                 }
             }
         }
@@ -94,6 +125,48 @@ struct NewSessionWizard: View {
 
     private var canCreate: Bool {
         unavailable == nil && flow.canCreate(snapshot: snapshot)
+    }
+
+    private var canCreateProject: Bool {
+        unavailable == nil && projectFlow?.canCreate(snapshot: snapshot) == true
+    }
+
+    /// Каждый раз с чистого экрана: прошлый ввод мог относиться к другому серверу.
+    private func openNewProject() {
+        guard let serverID = flow.serverID else {
+            return
+        }
+        projectFlow = NewProjectFlow(serverID: serverID)
+        path.append(.newProject)
+    }
+
+    /// Успех — проект выбран, экран нового проекта сменяется шагом имени (§3.3).
+    private func createProject() {
+        guard !creatingProject, canCreateProject, let request = projectFlow, let actions = env?.actions else {
+            return
+        }
+        creatingProject = true
+        Task {
+            let outcome = await request.create(using: actions)
+            creatingProject = false
+            projectFlow?.apply(outcome, of: request)
+            switch outcome {
+            case let .created(name):
+                // мастер успели переключить на другой сервер — проект не его
+                guard flow.serverID == request.serverID else {
+                    return
+                }
+                flow.selectProject(name)
+                if path.last == .newProject {
+                    path.removeLast()
+                }
+                advance(from: .project)
+            case let .failed(message):
+                errorMessage = message
+            case .exists, .invalid:
+                break
+            }
+        }
     }
 
     private func advance(from step: NewSessionFlow.Step) {

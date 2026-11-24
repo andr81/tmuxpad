@@ -69,6 +69,21 @@ final class SessionActions {
         openSessions.open(key)
     }
 
+    /// Новый проект (§3.3): `clone`, если есть адрес, иначе `mkproject`; затем перечитывание
+    /// дерева, чтобы проект был в снимке к шагу имени. Папка уже есть — `HostError.projectExists`.
+    func createProject(serverID: UUID, name: String, cloneURL: String?) async throws {
+        guard let config = servers.server(id: serverID) else {
+            throw AppError.serverMissing
+        }
+        let api = try await api(for: config)
+        if let cloneURL {
+            try await api.cloneProject(name, url: cloneURL)
+        } else {
+            try await api.createProject(name)
+        }
+        await tree.refreshAfterAction(serverID: serverID)
+    }
+
     /// «Создать заново» над терминалом: `new` с тем же именем и проектом (сессию уже создали
     /// заново — не ошибка), перечитывание дерева и новый `attach`.
     func recreate(_ terminal: OpenTerminal) async throws {

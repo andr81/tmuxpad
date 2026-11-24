@@ -4,7 +4,7 @@ FROM $BASE
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends openssh-server tmux bash coreutils ncurses-bin \
+	&& apt-get install -y --no-install-recommends openssh-server openssh-client git tmux bash coreutils ncurses-bin \
 	&& rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /bin/bash dev && mkdir -p /run/sshd

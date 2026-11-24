@@ -10,6 +10,8 @@ public enum HostError: Error, Equatable, Sendable, CustomStringConvertible {
     case sessionExists
     /// Код 4 у `attach`/`take`.
     case noSession
+    /// Код 5 у `mkproject`/`clone`: папка с этим именем уже есть.
+    case projectExists
     /// Код 2 у `list`.
     case projectsRootMissing
     case failed(code: Int, stderr: String)
@@ -30,6 +32,8 @@ public enum HostError: Error, Equatable, Sendable, CustomStringConvertible {
             return .sessionExists
         case 4:
             return .noSession
+        case 5:
+            return .projectExists
         default:
             return .failed(code: exitCode, stderr: message)
         }
@@ -45,6 +49,8 @@ public enum HostError: Error, Equatable, Sendable, CustomStringConvertible {
             "A session with this name already exists."
         case .noSession:
             "The session no longer exists."
+        case .projectExists:
+            "A project with this name already exists."
         case .projectsRootMissing:
             "The projects folder does not exist on the server."
         case let .failed(code, stderr):

@@ -13,12 +13,14 @@
 #   take NAME        attach and detach every other client
 #   copy-cancel NAME leave tmux copy-mode before typing
 #   kill NAME        end a session (DESTRUCTIVE: everything in it dies)
+#   mkproject PROJECT an empty project folder
+#   clone PROJECT URL git clone a repository into a new project folder
 #   setup            host preparation; idempotent
 #   doctor           check the host, TSV `ok|warn|fail KEY MESSAGE`
 #   auth             store the agent's OAuth token from stdin
 set -u
 
-VERSION=2
+VERSION=3
 
 STATE=$HOME/.tmuxpad
 PROJECTS=${TMUXPAD_PROJECTS:-$HOME/projects}
@@ -40,6 +42,15 @@ fi
 
 valid_name() { [[ $1 =~ ^[A-Za-z0-9_-]{1,64}$ ]]; }
 valid_project() { [[ $1 =~ ^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$ ]]; }
+# network git URLs only: no file://, no local paths, no ext::, no password, no
+# leading `-`; the same rules as Validation.isValidRepositoryURL in the app
+valid_url() {
+	local u=$1
+	((${#u} <= 2048)) && [[ $u =~ ^[A-Za-z0-9._~:/@%+=-]+$ ]] || return 1
+	[[ $u =~ ^(https?|ssh|git)://[^/]+(/.*)?$ || $u =~ ^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:.+$ ]] || return 1
+	# user:password@ in the authority
+	[[ ! $u =~ ^[a-z]+://[^/@]*:[^/@]*@ ]]
+}
 need_client() { [[ -n $CLIENT ]] || die "TMUXPAD_CLIENT is required" 2; }
 
 # the agent gets -n/--session-id/--resume only when the command is claude itself
@@ -106,6 +117,12 @@ doctor() {
 		report ok projects "$n projects in $PROJECTS"
 	else
 		report fail projects "$PROJECTS is not a directory"
+	fi
+
+	if command -v git >/dev/null 2>&1; then
+		report ok git "$(git --version 2>/dev/null)"
+	else
+		report warn git "git not found, cloning projects is unavailable"
 	fi
 
 	report ok script "tmuxpad-host $VERSION"
@@ -288,6 +305,51 @@ new() {
 	fi
 }
 
+# ---------------------------------------------------------------- mkproject, clone
+
+mkproject() {
+	local project=${1:-}
+	valid_project "$project" || die "bad project name: $project" 2
+	[[ -d $PROJECTS ]] || die "$PROJECTS is not a directory, run setup" 2
+	# no -p: mkdir itself is the atomic "already there" check
+	[[ -e $PROJECTS/$project || -L $PROJECTS/$project ]] && die "project $project exists" 5
+	if ! mkdir -- "$PROJECTS/$project" 2>/dev/null; then
+		[[ -e $PROJECTS/$project ]] && die "project $project exists" 5
+		die "cannot create $PROJECTS/$project" 1
+	fi
+}
+
+CLONE_TMP=''
+clone_cleanup() { [[ -z $CLONE_TMP ]] || rm -rf -- "$CLONE_TMP"; }
+
+# clone PROJECT URL - into a temporary dot folder list does not see, renamed
+# into place only on success; nothing may ask a question, there is no terminal
+clone() {
+	local project=${1:-} url=${2:-} dir
+	valid_project "$project" || die "bad project name: $project" 2
+	valid_url "$url" || die "bad repository URL" 2
+	[[ -d $PROJECTS ]] || die "$PROJECTS is not a directory, run setup" 2
+	dir=$PROJECTS/$project
+	[[ -e $dir || -L $dir ]] && die "project $project exists" 5
+	command -v git >/dev/null 2>&1 || die "git not found" 2
+	# a channel the app closed must not leave the temporary folder behind
+	trap '' PIPE
+	trap clone_cleanup EXIT
+	CLONE_TMP=$(mktemp -d "$PROJECTS/.tmuxpad-clone.XXXXXX") || die "cannot create a folder in $PROJECTS" 1
+	export GIT_TERMINAL_PROMPT=0 GIT_ALLOW_PROTOCOL=https:http:ssh:git
+	# the user's own ssh command (a key, a proxy) wins; ours only refuses to ask
+	if [[ -z ${GIT_SSH_COMMAND:-} && -z ${GIT_SSH:-} && -z $(git config --get core.sshCommand 2>/dev/null) ]]; then
+		export GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new'
+	fi
+	if ! git clone --quiet -- "$url" "$CLONE_TMP/repo" </dev/null >/dev/null 2>"$CLONE_TMP/err"; then
+		tail -c 400 "$CLONE_TMP/err" >&2
+		exit 1
+	fi
+	# a parallel mkproject or clone with the same name got there first
+	[[ -e $dir || -L $dir ]] && die "project $project exists" 5
+	mv -T -- "$CLONE_TMP/repo" "$dir" || die "cannot move the clone to $dir" 1
+}
+
 # ---------------------------------------------------------------- attach, take, copy-cancel, kill
 
 # attach_impl NAME DETACH_ALL - the attach steps of §7. Only this device's
@@ -331,7 +393,7 @@ kill_session() {
 }
 
 usage() {
-	die "usage: ${0##*/} version | list | new NAME PROJECT | attach NAME | take NAME | copy-cancel NAME | kill NAME | setup | doctor | auth" 2
+	die "usage: ${0##*/} version | list | new NAME PROJECT | attach NAME | take NAME | copy-cancel NAME | kill NAME | mkproject PROJECT | clone PROJECT URL | setup | doctor | auth" 2
 }
 
 case ${1:-} in
@@ -345,5 +407,7 @@ attach) attach_impl "${2:-}" "" ;;
 take) attach_impl "${2:-}" 1 ;;
 copy-cancel) copy_cancel "${2:-}" ;;
 kill) kill_session "${2:-}" ;;
+mkproject) mkproject "${2:-}" ;;
+clone) clone "${2:-}" "${3:-}" ;;
 *) usage ;;
 esac

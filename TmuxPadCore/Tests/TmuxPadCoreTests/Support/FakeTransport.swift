@@ -78,6 +78,7 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
     struct Call: Equatable {
         var command: String
         var stdin: Data?
+        var timeout: Duration = .zero
     }
 
     private let lock = NSLock()
@@ -199,7 +200,7 @@ final class FakeConnection: SSHConnection, @unchecked Sendable {
 
     func exec(_ command: String, stdin: Data?, environment: [String: String], timeout: Duration) async throws -> ExecResult {
         let (delay, hang) = lock.withLock {
-            calls.append(Call(command: command, stdin: stdin))
+            calls.append(Call(command: command, stdin: stdin, timeout: timeout))
             events.append("exec " + command)
             inFlight += 1
             peakInFlight = max(peakInFlight, inFlight)

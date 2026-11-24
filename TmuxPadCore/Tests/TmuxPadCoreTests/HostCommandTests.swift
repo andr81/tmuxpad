@@ -71,6 +71,28 @@ import Testing
         }
     }
 
+    @Test func projectCommands() throws {
+        let tail = { (command: HostCommand) throws -> String in
+            try command.render(env: env).components(separatedBy: "tmuxpad-host.sh ").last!
+        }
+        #expect(try tail(.mkproject(project: "my.app")) == "mkproject 'my.app'")
+        #expect(try tail(.clone(project: "demo", url: "git@github.com:a/demo.git")) == "clone 'demo' 'git@github.com:a/demo.git'")
+        #expect(throws: HostError.badRequest("invalid project name: ../x")) {
+            try HostCommand.mkproject(project: "../x").render(env: env)
+        }
+        #expect(throws: HostError.badRequest("invalid repository URL")) {
+            try HostCommand.clone(project: "demo", url: "file:///srv/a.git").render(env: env)
+        }
+        #expect(throws: HostError.badRequest("invalid project name: .x")) {
+            try HostCommand.clone(project: ".x", url: "https://example.com/a.git").render(env: env)
+        }
+    }
+
+    @Test func cloneLogLabelHasNoURL() {
+        #expect(HostCommand.clone(project: "demo", url: "https://example.com/secret-path.git").logLabel == "clone demo")
+        #expect(HostCommand.new(session: "a", project: "b").logLabel == "new a b")
+    }
+
     @Test func installHasNoEnvPrefix() throws {
         #expect(try HostCommand.install(bytes: 42).render(env: env) ==
             "mkdir -p ~/.local/bin && cat > ~/.local/bin/.tmuxpad-host.sh.tmp"

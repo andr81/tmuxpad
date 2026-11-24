@@ -25,6 +25,10 @@ public enum HostCommand: Sendable, Hashable {
     case take(session: String)
     case copyCancel(session: String)
     case kill(session: String)
+    /// Пустая папка проекта.
+    case mkproject(project: String)
+    /// `git clone` адреса в новую папку проекта.
+    case clone(project: String, url: String)
     case setup
     case doctor
     /// Токен — только через stdin.
@@ -51,6 +55,8 @@ public enum HostCommand: Sendable, Hashable {
         case .take: "take"
         case .copyCancel: "copy-cancel"
         case .kill: "kill"
+        case .mkproject: "mkproject"
+        case .clone: "clone"
         case .setup: "setup"
         case .doctor: "doctor"
         case .auth: "auth"
@@ -88,13 +94,37 @@ public enum HostCommand: Sendable, Hashable {
             return []
         case let .new(session, project):
             try Self.checkSession(session)
-            guard Validation.isValidProjectName(project) else {
-                throw HostError.badRequest("invalid project name: \(project)")
-            }
+            try Self.checkProject(project)
             return [session, project]
         case let .attach(session), let .take(session), let .copyCancel(session), let .kill(session):
             try Self.checkSession(session)
             return [session]
+        case let .mkproject(project):
+            try Self.checkProject(project)
+            return [project]
+        case let .clone(project, url):
+            try Self.checkProject(project)
+            guard Validation.isValidRepositoryURL(url) else {
+                throw HostError.badRequest("invalid repository URL")
+            }
+            return [project, url]
+        }
+    }
+
+    /// Подкоманда и аргументы для журнала: адрес репозитория туда не попадает (§7).
+    var logLabel: String {
+        let args: [String]
+        if case let .clone(project, _) = self {
+            args = [project]
+        } else {
+            args = (try? arguments()) ?? []
+        }
+        return ([name] + args).joined(separator: " ")
+    }
+
+    private static func checkProject(_ project: String) throws {
+        guard Validation.isValidProjectName(project) else {
+            throw HostError.badRequest("invalid project name: \(project)")
         }
     }
 

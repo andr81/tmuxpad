@@ -20,6 +20,7 @@ func userText(_ error: Error) -> String {
         case let .badRequest(message): message.isEmpty ? "Сервер отклонил запрос" : "Сервер отклонил запрос: \(message)"
         case .sessionExists: "Сессия с таким именем уже есть"
         case .noSession: "Сессии больше нет"
+        case .projectExists: "Проект с таким именем уже есть"
         case .projectsRootMissing: "Папки проектов нет на сервере"
         case let .failed(code, stderr):
             stderr.isEmpty ? "Команда завершилась с кодом \(code)" : "Команда завершилась с кодом \(code): \(stderr)"

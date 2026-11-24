@@ -8,6 +8,7 @@ func doctorTitle(_ key: String) -> String {
     case "claude": "claude в login PATH"
     case "claude_name": "claude поддерживает --name"
     case "projects": "Корень проектов"
+    case "git": "git для клонирования"
     case "script": "host-скрипт"
     default: key
     }

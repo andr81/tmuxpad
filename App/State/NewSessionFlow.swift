@@ -7,6 +7,8 @@ struct NewSessionFlow: Equatable {
         case server
         case project
         case name
+        /// Экран «Новый проект» поверх шага проекта; в `steps` не входит.
+        case newProject
     }
 
     enum NameIssue: Equatable {

@@ -9,7 +9,7 @@ struct ErrorTextTests {
         SSHError.hostKeyChanged(expected: "SHA256:a", actual: "SHA256:b"),
         SSHError.channelRefused, SSHError.timeout, SSHError.disconnected,
         HostError.scriptMissing, HostError.badRequest("bad name"), HostError.badRequest(""),
-        HostError.sessionExists, HostError.noSession, HostError.projectsRootMissing,
+        HostError.sessionExists, HostError.noSession, HostError.projectExists, HostError.projectsRootMissing,
         HostError.failed(code: 1, stderr: "boom"), HostError.failed(code: 1, stderr: ""),
         HostError.badOutput("V 9"),
         KeyError.invalidKey("x"),

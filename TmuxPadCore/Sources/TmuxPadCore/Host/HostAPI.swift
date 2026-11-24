@@ -9,6 +9,8 @@ public protocol ExecRunner: Sendable {
 /// разбор вывода, событие в журнал.
 public struct HostAPI: Sendable {
     public static let defaultTimeout: Duration = .seconds(20)
+    /// Сколько ждать `clone` (§7): большой репозиторий качается минуты.
+    public static let cloneTimeout: Duration = .seconds(600)
     /// Столько символов stderr попадает в ошибку.
     static let stderrLimit = 500
 
@@ -35,8 +37,8 @@ public struct HostAPI: Sendable {
 
     /// Выполняет команду; ненулевой код → `HostError`.
     @discardableResult
-    public func run(_ command: HostCommand, stdin: Data? = nil) async throws -> ExecResult {
-        let result = try await execute(command, stdin: stdin)
+    public func run(_ command: HostCommand, stdin: Data? = nil, timeout: Duration? = nil) async throws -> ExecResult {
+        let result = try await execute(command, stdin: stdin, timeout: timeout)
         guard result.exitCode == 0 else {
             throw HostError.from(command: command, exitCode: result.exitCode, stderr: String(result.stderrText.prefix(Self.stderrLimit)))
         }
@@ -44,13 +46,13 @@ public struct HostAPI: Sendable {
     }
 
     /// Выполняет команду и возвращает результат с любым кодом выхода.
-    func execute(_ command: HostCommand, stdin: Data? = nil) async throws -> ExecResult {
+    func execute(_ command: HostCommand, stdin: Data? = nil, timeout: Duration? = nil) async throws -> ExecResult {
         let line = try command.render(env: environment)
-        // в журнал — подкоманда и имена, без значений переменных окружения
-        let label = ([command.name] + ((try? command.arguments()) ?? [])).joined(separator: " ")
+        // в журнал — подкоманда и имена, без значений переменных окружения и адреса репозитория
+        let label = command.logLabel
         let result: ExecResult
         do {
-            result = try await runner.exec(line, stdin: stdin, timeout: timeout)
+            result = try await runner.exec(line, stdin: stdin, timeout: timeout ?? self.timeout)
         } catch {
             await log?.record(server: server, kind: .error, "\(label) failed: \(error)")
             throw error
@@ -75,6 +77,17 @@ public struct HostAPI: Sendable {
 
     public func new(session: String, project: String) async throws {
         try await run(.new(session: session, project: project))
+    }
+
+    /// Пустая папка проекта; уже есть — `HostError.projectExists`.
+    public func createProject(_ project: String) async throws {
+        try await run(.mkproject(project: project))
+    }
+
+    /// `git clone` в новую папку проекта, ждёт до `cloneTimeout`; уже есть —
+    /// `HostError.projectExists`, ошибка git — `HostError.failed` с текстом git.
+    public func cloneProject(_ project: String, url: String) async throws {
+        try await run(.clone(project: project, url: url), timeout: Self.cloneTimeout)
     }
 
     public func kill(session: String) async throws {

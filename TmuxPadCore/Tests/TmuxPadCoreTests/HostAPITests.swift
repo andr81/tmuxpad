@@ -124,6 +124,41 @@ import Testing
         #expect(!event.message.contains("0f8e4c2a"))
     }
 
+    @Test func createProject() async throws {
+        let connection = FakeConnection()
+        try await api(connection).createProject("demo")
+        #expect(connection.execCalls.map(\.command).first?.hasSuffix("tmuxpad-host.sh mkproject 'demo'") == true)
+        #expect(connection.execCalls.first?.timeout == HostAPI.defaultTimeout)
+        connection.respond(containing: " mkproject ", exitCode: 5, stderr: "project demo exists\n")
+        await #expect(throws: HostError.projectExists) {
+            try await api(connection).createProject("demo")
+        }
+    }
+
+    @Test func cloneWaitsLongAndKeepsURLOutOfJournal() async throws {
+        let connection = FakeConnection()
+        let log = DiagnosticsLog()
+        try await api(connection, log: log).cloneProject("demo", url: "https://example.com/a/demo.git")
+        let call = try #require(connection.execCalls.first)
+        #expect(call.command.hasSuffix("tmuxpad-host.sh clone 'demo' 'https://example.com/a/demo.git'"))
+        #expect(call.timeout == HostAPI.cloneTimeout)
+        let event = try #require(await log.events().first)
+        #expect(event.message.hasPrefix("clone demo exit 0"))
+        #expect(!event.message.contains("example.com"))
+    }
+
+    @Test func cloneFailureCarriesGitText() async throws {
+        let connection = FakeConnection()
+        connection.respond(containing: " clone ", exitCode: 1, stderr: "fatal: repository not found\n")
+        await #expect(throws: HostError.failed(code: 1, stderr: "fatal: repository not found")) {
+            try await api(connection).cloneProject("demo", url: "https://example.com/a/demo.git")
+        }
+        await #expect(throws: HostError.badRequest("invalid repository URL")) {
+            try await api(connection).cloneProject("demo", url: "ext::sh")
+        }
+        #expect(connection.execCount(containing: "ext::") == 0)
+    }
+
     @Test func ptyCommands() throws {
         let api = api(FakeConnection())
         #expect(try api.attachCommand(session: "api").hasSuffix("tmuxpad-host.sh attach 'api'"))

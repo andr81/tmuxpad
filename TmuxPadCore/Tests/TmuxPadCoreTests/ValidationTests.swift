@@ -71,6 +71,43 @@ import Testing
         #expect(Validation.isValidSessionName(Validation.suggestedSessionName(from: project)))
     }
 
+    @Test(arguments: [
+        "https://github.com/andr81/tmuxpad.git", "https://github.com/a/b", "http://10.0.0.1:8080/a/b.git",
+        "ssh://git@github.com:22/a/b.git", "git://example.com/a.git", "git@github.com:a/b.git",
+        "dev@localhost:/srv/repo.git", "https://user@example.com/a.git", "https://example.com/a%20b.git",
+        "https://example.com/~u/r+x=y.git",
+    ])
+    func validRepositoryURLs(url: String) {
+        #expect(Validation.isValidRepositoryURL(url))
+    }
+
+    @Test(arguments: [
+        "", "file:///srv/a.git", "/srv/a.git", "repos/a.git", "ext::sh -c touch% x", "ext::ssh://x",
+        "-uhack", "--upload-pack=touch", "https://user:secret@example.com/a.git", "https://example.com/a'b.git",
+        "https://example.com/a b.git", "ftp://example.com/a.git", "https://", "dev@localhost:",
+        "https://example.com/a\nb", "https://example.com/" + String(repeating: "a", count: 2048),
+    ])
+    func invalidRepositoryURLs(url: String) {
+        #expect(!Validation.isValidRepositoryURL(url))
+    }
+
+    @Test(arguments: [
+        ("https://github.com/andr81/tmuxpad.git", "tmuxpad"),
+        ("https://github.com/a/my.app.git/", "my.app"),
+        ("git@github.com:a/b-c_d.git", "b-c_d"),
+        ("git@github.com:repo", "repo"),
+        ("https://example.com/a/b%20c", "b-20c"),
+        ("https://example.com/a/.dotfiles.git", "dotfiles"),
+        ("https://example.com/a/---x", "x"),
+        ("https://example.com/", "example.com"),
+        ("https://example.com/a/.git", "a"),
+        ("", ""),
+        ("https://example.com/a/" + String(repeating: "x", count: 200), String(repeating: "x", count: 128)),
+    ])
+    func suggestedProjectNames(url: String, expected: String) {
+        #expect(Validation.suggestedProjectName(fromRepositoryURL: url) == expected)
+    }
+
     @Test func validConfigHasNoIssues() {
         let config = ServerConfig(label: "dev", host: "example.com", user: "dev", keyID: UUID())
         #expect(config.validationIssues().isEmpty)
